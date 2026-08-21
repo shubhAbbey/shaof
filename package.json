@@ -8,6 +8,11 @@
     "packages/*"
   ],
   "scripts": {
+    "infra:up": "docker compose -f infrastructure/docker/docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f infrastructure/docker/docker-compose.dev.yml down",
+    "infra:logs": "docker compose -f infrastructure/docker/docker-compose.dev.yml logs -f",
+    "infra:status": "docker compose -f infrastructure/docker/docker-compose.dev.yml ps",
+    "infra:verify": "node infrastructure/scripts/verify-infra.mjs",
     "dev:storefront": "npm run dev --workspace=apps/storefront",
     "dev:backend": "npm run dev --workspace=apps/backend",
     "dev:cms": "npm run dev --workspace=apps/cms",
