@@ -7,9 +7,17 @@ import type {
   OrderPaymentStatus,
 } from '@ecom/types';
 
+/**
+ * OrderEngine
+ *
+ * Pure helper utility for computing and deriving order summary DTOs.
+ * Medusa's native Order module, cart workflows, and database tables
+ * remain the sole authoritative commerce and financial source of truth.
+ */
 export class OrderEngine {
   /**
-   * Computes exact order financial summaries from items, adjustments, and shipping
+   * Computes order financial summary DTOs from items, adjustments, and shipping.
+   * This is a non-authoritative calculation helper for DTO construction / preview.
    */
   static computeOrderSummary(
     items: OrderLineItemDto[],

@@ -5,6 +5,13 @@ import type {
   ShippingOptionDto,
 } from '@ecom/types';
 
+/**
+ * FulfillmentEngine
+ *
+ * Pre-flight validation and calculation helper for fulfillment workflows.
+ * Medusa's native fulfillment module, shipping provider workflows, and database tables
+ * remain the authoritative source of truth for all fulfillment states.
+ */
 export class FulfillmentEngine {
   private static readonly VALID_TRANSITIONS: Record<FulfillmentStatus, FulfillmentStatus[]> = {
     not_fulfilled: ['partially_fulfilled', 'fulfilled', 'canceled'],

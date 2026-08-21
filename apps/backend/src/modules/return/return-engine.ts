@@ -7,6 +7,14 @@ import type {
   RefundDetailsDto,
 } from '@ecom/types';
 
+/**
+ * ReturnEngine
+ *
+ * Pre-flight validation helper for return requests and custom orchestration
+ * for Cash on Delivery (COD) payout disbursement records (UPI / Bank Transfer / Store Credit).
+ * Medusa's native Return & Refund modules, tables, and workflows remain authoritative
+ * for the core commerce return and refund lifecycle.
+ */
 export class ReturnEngine {
   /**
    * Validates a return request payload against an order's items and previous returns

@@ -5,6 +5,13 @@ import type {
   PromotionRuleDto,
 } from '@ecom/types';
 
+/**
+ * PromotionEngine
+ *
+ * In-memory helper and validation utility for promotion rules and discount previews.
+ * Medusa's native Promotion module, campaign models, and cart/order workflows
+ * remain the sole authoritative source of truth for pricing and discounts.
+ */
 export class PromotionEngine {
   /**
    * Evaluates whether a promotion is active given current time and status

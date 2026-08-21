@@ -9,7 +9,7 @@
     "strapi": "strapi",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/cms: lint ok\"",
-    "test": "echo \"@ecom/cms: test ok\""
+    "test": "tsc && node --test dist/src/cms-foundation.test.js"
   },
   "dependencies": {
     "@ecom/config": "*",
@@ -18,7 +18,9 @@
     "@strapi/strapi": "^5.52.1",
     "pg": "^8.13.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "styled-components": "^6.5.3"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
