@@ -1,0 +1,28 @@
+{
+  "collectionName": "components_elements_category_items",
+  "info": {
+    "displayName": "Category Item",
+    "icon": "tag",
+    "description": "Category item with Medusa category handle reference"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "categoryHandle": {
+      "type": "string",
+      "required": true
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "link": {
+      "type": "string"
+    }
+  }
+}

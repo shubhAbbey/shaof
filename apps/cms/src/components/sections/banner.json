@@ -1,0 +1,36 @@
+{
+  "collectionName": "components_sections_banners",
+  "info": {
+    "displayName": "Banner Section",
+    "icon": "landscape",
+    "description": "Promotional or informational banner"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "badgeText": {
+      "type": "string"
+    },
+    "media": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "mobileMedia": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "ctaLink": {
+      "type": "string"
+    }
+  }
+}

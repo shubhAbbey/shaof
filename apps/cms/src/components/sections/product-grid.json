@@ -1,0 +1,35 @@
+{
+  "collectionName": "components_sections_product_grids",
+  "info": {
+    "displayName": "Product Grid",
+    "icon": "apps",
+    "description": "Product grid section referencing collection or category handles"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "collectionHandle": {
+      "type": "string"
+    },
+    "categoryHandle": {
+      "type": "string"
+    },
+    "productHandles": {
+      "type": "json"
+    },
+    "columns": {
+      "type": "integer",
+      "default": 4
+    },
+    "limit": {
+      "type": "integer",
+      "default": 12
+    }
+  }
+}

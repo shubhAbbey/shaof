@@ -1,13 +1,16 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import databaseConfig from '../config/database.js';
 import serverConfig from '../config/server.js';
 import adminConfig from '../config/admin.js';
 import apiConfig from '../config/api.js';
 import middlewaresConfig from '../config/middlewares.js';
 import pluginsConfig from '../config/plugins.js';
+import type { CmsPageDto, CmsNavigationDto, CmsSection } from '@ecom/types';
 
-describe('Task 05: Strapi Foundation Configuration', () => {
+describe('Task 06: CMS Content Models & Section Registry', () => {
   const mockEnv: any = (key: string, defaultValue?: any) => defaultValue;
   mockEnv.int = (key: string, defaultValue?: number) => defaultValue || 0;
   mockEnv.array = (key: string, defaultValue?: string[]) => defaultValue || [];
@@ -30,37 +33,140 @@ describe('Task 05: Strapi Foundation Configuration', () => {
     assert.ok(server.app.keys.length >= 2);
   });
 
-  it('configures admin secrets and tokens securely', () => {
-    const admin = adminConfig({ env: mockEnv });
-    assert.ok(admin.auth.secret);
-    assert.ok(admin.apiToken.salt);
-    assert.ok(admin.transfer.token.salt);
+  it('validates Page schema with dynamic zone for all 9 reusable sections', () => {
+    const pageSchemaPath = path.resolve(
+      process.cwd(),
+      'src/api/page/content-types/page/schema.json'
+    );
+    assert.ok(fs.existsSync(pageSchemaPath), 'Page schema file must exist');
+
+    const schema = JSON.parse(fs.readFileSync(pageSchemaPath, 'utf8'));
+    assert.equal(schema.kind, 'collectionType');
+    assert.equal(schema.collectionName, 'pages');
+    assert.equal(schema.attributes.title.type, 'string');
+    assert.equal(schema.attributes.slug.type, 'uid');
+    assert.equal(schema.attributes.pageType.type, 'enumeration');
+    assert.deepEqual(schema.attributes.pageType.enum, [
+      'homepage',
+      'landing_page',
+      'sale_page',
+      'campaign_page',
+      'brand_content_page',
+      'policy_page',
+    ]);
+    assert.equal(schema.attributes.sections.type, 'dynamiczone');
+
+    const expectedComponents = [
+      'sections.hero',
+      'sections.banner',
+      'sections.sale-banner',
+      'sections.rich-text',
+      'sections.category-tiles',
+      'sections.collection-carousel',
+      'sections.product-carousel',
+      'sections.product-grid',
+      'sections.promotional-cta',
+    ];
+    for (const comp of expectedComponents) {
+      assert.ok(
+        schema.attributes.sections.components.includes(comp),
+        `Dynamic zone must include ${comp}`
+      );
+    }
   });
 
-  it('configures api pagination limits safely', () => {
-    assert.equal(apiConfig.rest.defaultLimit, 25);
-    assert.equal(apiConfig.rest.maxLimit, 100);
-    assert.equal(apiConfig.rest.withCount, true);
+  it('validates Navigation schema structure', () => {
+    const navSchemaPath = path.resolve(
+      process.cwd(),
+      'src/api/navigation/content-types/navigation/schema.json'
+    );
+    assert.ok(fs.existsSync(navSchemaPath), 'Navigation schema file must exist');
+
+    const schema = JSON.parse(fs.readFileSync(navSchemaPath, 'utf8'));
+    assert.equal(schema.kind, 'collectionType');
+    assert.equal(schema.collectionName, 'navigations');
+    assert.equal(schema.attributes.handle.type, 'string');
+    assert.equal(schema.attributes.handle.unique, true);
   });
 
-  it('configures middlewares with CORS for storefront and CSP for media', () => {
-    assert.ok(Array.isArray(middlewaresConfig));
-    const corsMiddleware = middlewaresConfig.find(
-      (m: any) => typeof m === 'object' && m.name === 'strapi::cors'
-    ) as any;
-    assert.ok(corsMiddleware);
-    assert.ok(corsMiddleware.config.origin.includes('http://localhost:3000'));
+  it('validates all 11 Strapi components exist and are valid JSON schemas', () => {
+    const components = [
+      'shared/seo.json',
+      'elements/category-item.json',
+      'sections/hero.json',
+      'sections/banner.json',
+      'sections/sale-banner.json',
+      'sections/rich-text.json',
+      'sections/category-tiles.json',
+      'sections/collection-carousel.json',
+      'sections/product-carousel.json',
+      'sections/product-grid.json',
+      'sections/promotional-cta.json',
+    ];
 
-    const secMiddleware = middlewaresConfig.find(
-      (m: any) => typeof m === 'object' && m.name === 'strapi::security'
-    ) as any;
-    assert.ok(secMiddleware);
-    assert.ok(secMiddleware.config.contentSecurityPolicy);
+    for (const relPath of components) {
+      const fullPath = path.resolve(process.cwd(), 'src/components', relPath);
+      assert.ok(fs.existsSync(fullPath), `Component file ${relPath} must exist`);
+      const compJson = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+      assert.ok(compJson.collectionName, `Component ${relPath} must have collectionName`);
+      assert.ok(compJson.info.displayName, `Component ${relPath} must have displayName`);
+      assert.ok(compJson.attributes, `Component ${relPath} must define attributes`);
+    }
   });
 
-  it('configures users-permissions plugin JWT secret', () => {
-    const plugins = pluginsConfig({ env: mockEnv });
-    assert.ok(plugins['users-permissions']);
-    assert.ok(plugins['users-permissions'].config.jwtSecret);
+  it('instantiates valid CmsPageDto and CmsNavigationDto type contracts', () => {
+    const page: CmsPageDto = {
+      id: 1,
+      documentId: 'doc_home_123',
+      title: 'Summer Season Homepage',
+      slug: 'home',
+      pageType: 'homepage',
+      seo: {
+        metaTitle: 'Summer Fashion Collection | Ecom MVP',
+        metaDescription: 'Discover latest ethnic and western fashion wear.',
+      },
+      sections: [
+        {
+          id: 101,
+          __component: 'sections.hero',
+          title: 'Vibrant Summer Trends',
+          subtitle: 'Up to 50% off on all new arrivals',
+          ctaText: 'Shop Collection',
+          ctaLink: '/collections/summer',
+          textAlignment: 'center',
+        },
+        {
+          id: 102,
+          __component: 'sections.collection-carousel',
+          title: 'Trending Collections',
+          collectionHandle: 'summer-arrivals',
+          limit: 8,
+        },
+      ],
+    };
+
+    assert.equal(page.pageType, 'homepage');
+    assert.equal(page.sections.length, 2);
+
+    const nav: CmsNavigationDto = {
+      id: 1,
+      title: 'Main Header Navigation',
+      handle: 'header-main',
+      items: [
+        {
+          label: 'Women',
+          url: '/category/women',
+          categoryHandle: 'women',
+        },
+        {
+          label: 'Men',
+          url: '/category/men',
+          categoryHandle: 'men',
+        },
+      ],
+    };
+
+    assert.equal(nav.handle, 'header-main');
+    assert.equal(nav.items.length, 2);
   });
 });

@@ -1,0 +1,27 @@
+{
+  "collectionName": "components_sections_category_tiles",
+  "info": {
+    "displayName": "Category Tiles",
+    "icon": "grid",
+    "description": "Category navigation tiles referencing Medusa category handles"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "layout": {
+      "type": "enumeration",
+      "enum": ["grid", "carousel", "tiles"],
+      "default": "grid"
+    },
+    "items": {
+      "type": "component",
+      "repeatable": true,
+      "component": "elements.category-item"
+    }
+  }
+}

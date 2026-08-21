@@ -1,0 +1,60 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pages",
+  "info": {
+    "singularName": "page",
+    "pluralName": "pages",
+    "displayName": "Page",
+    "description": "Marketing, landing, homepage, sale, and campaign pages"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "pageType": {
+      "type": "enumeration",
+      "enum": [
+        "homepage",
+        "landing_page",
+        "sale_page",
+        "campaign_page",
+        "brand_content_page",
+        "policy_page"
+      ],
+      "required": true,
+      "default": "landing_page"
+    },
+    "description": {
+      "type": "text"
+    },
+    "seo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo"
+    },
+    "sections": {
+      "type": "dynamiczone",
+      "components": [
+        "sections.hero",
+        "sections.banner",
+        "sections.sale-banner",
+        "sections.rich-text",
+        "sections.category-tiles",
+        "sections.collection-carousel",
+        "sections.product-carousel",
+        "sections.product-grid",
+        "sections.promotional-cta"
+      ]
+    }
+  }
+}

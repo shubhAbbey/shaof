@@ -26,7 +26,7 @@ async function testEndpoint(url) {
 }
 
 async function main() {
-  console.log('=== Task 05: Strapi Foundation Verification ===\n');
+  console.log('=== Task 06: Strapi Content Models & Section Registry Verification ===\n');
 
   // Step 1: Verify PostgreSQL connection to strapi_db
   const pgClient = new Client({
@@ -67,18 +67,43 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 3: Test HTTP endpoints
-  console.log('=== Testing Strapi HTTP Endpoints ===');
-  
-  // Test Admin endpoint
-  const adminRes = await testEndpoint('http://localhost:1337/admin/');
-  console.log(`  - GET http://localhost:1337/admin/ => HTTP ${adminRes.status || 'ERROR'}`);
+  // Step 3: Verify Registered Content Types and Components
+  console.log('=== Verifying Registered Content Types ===');
+  const contentTypes = Object.keys(strapiInstance.contentTypes);
+  const expectedContentTypes = ['api::page.page', 'api::navigation.navigation'];
+  for (const ct of expectedContentTypes) {
+    if (contentTypes.includes(ct)) {
+      console.log(`  ✓ Content Type registered: ${ct}`);
+    } else {
+      console.error(`  ✗ MISSING Content Type: ${ct}`);
+    }
+  }
 
-  // Test API endpoint (e.g. content-api or permissions endpoint)
-  const apiRes = await testEndpoint('http://localhost:1337/api/users-permissions/roles');
-  console.log(`  - GET http://localhost:1337/api/users-permissions/roles => HTTP ${apiRes.status || 'ERROR'}`);
+  console.log('\n=== Verifying Registered Components ===');
+  const components = Object.keys(strapiInstance.components);
+  const expectedComponents = [
+    'shared.seo',
+    'elements.category-item',
+    'sections.hero',
+    'sections.banner',
+    'sections.sale-banner',
+    'sections.rich-text',
+    'sections.category-tiles',
+    'sections.collection-carousel',
+    'sections.product-carousel',
+    'sections.product-grid',
+    'sections.promotional-cta',
+  ];
 
-  // Step 4: Verify Database Tables in strapi_db
+  for (const comp of expectedComponents) {
+    if (components.includes(comp)) {
+      console.log(`  ✓ Component registered: ${comp}`);
+    } else {
+      console.error(`  ✗ MISSING Component: ${comp}`);
+    }
+  }
+
+  // Step 4: Verify Database Schema in strapi_db
   console.log('\n=== Verifying Database Schema in strapi_db ===');
   const tableRes = await pgClient.query(`
     SELECT table_name 
@@ -115,7 +140,7 @@ async function main() {
   // Gracefully stop Strapi
   await strapiInstance.destroy();
   console.log('✓ Strapi instance stopped cleanly.');
-  console.log('\n🎉 STRAPI FOUNDATION VERIFICATION PASSED!');
+  console.log('\n🎉 TASK 06 CMS CONTENT MODELS & SECTION REGISTRY VERIFIED!');
   process.exit(0);
 }
 

@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "strapi develop",
-    "start": "strapi start",
-    "build": "tsc",
+    "dev": "node scripts/copy-schemas.mjs && strapi develop",
+    "start": "node scripts/copy-schemas.mjs && strapi start",
+    "build": "tsc && node scripts/copy-schemas.mjs",
     "strapi": "strapi",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/cms: lint ok\"",
-    "test": "tsc && node --test dist/src/cms-foundation.test.js"
+    "test": "tsc && node scripts/copy-schemas.mjs && node --test dist/src/cms-foundation.test.js"
   },
   "dependencies": {
     "@ecom/config": "*",

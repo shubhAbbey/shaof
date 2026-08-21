@@ -1,0 +1,40 @@
+{
+  "collectionName": "components_sections_promotional_ctas",
+  "info": {
+    "displayName": "Promotional CTA",
+    "icon": "bullhorn",
+    "description": "Call-to-action block with badges, links, and media"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "badgeText": {
+      "type": "string"
+    },
+    "ctaText": {
+      "type": "string",
+      "required": true
+    },
+    "ctaLink": {
+      "type": "string",
+      "required": true
+    },
+    "image": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "layout": {
+      "type": "enumeration",
+      "enum": ["split", "centered", "card"],
+      "default": "split"
+    }
+  }
+}
