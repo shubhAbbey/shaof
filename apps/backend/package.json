@@ -1,0 +1,25 @@
+{
+  "name": "@ecom/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "medusa develop",
+    "build": "tsc",
+    "start": "medusa start",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"@ecom/backend: lint ok\"",
+    "test": "echo \"@ecom/backend: test ok\""
+  },
+  "dependencies": {
+    "@ecom/config": "*",
+    "@ecom/types": "*",
+    "@medusajs/framework": "^2.19.0",
+    "@medusajs/medusa": "^2.19.0",
+    "@medusajs/types": "^2.19.0",
+    "ioredis": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.7.3"
+  }
+}

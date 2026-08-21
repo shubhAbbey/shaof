@@ -1,0 +1,8 @@
+node_modules
+.next
+build
+dist
+.medusa
+.strapi
+coverage
+package-lock.json

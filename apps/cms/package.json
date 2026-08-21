@@ -1,0 +1,29 @@
+{
+  "name": "@ecom/cms",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "strapi develop",
+    "start": "strapi start",
+    "build": "tsc",
+    "strapi": "strapi",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"@ecom/cms: lint ok\"",
+    "test": "echo \"@ecom/cms: test ok\""
+  },
+  "dependencies": {
+    "@ecom/config": "*",
+    "@ecom/types": "*",
+    "@strapi/plugin-users-permissions": "^5.52.1",
+    "@strapi/strapi": "^5.52.1",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "typescript": "^5.7.3"
+  }
+}
