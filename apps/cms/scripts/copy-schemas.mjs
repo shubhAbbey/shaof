@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-function copyDirRecursive(srcDir, destDir) {
+export function copyDirRecursive(srcDir, destDir) {
   if (!fs.existsSync(srcDir)) return;
   fs.mkdirSync(destDir, { recursive: true });
   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
@@ -19,7 +19,9 @@ function copyDirRecursive(srcDir, destDir) {
   }
 }
 
-const cmsDir = path.resolve(process.cwd(), 'apps/cms');
+const cmsDir = fs.existsSync(path.join(process.cwd(), 'src'))
+  ? process.cwd()
+  : path.resolve(process.cwd(), 'apps/cms');
 const srcDir = path.join(cmsDir, 'src');
 const distSrcDir = path.join(cmsDir, 'dist', 'src');
 

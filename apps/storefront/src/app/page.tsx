@@ -100,7 +100,7 @@ export default function DesignSystemPreviewPage() {
             1. Typography & Badges
           </Heading>
           <Card>
-            <CardContent className="p-6 space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Heading level={1} size="xl">
@@ -142,7 +142,7 @@ export default function DesignSystemPreviewPage() {
             2. Button Primitives & Interactive States
           </Heading>
           <Card>
-            <CardContent className="p-6 space-y-6">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="primary">Primary Button</Button>
                 <Button variant="secondary">Secondary</Button>
@@ -172,7 +172,7 @@ export default function DesignSystemPreviewPage() {
             3. Form Inputs & Selection Controls
           </Heading>
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Input
                   label="Full Name"
@@ -227,9 +227,9 @@ export default function DesignSystemPreviewPage() {
             4. Tabs, Shimmer Skeletons & States
           </Heading>
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <Tabs defaultValue="products">
-                <TabsList className="mb-6">
+                <TabsList className="mb-6 max-w-full overflow-x-auto no-scrollbar">
                   <TabsTrigger value="products">Product Cards</TabsTrigger>
                   <TabsTrigger value="skeletons">Shimmer Skeletons</TabsTrigger>
                   <TabsTrigger value="empty">Empty State</TabsTrigger>

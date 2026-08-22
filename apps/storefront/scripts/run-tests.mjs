@@ -32,7 +32,17 @@ function constructMetadata({ title, description, image, canonicalUrl, noIndex = 
   };
 }
 
-describe('Task 07: Storefront Design System & Foundation', () => {
+const NAVIGATION_CATEGORIES = [
+  { id: 'women', handle: 'women', name: 'Women', href: '/category/women' },
+  { id: 'men', handle: 'men', name: 'Men', href: '/category/men' },
+  { id: 'curve-plus', handle: 'curve-plus', name: 'Curve + Plus', href: '/category/curve-plus' },
+  { id: 'kids', handle: 'kids', name: 'Kids', href: '/category/kids' },
+  { id: 'home-living', handle: 'home-living', name: 'Home & Living', href: '/category/home-living' },
+  { id: 'beauty', handle: 'beauty', name: 'Beauty', href: '/category/beauty' },
+  { id: 'sale', handle: 'sale', name: 'Sale', href: '/sale', badge: 'UP TO 70%' },
+];
+
+describe('Task 08: Storefront Header & Navigation Architecture', () => {
   describe('Utilities & Formatters', () => {
     it('cn merges tailwind and conditional classes cleanly', () => {
       const result = cn('bg-red-500', false && 'hidden', true && 'text-white', 'p-4');
@@ -50,6 +60,16 @@ describe('Task 07: Storefront Design System & Foundation', () => {
       const meta = constructMetadata({ title: 'Summer Collection' });
       assert.equal(meta.title, 'Summer Collection | Fashion Ecommerce MVP');
       assert.equal(meta.robots.index, true);
+    });
+  });
+
+  describe('Category Navigation Data Structure', () => {
+    it('provides all 7 navigation categories', () => {
+      assert.equal(NAVIGATION_CATEGORIES.length, 7);
+      assert.deepEqual(
+        NAVIGATION_CATEGORIES.map((c) => c.handle),
+        ['women', 'men', 'curve-plus', 'kids', 'home-living', 'beauty', 'sale']
+      );
     });
   });
 });

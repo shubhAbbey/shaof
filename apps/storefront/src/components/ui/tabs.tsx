@@ -50,7 +50,7 @@ export const TabsList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       ref={ref}
       role="tablist"
       className={cn(
-        'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 text-gray-500',
+        'inline-flex max-w-full items-center justify-start overflow-x-auto rounded-lg bg-gray-100 p-1 text-gray-500 no-scrollbar',
         className
       )}
       {...props}
