@@ -143,6 +143,7 @@ export interface CmsProductGridSection extends CmsBaseSection {
   desktopVisibleItems?: number;
   mobileVisibleItems?: number;
   sliderEnabled?: boolean;
+  viewAllLink?: string;
 }
 
 export interface CmsPromotionalCtaSection extends CmsBaseSection {

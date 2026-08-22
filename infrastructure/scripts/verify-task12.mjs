@@ -1,8 +1,8 @@
 import http from 'http';
 
-function get(path) {
+function get(path, headers = {}) {
   return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: 3000, path }, (res) => {
+    http.get({ host: '127.0.0.1', port: 3000, path, headers }, (res) => {
       let body = '';
       res.on('data', (chunk) => (body += chunk));
       res.on('end', () => {
@@ -18,7 +18,7 @@ function get(path) {
 
 async function runVerification() {
   console.log('================================================================');
-  console.log('TASK 12 RUNTIME VERIFICATION SUITE — FILTERS, SORT, PAGINATION & CMS');
+  console.log('TASK 12 FINAL VERIFICATION & DEEP GAP AUDIT SUITE');
   console.log('================================================================\n');
 
   let passed = 0;
@@ -91,7 +91,7 @@ async function runVerification() {
     `Matched ${priceRangeRes.json?.products?.length} products within price range`
   );
 
-  // 7. API Route: Pagination Offset & Limit
+  // 7. API Route: Pagination Slicing & Duplicate Prevention
   const page1Res = await get('/api/products?categoryHandle=women&limit=2&offset=0');
   const page2Res = await get('/api/products?categoryHandle=women&limit=2&offset=2');
   const p1Ids = page1Res.json?.products?.map((p) => p.id) || [];
@@ -100,7 +100,7 @@ async function runVerification() {
   assertTest(
     'API: Pagination Offset & Duplicate Free Slicing',
     page1Res.status === 200 && page2Res.status === 200 && p1Ids.length === 2 && p2Ids.length === 2 && noOverlap,
-    `Page 1 IDs: [${p1Ids}], Page 2 IDs: [${p2Ids}] (Overlap: ${!noOverlap})`
+    `Page 1 IDs: [${p1Ids.slice(0, 2).join(', ')}], Page 2 IDs: [${p2Ids.slice(0, 2).join(', ')}] (Overlap: ${!noOverlap})`
   );
 
   // 8. Storefront Category PLP Page
@@ -151,23 +151,47 @@ async function runVerification() {
     `Rendered Homepage with CMS sections and horizontal scroller wrappers`
   );
 
-  // 14. Storefront CMS Pages Regression (Task 10)
+  // 14. Homepage "View All" Navigation vs Desktop PLP "View More" Separation
+  const hasViewAllLink = homeRes.body.includes('/collections/festive-edit') || homeRes.body.includes('View All');
+  assertTest(
+    'Homepage: "View All" is Navigation to Dedicated PLP Route',
+    hasViewAllLink,
+    `Homepage contains View All link pointing to dedicated PLP context`
+  );
+
+  // 15. Storefront CMS Pages Regression (Task 10)
   const saleCmsRes = await get('/sale');
   const aboutCmsRes = await get('/pages/about-us');
   const policyCmsRes = await get('/policies/privacy-policy');
   assertTest(
     'Storefront: CMS Pages Regression (Task 10)',
     saleCmsRes.status === 200 && aboutCmsRes.status === 200 && policyCmsRes.status === 200,
-    `Verified /sale (Status ${saleCmsRes.status}), /pages/about-us (Status ${aboutCmsRes.status}), /policies/privacy-policy (Status ${policyCmsRes.status})`
+    `Verified /sale (${saleCmsRes.status}), /pages/about-us (${aboutCmsRes.status}), /policies/privacy-policy (${policyCmsRes.status})`
   );
 
-  // 15. Invalid Category 404 Not Found UI
+  // 16. Invalid Category 404 Not Found UI
   const notFoundRes = await get('/category/non-existent-category-slug-99');
   const rendersNotFound = notFoundRes.body.includes('Page Not Found') || notFoundRes.body.includes('404') || notFoundRes.body.includes('does not exist');
   assertTest(
     'Storefront: 404 on Invalid Category Handle',
     rendersNotFound,
     `Rendered 404 Not Found UI for invalid category`
+  );
+
+  // 17. Homepage Bottom Multi-Row Infinite Product Feed
+  const hasBottomFeed = (homeRes.body.includes('Explore All Collections') || homeRes.body.includes('Explore All Collections &amp; Styles')) && homeRes.body.includes('MORE TO LOVE');
+  assertTest(
+    'Homepage: Bottom Multi-Row Infinite Product Feed',
+    hasBottomFeed,
+    `Homepage renders dedicated bottom multi-row product feed directly from Medusa`
+  );
+
+  // 18. Global 1-Row Rule & View All on Trending New Arrivals
+  const hasTrendingNewArrivals = homeRes.body.includes('Trending New Arrivals') && homeRes.body.includes('NEW ARRIVALS');
+  assertTest(
+    'Homepage: Trending New Arrivals follows 1-Row Slider Rule with View All',
+    hasTrendingNewArrivals,
+    `Trending New Arrivals rendered with 1-row horizontal scroller and View All navigation`
   );
 
   console.log('\n================================================================');

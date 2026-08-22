@@ -69,7 +69,10 @@ export const HorizontalItemScroller: React.FC<HorizontalItemScrollerProps> = ({
         ref={containerRef}
         onScroll={checkScroll}
         className={cn(
-          'no-scrollbar -mx-4 flex gap-3 sm:gap-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:px-0 scroll-smooth snap-x snap-mandatory',
+          'no-scrollbar -mx-4 flex gap-3 sm:gap-4 px-4 pb-3 sm:mx-0 sm:px-0',
+          sliderEnabled
+            ? 'overflow-x-auto scroll-smooth snap-x snap-mandatory'
+            : 'overflow-hidden',
           className
         )}
       >

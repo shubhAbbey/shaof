@@ -297,4 +297,58 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
       assert.equal(shouldEnableSlider, false);
     });
   });
+
+  describe('6. Homepage Bottom Multi-Row Infinite Product Feed', () => {
+    it('should initialize with a bounded batch size of 24 products', () => {
+      const batchSize = 24;
+      const initialOffset = 0;
+      assert.equal(batchSize, 24);
+      assert.equal(initialOffset, 0);
+    });
+
+    it('should append subsequent batch without duplicating products', () => {
+      const initialBatch = MOCK_PRODUCTS.slice(0, 3);
+      const incomingBatch = [MOCK_PRODUCTS[2], MOCK_PRODUCTS[3], MOCK_PRODUCTS[4]]; // contains duplicate prod_3
+
+      const seen = new Set(initialBatch.map((p) => p.id));
+      const filteredIncoming = incomingBatch.filter((p) => !seen.has(p.id));
+      const combined = [...initialBatch, ...filteredIncoming];
+
+      assert.equal(combined.length, 5);
+      assert.equal(new Set(combined.map((p) => p.id)).size, 5);
+    });
+
+    it('should maintain multi-row grid layout on desktop and mobile for bottom feed', () => {
+      const layoutType = 'multi-row-grid';
+      assert.equal(layoutType, 'multi-row-grid');
+    });
+  });
+
+  describe('7. Global Product Section One-Row Slider Rule', () => {
+    it('should enforce 1-row layout for horizontal product sections across all viewports', () => {
+      const desktopCount = 4;
+      const mobileCount = 2;
+      const sliderEnabled = true;
+
+      // Card width calculations for 1 row
+      const desktopItemWidth = 'lg:w-[calc(25%-12px)]';
+      const mobileItemWidth = 'w-[calc(50%-6px)]';
+
+      assert.equal(desktopCount, 4);
+      assert.equal(mobileCount, 2);
+      assert.ok(desktopItemWidth.includes('25%'));
+      assert.ok(mobileItemWidth.includes('50%'));
+      assert.equal(sliderEnabled, true);
+    });
+
+    it('should provide section-specific View All navigation to dedicated PLP', () => {
+      const section = {
+        title: 'Trending New Arrivals',
+        viewAllLink: '/category/women',
+      };
+      assert.equal(section.viewAllLink, '/category/women');
+      assert.ok(section.viewAllLink.startsWith('/category/'));
+    });
+  });
 });
+

@@ -125,9 +125,10 @@ export interface SectionsProductGrid extends Struct.ComponentSchema {
     limit: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
     mobileVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<2>;
     productHandles: Schema.Attribute.JSON;
-    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String & Schema.Attribute.Required;
+    viewAllLink: Schema.Attribute.String;
   };
 }
 

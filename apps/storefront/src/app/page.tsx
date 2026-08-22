@@ -2,6 +2,8 @@ import React from 'react';
 import type { Metadata } from 'next';
 import { fetchCmsPage } from '../lib/strapi-client';
 import { SectionRenderer } from '../components/sections';
+import { HomepageProductFeed } from '../components/home/homepage-product-feed';
+import { fetchPlpProducts } from '../lib/commerce';
 import type { CmsPageDto, CmsSection } from '@ecom/types';
 
 export const revalidate = 60; // ISR revalidation every 60 seconds
@@ -22,6 +24,8 @@ const DEFAULT_HOMEPAGE_SECTIONS: CmsSection[] = [
     title: 'Explore by Category',
     subtitle: 'Handpicked styles curated for every occasion',
     layout: 'grid',
+    desktopVisibleItems: 6,
+    mobileVisibleItems: 2,
   },
   {
     id: 'collection-carousel-1',
@@ -30,7 +34,10 @@ const DEFAULT_HOMEPAGE_SECTIONS: CmsSection[] = [
     subtitle: 'Most loved ethnic styles and designer silhouettes',
     collectionHandle: 'festive-edit',
     viewAllLink: '/category/women',
-    limit: 8,
+    desktopVisibleItems: 5,
+    mobileVisibleItems: 2,
+    sliderEnabled: true,
+    limit: 12,
   },
   {
     id: 'sale-banner-1',
@@ -45,8 +52,11 @@ const DEFAULT_HOMEPAGE_SECTIONS: CmsSection[] = [
     __component: 'sections.product-grid',
     title: 'Trending New Arrivals',
     subtitle: 'Fresh drops added weekly to elevate your wardrobe',
-    limit: 8,
-    columns: 4,
+    limit: 12,
+    desktopVisibleItems: 4,
+    mobileVisibleItems: 2,
+    sliderEnabled: true,
+    viewAllLink: '/category/women',
   },
   {
     id: 'promotional-cta-1',
@@ -86,9 +96,25 @@ export default async function HomePage() {
   const page: CmsPageDto | null = await fetchCmsPage('homepage');
   const sections = page?.sections && page.sections.length > 0 ? page.sections : DEFAULT_HOMEPAGE_SECTIONS;
 
+  // Fetch initial batch of products from Medusa for the bottom infinite feed
+  const feedResult = await fetchPlpProducts({
+    limit: 24,
+    offset: 0,
+    sort: 'relevance',
+  });
+
   return (
     <main className="min-h-screen bg-white">
+      {/* CMS-driven editorial homepage sections */}
       <SectionRenderer sections={sections} />
+
+      {/* Dedicated bottom homepage multi-row infinite product feed */}
+      <HomepageProductFeed
+        initialProducts={feedResult.products}
+        initialTotalCount={feedResult.totalCount}
+        initialHasMore={feedResult.hasMore}
+        initialNextOffset={feedResult.nextOffset}
+      />
     </main>
   );
 }

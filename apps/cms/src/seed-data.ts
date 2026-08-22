@@ -53,8 +53,11 @@ export const SEED_PAGES = [
         __component: 'sections.product-grid',
         title: 'Trending New Arrivals',
         subtitle: 'Fresh drops added weekly to elevate your wardrobe',
-        limit: 8,
-        columns: 4,
+        limit: 12,
+        desktopVisibleItems: 4,
+        mobileVisibleItems: 2,
+        sliderEnabled: true,
+        viewAllLink: '/category/women',
       },
       {
         __component: 'sections.promotional-cta',

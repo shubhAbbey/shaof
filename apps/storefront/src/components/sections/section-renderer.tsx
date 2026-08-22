@@ -9,7 +9,6 @@ import { ProductCarouselSection } from './product-carousel-section';
 import { ProductGridSection } from './product-grid-section';
 import { PromotionalCtaSection } from './promotional-cta-section';
 import { RichTextSection } from './rich-text-section';
-import { SectionErrorBoundary } from './section-error-boundary';
 
 export interface SectionRendererProps {
   sections: CmsSection[];
@@ -30,67 +29,31 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({ sections }) =>
 
         switch (section.__component) {
           case 'sections.hero':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <HeroSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <HeroSection key={key} section={section} />;
 
           case 'sections.banner':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <BannerSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <BannerSection key={key} section={section} />;
 
           case 'sections.sale-banner':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <SaleBannerSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <SaleBannerSection key={key} section={section} />;
 
           case 'sections.category-tiles':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <CategoryTilesSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <CategoryTilesSection key={key} section={section} />;
 
           case 'sections.collection-carousel':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <CollectionCarouselSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <CollectionCarouselSection key={key} section={section} />;
 
           case 'sections.product-carousel':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <ProductCarouselSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <ProductCarouselSection key={key} section={section} />;
 
           case 'sections.product-grid':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <ProductGridSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <ProductGridSection key={key} section={section} />;
 
           case 'sections.promotional-cta':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <PromotionalCtaSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <PromotionalCtaSection key={key} section={section} />;
 
           case 'sections.rich-text':
-            return (
-              <SectionErrorBoundary key={key} componentType={section.__component}>
-                <RichTextSection section={section} />
-              </SectionErrorBoundary>
-            );
+            return <RichTextSection key={key} section={section} />;
 
           default:
             console.warn(`Unrecognized CMS section component: ${(section as any)?.__component}`);
@@ -101,3 +64,4 @@ export const SectionRenderer: React.FC<SectionRendererProps> = ({ sections }) =>
   );
 };
 SectionRenderer.displayName = 'SectionRenderer';
+

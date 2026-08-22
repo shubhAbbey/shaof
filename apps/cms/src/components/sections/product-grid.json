@@ -41,7 +41,10 @@
     },
     "sliderEnabled": {
       "type": "boolean",
-      "default": false
+      "default": true
+    },
+    "viewAllLink": {
+      "type": "string"
     }
   }
 }
