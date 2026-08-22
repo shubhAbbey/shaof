@@ -23,6 +23,14 @@ export interface CategoryTilesSectionProps {
 export const CategoryTilesSection: React.FC<CategoryTilesSectionProps> = ({ section }) => {
   const items = section.items && section.items.length > 0 ? section.items : DEFAULT_CATEGORY_TILES;
 
+  const desktopVisibleItems = section.desktopVisibleItems || 6;
+  const gridColsClass =
+    desktopVisibleItems === 4
+      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+      : desktopVisibleItems === 5
+      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
+      : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6';
+
   return (
     <section className="w-full py-8 sm:py-12 bg-gray-50/60">
       <Container size="xl">
@@ -35,7 +43,7 @@ export const CategoryTilesSection: React.FC<CategoryTilesSectionProps> = ({ sect
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className={`grid ${gridColsClass} gap-3 sm:gap-4`}>
           {items.map((cat, idx) => {
             const imgUrl = getStrapiMediaUrl(cat.image?.url);
             return (

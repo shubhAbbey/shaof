@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { CmsCollectionCarouselSection } from '@ecom/types';
 import { Container } from '../ui/container';
 import { Heading, Text } from '../ui/typography';
+import { HorizontalItemScroller } from '../ui/horizontal-item-scroller';
 import { ProductCard } from './product-card';
 import { fetchCommerceProducts } from '../../lib/commerce';
 import type { StorefrontProduct } from '../../lib/commerce';
@@ -12,13 +13,31 @@ export interface CollectionCarouselSectionProps {
   section: CmsCollectionCarouselSection;
 }
 
+function getItemWidthClass(desktopCount: number = 5): string {
+  if (desktopCount === 4) {
+    return 'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] shrink-0 snap-start';
+  }
+  if (desktopCount === 3) {
+    return 'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] shrink-0 snap-start';
+  }
+  if (desktopCount === 6) {
+    return 'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] md:w-[calc(25%-12px)] lg:w-[calc(16.666%-14px)] shrink-0 snap-start';
+  }
+  // Default: 5 visible items on desktop, 2 on mobile
+  return 'w-[calc(50%-6px)] sm:w-[calc(33.333%-11px)] md:w-[calc(25%-12px)] lg:w-[calc(20%-13px)] shrink-0 snap-start';
+}
+
 export const CollectionCarouselSection = async ({ section }: CollectionCarouselSectionProps) => {
+  const desktopVisibleItems = section.desktopVisibleItems || 5;
+  const mobileVisibleItems = section.mobileVisibleItems || 2;
+  const sliderEnabled = section.sliderEnabled !== false;
+
   let products: StorefrontProduct[] = [];
 
   try {
     products = await fetchCommerceProducts({
       collectionHandle: section.collectionHandle,
-      limit: section.limit || 8,
+      limit: section.limit || 12,
     });
   } catch (err) {
     console.error('Failed to fetch collection products:', err);
@@ -32,8 +51,11 @@ export const CollectionCarouselSection = async ({ section }: CollectionCarouselS
       { id: '2', title: 'Floral Chanderi Silk Saree', handle: 'chanderi-saree', price: 2499, originalPrice: 3999, discountPercentage: 37, categoryName: 'Sarees', isNew: true },
       { id: '3', title: 'Printed Cotton Tiered Maxi Dress', handle: 'cotton-maxi-dress', price: 1299, originalPrice: 1999, discountPercentage: 35, categoryName: 'Western Dresses' },
       { id: '4', title: 'Relaxed Fit Linen Casual Shirt', handle: 'linen-shirt', price: 1499, originalPrice: 2199, discountPercentage: 31, categoryName: 'Men Topwear' },
+      { id: '5', title: 'Handloom Cotton Kurta Palazzo', handle: 'cotton-kurta-palazzo', price: 1699, originalPrice: 2599, discountPercentage: 35, categoryName: 'Ethnic Sets' },
     ];
   }
+
+  const itemWidthClass = getItemWidthClass(desktopVisibleItems);
 
   return (
     <section className="w-full py-8 sm:py-12">
@@ -54,21 +76,25 @@ export const CollectionCarouselSection = async ({ section }: CollectionCarouselS
 
           <Link
             href={section.viewAllLink || `/collections/${section.collectionHandle}`}
-            className="flex items-center gap-1 text-xs sm:text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+            className="flex items-center gap-1 text-xs sm:text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors shrink-0"
           >
             <span>View All</span>
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        {/* Horizontally scrollable product carousel */}
-        <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:px-0 scroll-smooth">
+        {/* CMS-controlled 1-row horizontal carousel with slider controls */}
+        <HorizontalItemScroller
+          desktopVisibleItems={desktopVisibleItems}
+          mobileVisibleItems={mobileVisibleItems}
+          sliderEnabled={sliderEnabled}
+        >
           {products.map((product) => (
-            <div key={product.id} className="w-[180px] sm:w-[220px] md:w-[250px] shrink-0">
+            <div key={product.id} className={itemWidthClass}>
               <ProductCard product={product} />
             </div>
           ))}
-        </div>
+        </HorizontalItemScroller>
       </Container>
     </section>
   );

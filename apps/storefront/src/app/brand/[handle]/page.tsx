@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { fetchCommerceProducts } from '../../../lib/commerce';
+import { fetchCommerceProducts, fetchPlpProducts } from '../../../lib/commerce';
 import { constructMetadata } from '../../../lib/seo';
 import { PlpView } from '../../../components/plp';
 
@@ -11,6 +11,21 @@ interface BrandPlpProps {
   params: {
     handle: string;
   };
+  searchParams?: {
+    brands?: string;
+    brand?: string;
+    sizes?: string;
+    size?: string;
+    colors?: string;
+    color?: string;
+    price_min?: string;
+    price_max?: string;
+    in_stock?: string;
+    sale?: string;
+    sort?: 'relevance' | 'price_asc' | 'price_desc' | 'newest';
+    limit?: string;
+    offset?: string;
+  };
 }
 
 const KNOWN_BRANDS: Record<string, string> = {
@@ -18,6 +33,8 @@ const KNOWN_BRANDS: Record<string, string> = {
   'gulmohar-jaipur': 'Gulmohar Jaipur',
   'meadow-studio': 'Meadow Studio',
   'loom-thread': 'Loom & Thread',
+  'urban-drape': 'Urban Drape',
+  'kora-weaves': 'Kora Weaves',
 };
 
 function formatBrandName(handle: string): string {
@@ -48,16 +65,42 @@ export async function generateMetadata({ params }: BrandPlpProps): Promise<Metad
   });
 }
 
-export default async function BrandPlpPage({ params }: BrandPlpProps) {
+export default async function BrandPlpPage({ params, searchParams = {} }: BrandPlpProps) {
   const brandName = formatBrandName(params.handle);
-  const products = await fetchCommerceProducts({
+
+  const initialCheck = await fetchCommerceProducts({
     brand: params.handle,
-    limit: 24,
+    limit: 1,
   });
 
-  if (products.length === 0 && !KNOWN_BRANDS[params.handle]) {
+  if (initialCheck.length === 0 && !KNOWN_BRANDS[params.handle]) {
     notFound();
   }
+
+  const sizes = searchParams.sizes
+    ? searchParams.sizes.split(',').filter(Boolean)
+    : searchParams.size
+    ? [searchParams.size]
+    : [];
+  const colors = searchParams.colors
+    ? searchParams.colors.split(',').filter(Boolean)
+    : searchParams.color
+    ? [searchParams.color]
+    : [];
+
+  const { products, totalCount, hasMore, nextOffset, facets } = await fetchPlpProducts({
+    brand: brandName,
+    brands: [brandName],
+    sizes,
+    colors,
+    priceMin: searchParams.price_min ? Number(searchParams.price_min) : undefined,
+    priceMax: searchParams.price_max ? Number(searchParams.price_max) : undefined,
+    inStock: searchParams.in_stock === 'true',
+    onSaleOnly: searchParams.sale === 'true',
+    sort: searchParams.sort || 'relevance',
+    limit: 24,
+    offset: 0,
+  });
 
   return (
     <main className="min-h-screen bg-white">
@@ -71,8 +114,13 @@ export default async function BrandPlpPage({ params }: BrandPlpProps) {
           { label: brandName },
         ]}
         products={products}
-        emptyTitle={`No products currently available for ${brandName}`}
-        emptyDescription={`We are restocking new season inventory from ${brandName}. Please check back shortly.`}
+        totalCount={totalCount}
+        hasMore={hasMore}
+        nextOffset={nextOffset}
+        facets={facets}
+        contextParams={{ brand: brandName }}
+        emptyTitle={`No products match your filters for ${brandName}`}
+        emptyDescription={`We are restocking new season inventory from ${brandName}. Try clearing your filters to see all available styles.`}
       />
     </main>
   );

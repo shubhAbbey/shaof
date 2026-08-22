@@ -100,6 +100,9 @@ export interface CmsCategoryTilesSection extends CmsBaseSection {
   subtitle?: string;
   layout?: 'grid' | 'carousel' | 'tiles';
   items?: CmsCategoryItemDto[];
+  desktopVisibleItems?: number;
+  mobileVisibleItems?: number;
+  sliderEnabled?: boolean;
 }
 
 export interface CmsCollectionCarouselSection extends CmsBaseSection {
@@ -109,6 +112,9 @@ export interface CmsCollectionCarouselSection extends CmsBaseSection {
   collectionHandle: string;
   viewAllLink?: string;
   limit?: number;
+  desktopVisibleItems?: number;
+  mobileVisibleItems?: number;
+  sliderEnabled?: boolean;
 }
 
 export interface CmsProductCarouselSection extends CmsBaseSection {
@@ -118,7 +124,11 @@ export interface CmsProductCarouselSection extends CmsBaseSection {
   collectionHandle?: string;
   categoryHandle?: string;
   productHandles?: string[];
+  viewAllLink?: string;
   limit?: number;
+  desktopVisibleItems?: number;
+  mobileVisibleItems?: number;
+  sliderEnabled?: boolean;
 }
 
 export interface CmsProductGridSection extends CmsBaseSection {
@@ -130,6 +140,9 @@ export interface CmsProductGridSection extends CmsBaseSection {
   productHandles?: string[];
   columns?: number;
   limit?: number;
+  desktopVisibleItems?: number;
+  mobileVisibleItems?: number;
+  sliderEnabled?: boolean;
 }
 
 export interface CmsPromotionalCtaSection extends CmsBaseSection {

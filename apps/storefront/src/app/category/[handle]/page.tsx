@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { fetchCategoryByHandle, fetchCommerceProducts } from '../../../lib/commerce';
+import { fetchCategoryByHandle, fetchPlpProducts } from '../../../lib/commerce';
 import { constructMetadata } from '../../../lib/seo';
 import { PlpView } from '../../../components/plp';
 import { NAVIGATION_CATEGORIES } from '../../../data/navigation';
@@ -12,13 +12,27 @@ interface CategoryPlpProps {
   params: {
     handle: string;
   };
+  searchParams?: {
+    brands?: string;
+    brand?: string;
+    sizes?: string;
+    size?: string;
+    colors?: string;
+    color?: string;
+    price_min?: string;
+    price_max?: string;
+    in_stock?: string;
+    sale?: string;
+    sort?: 'relevance' | 'price_asc' | 'price_desc' | 'newest';
+    limit?: string;
+    offset?: string;
+  };
 }
 
-export async function generateMetadata({ params }: CategoryPlpProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: CategoryPlpProps): Promise<Metadata> {
   const category = await fetchCategoryByHandle(params.handle);
 
   if (!category) {
-    // Check navigation fallback
     const navCategory = NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
     if (navCategory) {
       return constructMetadata({
@@ -32,6 +46,7 @@ export async function generateMetadata({ params }: CategoryPlpProps): Promise<Me
     };
   }
 
+  // Canonical URL always points to clean category handle without filter spam
   return constructMetadata({
     title: `${category.name} Collection`,
     description:
@@ -41,16 +56,14 @@ export async function generateMetadata({ params }: CategoryPlpProps): Promise<Me
   });
 }
 
-export default async function CategoryPlpPage({ params }: CategoryPlpProps) {
-  let category = await fetchCategoryByHandle(params.handle);
+export default async function CategoryPlpPage({ params, searchParams = {} }: CategoryPlpProps) {
+  const category = await fetchCategoryByHandle(params.handle);
 
   if (!category) {
-    // Check if valid known navigation category
     const navCat = NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
     if (!navCat) {
       notFound();
     }
-    // Context with zero products
     return (
       <main className="min-h-screen bg-white">
         <PlpView
@@ -63,6 +76,9 @@ export default async function CategoryPlpPage({ params }: CategoryPlpProps) {
             { label: navCat.name },
           ]}
           products={[]}
+          totalCount={0}
+          hasMore={false}
+          contextParams={{ categoryHandle: params.handle }}
           emptyTitle={`No products found in ${navCat.name}`}
           emptyDescription={`We are adding new products to our ${navCat.name} catalog soon. Please check back shortly.`}
         />
@@ -70,9 +86,35 @@ export default async function CategoryPlpPage({ params }: CategoryPlpProps) {
     );
   }
 
-  const products = await fetchCommerceProducts({
+  const brands = searchParams.brands
+    ? searchParams.brands.split(',').filter(Boolean)
+    : searchParams.brand
+    ? [searchParams.brand]
+    : [];
+  const sizes = searchParams.sizes
+    ? searchParams.sizes.split(',').filter(Boolean)
+    : searchParams.size
+    ? [searchParams.size]
+    : [];
+  const colors = searchParams.colors
+    ? searchParams.colors.split(',').filter(Boolean)
+    : searchParams.color
+    ? [searchParams.color]
+    : [];
+
+  const { products, totalCount, hasMore, nextOffset, facets } = await fetchPlpProducts({
     categoryId: category.id,
+    categoryHandle: params.handle,
+    brands,
+    sizes,
+    colors,
+    priceMin: searchParams.price_min ? Number(searchParams.price_min) : undefined,
+    priceMax: searchParams.price_max ? Number(searchParams.price_max) : undefined,
+    inStock: searchParams.in_stock === 'true',
+    onSaleOnly: searchParams.sale === 'true',
+    sort: searchParams.sort || 'relevance',
     limit: 24,
+    offset: 0,
   });
 
   return (
@@ -89,8 +131,13 @@ export default async function CategoryPlpPage({ params }: CategoryPlpProps) {
           { label: category.name },
         ]}
         products={products}
-        emptyTitle={`No products currently in ${category.name}`}
-        emptyDescription="We are currently restocking this category. Explore our new arrivals in the meantime."
+        totalCount={totalCount}
+        hasMore={hasMore}
+        nextOffset={nextOffset}
+        facets={facets}
+        contextParams={{ categoryHandle: params.handle }}
+        emptyTitle={`No products match your filters in ${category.name}`}
+        emptyDescription="Try clearing some filter criteria to explore more items in this category."
       />
     </main>
   );

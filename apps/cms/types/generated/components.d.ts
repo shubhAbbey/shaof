@@ -40,9 +40,12 @@ export interface SectionsCategoryTiles extends Struct.ComponentSchema {
     icon: 'grid';
   };
   attributes: {
+    desktopVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<6>;
     items: Schema.Attribute.Component<'elements.category-item', true>;
     layout: Schema.Attribute.Enumeration<['grid', 'carousel', 'tiles']> &
       Schema.Attribute.DefaultTo<'grid'>;
+    mobileVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<2>;
+    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String;
   };
@@ -57,7 +60,10 @@ export interface SectionsCollectionCarousel extends Struct.ComponentSchema {
   };
   attributes: {
     collectionHandle: Schema.Attribute.String & Schema.Attribute.Required;
+    desktopVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<5>;
     limit: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<8>;
+    mobileVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<2>;
+    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     viewAllLink: Schema.Attribute.String;
@@ -93,10 +99,14 @@ export interface SectionsProductCarousel extends Struct.ComponentSchema {
   attributes: {
     categoryHandle: Schema.Attribute.String;
     collectionHandle: Schema.Attribute.String;
+    desktopVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<5>;
     limit: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<8>;
+    mobileVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<2>;
     productHandles: Schema.Attribute.JSON;
+    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String & Schema.Attribute.Required;
+    viewAllLink: Schema.Attribute.String;
   };
 }
 
@@ -111,8 +121,11 @@ export interface SectionsProductGrid extends Struct.ComponentSchema {
     categoryHandle: Schema.Attribute.String;
     collectionHandle: Schema.Attribute.String;
     columns: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<4>;
+    desktopVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<4>;
     limit: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<12>;
+    mobileVisibleItems: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<2>;
     productHandles: Schema.Attribute.JSON;
+    sliderEnabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     subtitle: Schema.Attribute.String;
     title: Schema.Attribute.String & Schema.Attribute.Required;
   };

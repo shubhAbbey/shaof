@@ -30,6 +30,18 @@
     "limit": {
       "type": "integer",
       "default": 12
+    },
+    "desktopVisibleItems": {
+      "type": "integer",
+      "default": 4
+    },
+    "mobileVisibleItems": {
+      "type": "integer",
+      "default": 2
+    },
+    "sliderEnabled": {
+      "type": "boolean",
+      "default": false
     }
   }
 }
