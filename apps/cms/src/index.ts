@@ -46,5 +46,41 @@ export default {
    * An asynchronous bootstrap function that runs before
    * your application gets started.
    */
-  bootstrap(/*{ strapi }*/) {},
+  async bootstrap({ strapi }: { strapi: any }) {
+    // Configure Public Role Permissions
+    try {
+      const publicRole = await strapi.db.query('plugin::users-permissions.role').findOne({
+        where: { type: 'public' },
+      });
+
+      if (publicRole) {
+        const requiredActions = [
+          'api::page.page.find',
+          'api::page.page.findOne',
+          'api::navigation.navigation.find',
+          'api::navigation.navigation.findOne',
+        ];
+
+        for (const action of requiredActions) {
+          const existing = await strapi.db.query('plugin::users-permissions.permission').findOne({
+            where: {
+              action,
+              role: publicRole.id,
+            },
+          });
+
+          if (!existing) {
+            await strapi.db.query('plugin::users-permissions.permission').create({
+              data: {
+                action,
+                role: publicRole.id,
+              },
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-blocking permission bootstrap
+    }
+  },
 };
