@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { SEED_PAGES, SEED_NAVIGATIONS } from './seed-data.js';
 
 function syncSchemasToDist() {
   try {
@@ -47,7 +48,7 @@ export default {
    * your application gets started.
    */
   async bootstrap({ strapi }: { strapi: any }) {
-    // Configure Public Role Permissions
+    // 1. Configure Public Role Permissions
     try {
       const publicRole = await strapi.db.query('plugin::users-permissions.role').findOne({
         where: { type: 'public' },
@@ -76,11 +77,50 @@ export default {
                 role: publicRole.id,
               },
             });
+            strapi.log.info(`[Bootstrap] Granted public permission: ${action}`);
           }
         }
       }
-    } catch {
-      // Non-blocking permission bootstrap
+    } catch (err) {
+      strapi.log.error(`[Bootstrap] Error configuring permissions: ${err}`);
+    }
+
+    // 2. Auto-seed Initial CMS Pages (Homepage, Sale, Campaigns, Policies, About)
+    try {
+      for (const pageData of SEED_PAGES) {
+        const existing = await strapi.documents('api::page.page').findFirst({
+          filters: { slug: pageData.slug },
+        });
+
+        if (!existing) {
+          await strapi.documents('api::page.page').create({
+            data: pageData,
+            status: 'published',
+          });
+          strapi.log.info(`[Bootstrap] Auto-seeded and published page: ${pageData.title} (${pageData.slug})`);
+        }
+      }
+    } catch (err) {
+      strapi.log.error(`[Bootstrap] Error seeding initial pages: ${err}`);
+    }
+
+    // 3. Auto-seed Navigation Menus
+    try {
+      for (const navData of SEED_NAVIGATIONS) {
+        const existing = await strapi.documents('api::navigation.navigation').findFirst({
+          filters: { handle: navData.handle },
+        });
+
+        if (!existing) {
+          await strapi.documents('api::navigation.navigation').create({
+            data: navData,
+            status: 'published',
+          });
+          strapi.log.info(`[Bootstrap] Auto-seeded and published navigation: ${navData.title} (${navData.handle})`);
+        }
+      }
+    } catch (err) {
+      strapi.log.error(`[Bootstrap] Error seeding navigations: ${err}`);
     }
   },
 };

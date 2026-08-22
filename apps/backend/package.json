@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "medusa develop",
-    "build": "medusa build",
+    "build": "tsc",
     "start": "medusa start",
     "db:migrate": "medusa db:migrate",
     "db:create": "medusa db:create",

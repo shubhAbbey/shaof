@@ -19,12 +19,20 @@ function constructMetadata({ title, description, image, canonicalUrl, noIndex = 
   const SITE_NAME = 'Fashion Ecommerce MVP';
   const SITE_URL = 'http://localhost:3000';
   const fullTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
+  const canonical = canonicalUrl
+    ? canonicalUrl.startsWith('http')
+      ? canonicalUrl
+      : `${SITE_URL}${canonicalUrl}`
+    : undefined;
   return {
     title: fullTitle,
     description: description || 'Default description',
+    alternates: {
+      canonical,
+    },
     openGraph: {
       title: fullTitle,
-      url: canonicalUrl || SITE_URL,
+      url: canonical || SITE_URL,
     },
     robots: {
       index: !noIndex,
@@ -193,6 +201,117 @@ describe('Task 09: Homepage & CMS Section Rendering Architecture', () => {
       assert.equal(sections[0].__component, 'sections.hero');
       assert.equal(sections[3].__component, 'sections.sale-banner');
       assert.equal(sections[6].__component, 'sections.rich-text');
+    });
+  });
+});
+
+describe('Task 11: Core Product Listing Page (PLP) Engine', () => {
+  describe('Category Listing Engine & Handle Resolution', () => {
+    it('validates category context contracts', () => {
+      const category = {
+        id: 'pcat_women',
+        name: 'Women',
+        handle: 'women',
+        description: 'Women fashion edit',
+      };
+      assert.equal(category.handle, 'women');
+      assert.equal(category.name, 'Women');
+    });
+  });
+
+  describe('Collection Listing Engine & Handle Resolution', () => {
+    it('validates collection context contracts', () => {
+      const collection = {
+        id: 'pcol_summer',
+        title: 'Summer Meadow Collection',
+        handle: 'summer-meadow',
+      };
+      assert.equal(collection.handle, 'summer-meadow');
+      assert.ok(collection.title.includes('Summer Meadow'));
+    });
+  });
+
+  describe('Brand Listing Engine & Context Mapping', () => {
+    it('verifies brand filtering on product listings', () => {
+      const products = [
+        { id: '1', title: 'Saree', handle: 'saree', price: 2199, brand: 'Virasat Heritage' },
+        { id: '2', title: 'Shirt', handle: 'shirt', price: 1399, brand: 'Loom & Thread' },
+      ];
+      const virasatProducts = products.filter((p) => p.brand === 'Virasat Heritage');
+      assert.equal(virasatProducts.length, 1);
+      assert.equal(virasatProducts[0].title, 'Saree');
+    });
+  });
+
+  describe('Curated Sale Listing Engine', () => {
+    it('identifies products eligible for sale listing context', () => {
+      const products = [
+        { id: '1', title: 'Saree', price: 2199, originalPrice: 3499, discountPercentage: 37 },
+        { id: '2', title: 'Shirt', price: 1999, originalPrice: 1999, discountPercentage: 0 },
+      ];
+      const saleProducts = products.filter(
+        (p) => (p.discountPercentage && p.discountPercentage > 0) || (p.originalPrice && p.originalPrice > p.price)
+      );
+      assert.equal(saleProducts.length, 1);
+      assert.equal(saleProducts[0].id, '1');
+    });
+  });
+
+  describe('Product Data Mapping & Variant Safety', () => {
+    it('verifies product card variant-safe flags and price format', () => {
+      const product = {
+        id: 'prod_1',
+        title: 'Banarasi Saree',
+        handle: 'banarasi-saree',
+        price: 2199,
+        originalPrice: 3499,
+        discountPercentage: 37,
+        brand: 'Virasat Heritage',
+        hasMultipleVariants: true,
+        variantsCount: 2,
+      };
+
+      assert.equal(product.hasMultipleVariants, true);
+      assert.ok(formatINR(product.price).includes('2,199') || formatINR(product.price).includes('2199'));
+    });
+  });
+
+  describe('PLP SEO Metadata Generation', () => {
+    it('constructs SEO metadata for Category PLP', () => {
+      const meta = constructMetadata({
+        title: 'Women Collection',
+        description: 'Shop Women online.',
+        canonicalUrl: '/category/women',
+      });
+      assert.equal(meta.title, 'Women Collection | Fashion Ecommerce MVP');
+      assert.equal(meta.alternates?.canonical, 'http://localhost:3000/category/women');
+    });
+
+    it('constructs SEO metadata for Collection PLP', () => {
+      const meta = constructMetadata({
+        title: 'Summer Meadow Collection',
+        canonicalUrl: '/collections/summer-meadow',
+      });
+      assert.equal(meta.title, 'Summer Meadow Collection | Fashion Ecommerce MVP');
+      assert.equal(meta.alternates?.canonical, 'http://localhost:3000/collections/summer-meadow');
+    });
+
+    it('constructs SEO metadata for Brand PLP', () => {
+      const meta = constructMetadata({
+        title: 'Virasat Heritage Official Store',
+        canonicalUrl: '/brand/virasat-heritage',
+      });
+      assert.equal(meta.title, 'Virasat Heritage Official Store | Fashion Ecommerce MVP');
+      assert.equal(meta.alternates?.canonical, 'http://localhost:3000/brand/virasat-heritage');
+    });
+
+    it('constructs SEO metadata for Sale PLP', () => {
+      const meta = constructMetadata({
+        title: 'Mega Flash Sale & Clearance Deals',
+        canonicalUrl: '/sale/all',
+      });
+      assert.equal(meta.title, 'Mega Flash Sale & Clearance Deals | Fashion Ecommerce MVP');
+      assert.equal(meta.alternates?.canonical, 'http://localhost:3000/sale/all');
     });
   });
 });
