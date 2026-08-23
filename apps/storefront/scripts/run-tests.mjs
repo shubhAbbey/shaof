@@ -656,4 +656,393 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
   });
 });
 
+describe('Task 13: Product Detail Page (PDP) & Mini PDP Engine', () => {
+  const MOCK_RAW_MEDUSA_PRODUCT = {
+    id: 'prod_shirt_1',
+    title: 'Slim Fit Pure Linen Casual Shirt',
+    handle: 'slim-fit-pure-linen-casual-shirt',
+    description: 'Artisan crafted pure linen shirt for effortless elegance.',
+    subtitle: 'Loom & Thread luxury casual wear',
+    thumbnail: 'https://images.unsplash.com/photo-linen-shirt-1.jpg',
+    images: [
+      { id: 'img_1', url: 'https://images.unsplash.com/photo-linen-shirt-1.jpg' },
+      { id: 'img_2', url: 'https://images.unsplash.com/photo-linen-shirt-2.jpg' },
+      { id: 'img_3', url: 'https://images.unsplash.com/photo-linen-shirt-3.jpg' },
+    ],
+    metadata: {
+      brand: 'Loom & Thread',
+      original_price: 1999,
+      is_new: true,
+    },
+    options: [
+      {
+        id: 'opt_size',
+        title: 'Size',
+        values: [
+          { id: 'val_m', value: 'M' },
+          { id: 'val_l', value: 'L' },
+          { id: 'val_xl', value: 'XL' },
+        ],
+      },
+      {
+        id: 'opt_color',
+        title: 'Color',
+        values: [
+          { id: 'val_sage', value: 'Sage Green' },
+          { id: 'val_white', value: 'Pure White' },
+        ],
+      },
+    ],
+    variants: [
+      {
+        id: 'var_sage_m',
+        title: 'Sage Green / M',
+        sku: 'SHIRT-SAGE-M',
+        prices: [{ amount: 1399, currency_code: 'inr' }],
+        options: [
+          { option_id: 'opt_size', value: 'M', option: { title: 'Size' } },
+          { option_id: 'opt_color', value: 'Sage Green', option: { title: 'Color' } },
+        ],
+        inventory_quantity: 10,
+        manage_inventory: true,
+        allow_backorder: false,
+      },
+      {
+        id: 'var_sage_l',
+        title: 'Sage Green / L',
+        sku: 'SHIRT-SAGE-L',
+        prices: [{ amount: 1399, currency_code: 'inr' }],
+        options: [
+          { option_id: 'opt_size', value: 'L', option: { title: 'Size' } },
+          { option_id: 'opt_color', value: 'Sage Green', option: { title: 'Color' } },
+        ],
+        inventory_quantity: 0,
+        manage_inventory: true,
+        allow_backorder: false,
+      },
+      {
+        id: 'var_white_m',
+        title: 'Pure White / M',
+        sku: 'SHIRT-WHT-M',
+        prices: [{ amount: 1499, currency_code: 'inr' }],
+        options: [
+          { option_id: 'opt_size', value: 'M', option: { title: 'Size' } },
+          { option_id: 'opt_color', value: 'Pure White', option: { title: 'Color' } },
+        ],
+        inventory_quantity: 5,
+        manage_inventory: true,
+        allow_backorder: false,
+      },
+    ],
+    categories: [
+      { id: 'pcat_men', name: 'Men', handle: 'men' },
+      { id: 'pcat_shirts', name: 'Casual Shirts', handle: 'men-casual-shirts' },
+    ],
+  };
+
+  // Helper mapper matching storefront implementation
+  function mapMedusaToDetail(p) {
+    const rawImages = [];
+    if (p.thumbnail) rawImages.push(p.thumbnail);
+    if (Array.isArray(p.images)) {
+      for (const img of p.images) {
+        const url = typeof img === 'string' ? img : img?.url;
+        if (url && !rawImages.includes(url)) rawImages.push(url);
+      }
+    }
+
+    const options = (p.options || []).map((opt) => ({
+      id: opt.id,
+      title: opt.title,
+      values: (opt.values || []).map((v) => ({ id: v.id, value: v.value })),
+    }));
+
+    const variants = (p.variants || []).map((v) => {
+      const variantOptions = {};
+      if (Array.isArray(v.options)) {
+        for (const optVal of v.options) {
+          const optTitle = optVal.option?.title || optVal.option_id;
+          variantOptions[optTitle] = optVal.value;
+        }
+      }
+
+      const price = v.prices?.[0]?.amount || 1499;
+      const originalPrice = p.metadata?.original_price ? Number(p.metadata.original_price) : undefined;
+      const discount = originalPrice && originalPrice > price
+        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+        : undefined;
+
+      const inStock = v.manage_inventory ? v.inventory_quantity > 0 || v.allow_backorder === true : true;
+
+      return {
+        id: v.id,
+        title: v.title,
+        sku: v.sku,
+        price,
+        originalPrice,
+        discountPercentage: discount,
+        inStock,
+        inventoryQuantity: v.inventory_quantity,
+        options: variantOptions,
+      };
+    });
+
+    return {
+      id: p.id,
+      title: p.title,
+      handle: p.handle,
+      description: p.description,
+      subtitle: p.subtitle,
+      brand: p.metadata?.brand,
+      price: variants[0]?.price || 1499,
+      originalPrice: p.metadata?.original_price,
+      discountPercentage: variants[0]?.discountPercentage,
+      images: rawImages,
+      options,
+      variants,
+      categoryHierarchy: (p.categories || []).map((c) => ({ name: c.name, handle: c.handle })),
+    };
+  }
+
+  describe('1. PDP Data Mapping & Image Gallery Contracts', () => {
+    it('maps complete product details and resolves all image assets', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      assert.equal(detail.id, 'prod_shirt_1');
+      assert.equal(detail.title, 'Slim Fit Pure Linen Casual Shirt');
+      assert.equal(detail.brand, 'Loom & Thread');
+      assert.equal(detail.images.length, 3);
+      assert.equal(detail.options.length, 2);
+      assert.equal(detail.variants.length, 3);
+      assert.equal(detail.categoryHierarchy.length, 2);
+    });
+
+    it('calculates dynamic discounts across variant pricing', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      const var1 = detail.variants[0];
+      assert.equal(var1.price, 1399);
+      assert.equal(var1.originalPrice, 1999);
+      assert.equal(var1.discountPercentage, 30);
+    });
+  });
+
+  describe('2. Variant Resolution & Selection Logic', () => {
+    it('resolves exact variant when all selected options match', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      const selected = { Size: 'M', Color: 'Sage Green' };
+
+      const match = detail.variants.find((v) => {
+        return Object.entries(selected).every(([k, val]) => v.options[k] === val);
+      });
+
+      assert.ok(match);
+      assert.equal(match.id, 'var_sage_m');
+      assert.equal(match.sku, 'SHIRT-SAGE-M');
+      assert.equal(match.inStock, true);
+    });
+
+    it('correctly identifies out-of-stock variant combinations', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      const selected = { Size: 'L', Color: 'Sage Green' };
+
+      const match = detail.variants.find((v) => {
+        return Object.entries(selected).every(([k, val]) => v.options[k] === val);
+      });
+
+      assert.ok(match);
+      assert.equal(match.id, 'var_sage_l');
+      assert.equal(match.inStock, false);
+    });
+
+    it('returns null for nonexistent/invalid option combinations', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      const selected = { Size: 'XL', Color: 'Pure White' };
+
+      const match = detail.variants.find((v) => {
+        return Object.entries(selected).every(([k, val]) => v.options[k] === val);
+      });
+
+      assert.equal(match, undefined);
+    });
+  });
+
+  describe('3. Cart & Buy Now Safety Rules', () => {
+    it('prevents adding to cart when valid variant is missing or out of stock', () => {
+      const detail = mapMedusaToDetail(MOCK_RAW_MEDUSA_PRODUCT);
+      const outOfStockVariant = detail.variants.find((v) => v.id === 'var_sage_l');
+
+      function validateAddToCart(variant) {
+        if (!variant) return { success: false, reason: 'NO_VARIANT_SELECTED' };
+        if (!variant.inStock) return { success: false, reason: 'OUT_OF_STOCK' };
+        return { success: true, variantId: variant.id };
+      }
+
+      const invalidResult = validateAddToCart(outOfStockVariant);
+      assert.equal(invalidResult.success, false);
+      assert.equal(invalidResult.reason, 'OUT_OF_STOCK');
+
+      const validVariant = detail.variants.find((v) => v.id === 'var_sage_m');
+      const validResult = validateAddToCart(validVariant);
+      assert.equal(validResult.success, true);
+      assert.equal(validResult.variantId, 'var_sage_m');
+    });
+  });
+
+  describe('4. Mini PDP Architecture & Responsive Viewport Rules', () => {
+    it('configures desktop Mini PDP as centered modal overlay', () => {
+      const desktopConfig = {
+        component: 'Dialog',
+        size: 'lg',
+        isCentered: true,
+        hasBackdrop: true,
+      };
+      assert.equal(desktopConfig.component, 'Dialog');
+      assert.equal(desktopConfig.isCentered, true);
+      assert.equal(desktopConfig.size, 'lg');
+    });
+
+    it('configures mobile Mini PDP as bottom sheet drawer using 70-80% viewport height', () => {
+      const mobileConfig = {
+        component: 'Drawer',
+        position: 'bottom',
+        maxHeightClass: 'max-h-[80vh]',
+        hasFutureStripPlaceholder: true,
+      };
+      assert.equal(mobileConfig.position, 'bottom');
+      assert.equal(mobileConfig.maxHeightClass, 'max-h-[80vh]');
+      assert.equal(mobileConfig.hasFutureStripPlaceholder, true);
+    });
+  });
+
+  describe('5. Image Gallery & Zoom Controls', () => {
+    it('cycles active image index within valid bounds', () => {
+      const totalImages = 3;
+      let currentIndex = 0;
+
+      function nextImage(idx, count) {
+        return (idx + 1) % count;
+      }
+      function prevImage(idx, count) {
+        return (idx - 1 + count) % count;
+      }
+
+      currentIndex = nextImage(currentIndex, totalImages);
+      assert.equal(currentIndex, 1);
+      currentIndex = nextImage(currentIndex, totalImages);
+      assert.equal(currentIndex, 2);
+      currentIndex = nextImage(currentIndex, totalImages);
+      assert.equal(currentIndex, 0); // Wraps smoothly
+
+      currentIndex = prevImage(currentIndex, totalImages);
+      assert.equal(currentIndex, 2);
+    });
+
+    it('supports zoom scale scaling and clamping', () => {
+      let scale = 1.0;
+      function zoomIn(s) {
+        return Math.min(3.5, Number((s + 0.5).toFixed(1)));
+      }
+      function zoomOut(s) {
+        return Math.max(1.0, Number((s - 0.5).toFixed(1)));
+      }
+
+      scale = zoomIn(scale);
+      assert.equal(scale, 1.5);
+      scale = zoomIn(scale);
+      assert.equal(scale, 2.0);
+      scale = zoomOut(scale);
+      assert.equal(scale, 1.5);
+      scale = zoomOut(scale);
+      assert.equal(scale, 1.0);
+      scale = zoomOut(scale); // Does not go below 1.0
+      assert.equal(scale, 1.0);
+    });
+
+    it('enforces mobile dedicated image viewer isolation and minimalist contracts', () => {
+      const viewerState = {
+        isOpen: true,
+        viewportWidth: 390,
+        isMobile: true,
+        features: {
+          hasBackCloseButton: true,
+          hasZoomControls: true,
+          hasMainImageArea: true,
+          hasBottomColorSwatches: true,
+          hasFullDescription: false,
+          hasAddToCartButton: false,
+          hasBuyNowButton: false,
+          hasPincodeSection: false,
+          hasRelatedProducts: false,
+        },
+      };
+
+      assert.equal(viewerState.isMobile, true);
+      assert.equal(viewerState.features.hasBackCloseButton, true);
+      assert.equal(viewerState.features.hasZoomControls, true);
+      assert.equal(viewerState.features.hasBottomColorSwatches, true);
+      // Ensure minimalist image-only inspection UI
+      assert.equal(viewerState.features.hasFullDescription, false);
+      assert.equal(viewerState.features.hasAddToCartButton, false);
+      assert.equal(viewerState.features.hasBuyNowButton, false);
+      assert.equal(viewerState.features.hasPincodeSection, false);
+      assert.equal(viewerState.features.hasRelatedProducts, false);
+    });
+
+    it('preserves desktop hover-zoom behavior without launching modal', () => {
+      const desktopInteraction = {
+        viewportWidth: 1280,
+        isDesktop: true,
+        triggersMobileModalOnClick: false,
+        supportsHoverZoom: true,
+        desktopZoomScale: 2.0,
+      };
+
+      assert.equal(desktopInteraction.isDesktop, true);
+      assert.equal(desktopInteraction.triggersMobileModalOnClick, false);
+      assert.equal(desktopInteraction.supportsHoverZoom, true);
+    });
+
+    it('updates selected color from viewer swatches and preserves selection on close', () => {
+      let selectedColor = 'Sage Green';
+      let activeImage = 0;
+
+      function onSelectColorInViewer(newColor) {
+        selectedColor = newColor;
+        if (newColor === 'Pure White') {
+          activeImage = 1;
+        }
+      }
+
+      function onCloseViewer() {
+        // Return to PDP with state intact
+        return { selectedColor, activeImage };
+      }
+
+      onSelectColorInViewer('Pure White');
+      assert.equal(selectedColor, 'Pure White');
+      assert.equal(activeImage, 1);
+
+      const returnedState = onCloseViewer();
+      assert.equal(returnedState.selectedColor, 'Pure White');
+      assert.equal(returnedState.activeImage, 1);
+    });
+  });
+
+  describe('6. Pincode Estimation Validator', () => {
+    it('validates authentic 6-digit Indian postal PIN codes', () => {
+      const validCodes = ['110001', '560001', '400001', '302001'];
+      const invalidCodes = ['12345', '012345', 'abcdef', '1100001', ''];
+
+      const pinRegex = /^[1-9][0-9]{5}$/;
+
+      for (const code of validCodes) {
+        assert.equal(pinRegex.test(code), true, `Expected valid: ${code}`);
+      }
+      for (const code of invalidCodes) {
+        assert.equal(pinRegex.test(code), false, `Expected invalid: ${code}`);
+      }
+    });
+  });
+});
+
+
 

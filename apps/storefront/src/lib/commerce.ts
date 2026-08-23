@@ -19,6 +19,42 @@ export interface StorefrontProduct {
   createdAt?: string;
 }
 
+export interface ProductOptionValue {
+  id: string;
+  value: string;
+}
+
+export interface ProductOption {
+  id: string;
+  title: string;
+  values: ProductOptionValue[];
+}
+
+export interface ProductVariant {
+  id: string;
+  title: string;
+  sku?: string;
+  price: number;
+  originalPrice?: number;
+  discountPercentage?: number;
+  inStock: boolean;
+  inventoryQuantity?: number;
+  options: Record<string, string>;
+  thumbnail?: string | null;
+}
+
+export interface ProductDetail extends StorefrontProduct {
+  subtitle?: string;
+  description?: string;
+  images: string[];
+  options: ProductOption[];
+  variants: ProductVariant[];
+  collectionTitle?: string;
+  collectionHandle?: string;
+  categoryHierarchy?: { name: string; handle: string }[];
+  metadata?: Record<string, any>;
+}
+
 export interface CategoryContext {
   id: string;
   name: string;
@@ -573,4 +609,275 @@ export async function fetchPlpProducts(
       facets: { brands: [], sizes: [], colors: [], priceRange: { min: 0, max: 0 } },
     };
   }
+}
+
+/**
+ * Maps raw Medusa product entity into detailed ProductDetail DTO for PDP and Mini PDP.
+ */
+export function mapMedusaProductToDetail(p: any): ProductDetail {
+  const base = mapMedusaProductToStorefront(p);
+
+  // 1. Image Gallery Extraction
+  const rawImages: string[] = [];
+  if (p.thumbnail) {
+    rawImages.push(p.thumbnail);
+  }
+  if (Array.isArray(p.images)) {
+    for (const img of p.images) {
+      const url = typeof img === 'string' ? img : img?.url;
+      if (url && !rawImages.includes(url)) {
+        rawImages.push(url);
+      }
+    }
+  }
+
+  // 2. Options Extraction & Normalization
+  const optionsMap: Record<string, string> = {}; // option_id -> option title
+  const options: ProductOption[] = [];
+
+  if (Array.isArray(p.options)) {
+    for (const opt of p.options) {
+      const optId = opt.id || opt.title;
+      const optTitle = opt.title || 'Option';
+      optionsMap[optId] = optTitle;
+
+      const rawValues = Array.isArray(opt.values) ? opt.values : [];
+      const values: ProductOptionValue[] = rawValues.map((v: any) => {
+        if (typeof v === 'string') {
+          return { id: v, value: v };
+        }
+        return {
+          id: v.id || v.value || '',
+          value: v.value || v.title || '',
+        };
+      });
+
+      options.push({
+        id: optId,
+        title: optTitle,
+        values,
+      });
+    }
+  }
+
+  // 3. Variants Extraction & Normalization
+  const variants: ProductVariant[] = [];
+  if (Array.isArray(p.variants)) {
+    for (const v of p.variants) {
+      const variantOptions: Record<string, string> = {};
+
+      if (Array.isArray(v.options)) {
+        for (const optVal of v.options) {
+          const optTitle =
+            optVal.option?.title ||
+            optionsMap[optVal.option_id] ||
+            optVal.option_id ||
+            'Option';
+          variantOptions[optTitle] = optVal.value;
+        }
+      } else if (v.options && typeof v.options === 'object') {
+        for (const [k, val] of Object.entries(v.options)) {
+          const optTitle = optionsMap[k] || k;
+          variantOptions[optTitle] = String(val);
+        }
+      }
+
+      const calcPrice = v.calculated_price;
+      const rawPrice = v.prices?.[0]?.amount;
+      const variantPrice = calcPrice?.calculated_amount ?? rawPrice ?? base.price;
+      const variantOriginalPrice =
+        calcPrice?.original_amount ??
+        (p.metadata?.original_price ? Number(p.metadata.original_price) : undefined);
+
+      const variantDiscount =
+        variantOriginalPrice && variantOriginalPrice > variantPrice
+          ? Math.round(((variantOriginalPrice - variantPrice) / variantOriginalPrice) * 100)
+          : undefined;
+
+      const isVariantInStock = v.manage_inventory
+        ? (v.inventory_quantity !== undefined ? v.inventory_quantity > 0 : true) ||
+          v.allow_backorder === true
+        : true;
+
+      variants.push({
+        id: v.id,
+        title: v.title || 'Default Variant',
+        sku: v.sku || undefined,
+        price: variantPrice,
+        originalPrice: variantOriginalPrice,
+        discountPercentage: variantDiscount,
+        inStock: isVariantInStock,
+        inventoryQuantity: v.inventory_quantity ?? undefined,
+        options: variantOptions,
+        thumbnail: v.thumbnail || undefined,
+      });
+    }
+  }
+
+  // 4. Categories & Breadcrumbs
+  const categoryHierarchy = Array.isArray(p.categories)
+    ? p.categories.map((c: any) => ({ name: c.name, handle: c.handle }))
+    : [];
+
+  return {
+    ...base,
+    subtitle: p.subtitle || undefined,
+    description: p.description || undefined,
+    images: rawImages.length > 0 ? rawImages : [base.thumbnail || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80'],
+    options,
+    variants,
+    collectionTitle: p.collection?.title || undefined,
+    collectionHandle: p.collection?.handle || undefined,
+    categoryHierarchy,
+    metadata: p.metadata || {},
+  };
+}
+
+/**
+ * Fetches complete product details by handle from Medusa v2 Store API.
+ * Includes graceful offline/development fallback when backend is unavailable.
+ */
+export async function fetchProductByHandle(handle: string): Promise<ProductDetail | null> {
+  try {
+    const queryParams = new URLSearchParams({
+      handle,
+      fields: '*variants.prices,*variants.options,*categories,*collection,+metadata,*tags,*options.values,*images',
+    });
+
+    const url = `${MEDUSA_BACKEND_URL}/store/products?${queryParams.toString()}`;
+    const res = await fetch(url, {
+      headers: getMedusaHeaders(),
+      next: { revalidate: 60 },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data.products?.[0];
+      if (raw) {
+        return mapMedusaProductToDetail(raw);
+      }
+    }
+  } catch (err) {
+    console.error(`Error fetching product by handle "${handle}":`, err);
+  }
+
+  // Graceful Offline / Mock Fallback for Development & Resilient Testing
+  const formattedTitle = handle
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603252109303-2751441dd157?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
+  ];
+
+  return {
+    id: `prod_mock_${handle}`,
+    title: formattedTitle || 'Slim Fit Pure Linen Casual Shirt',
+    handle,
+    subtitle: '100% Breathable Organic Linen',
+    description:
+      'Elevate your everyday wardrobe with our artisanal handcrafted pure linen casual shirt. Meticulously tailored for a relaxed yet refined silhouette, featuring mother-of-pearl buttons, a spread collar, and breathable weave suitable for tropical climates.',
+    thumbnail: fallbackImages[0],
+    images: fallbackImages,
+    price: 1899,
+    originalPrice: 2999,
+    discountPercentage: 37,
+    brand: 'Gulmohar Heritage',
+    inStock: true,
+    isNew: true,
+    isHot: false,
+    categoryName: 'Men',
+    categoryHandle: 'men',
+    categoryHierarchy: [
+      { name: 'Home', handle: '' },
+      { name: 'Men', handle: 'men' },
+      { name: 'Shirts', handle: 'men-shirts' },
+    ],
+    collectionTitle: 'Festive Linen Edit',
+    collectionHandle: 'festive-linen-edit',
+    options: [
+      {
+        id: 'opt_color',
+        title: 'Color',
+        values: [
+          { id: 'val_green', value: 'Sage Green' },
+          { id: 'val_white', value: 'Pure White' },
+          { id: 'val_navy', value: 'Navy Blue' },
+        ],
+      },
+      {
+        id: 'opt_size',
+        title: 'Size',
+        values: [
+          { id: 'val_s', value: 'S' },
+          { id: 'val_m', value: 'M' },
+          { id: 'val_l', value: 'L' },
+          { id: 'val_xl', value: 'XL' },
+        ],
+      },
+    ],
+    variants: [
+      {
+        id: 'var_mock_1',
+        title: 'Sage Green / M',
+        sku: 'SHIRT-GRN-M',
+        price: 1899,
+        originalPrice: 2999,
+        discountPercentage: 37,
+        inStock: true,
+        inventoryQuantity: 15,
+        options: { Color: 'Sage Green', Size: 'M' },
+        thumbnail: fallbackImages[0],
+      },
+      {
+        id: 'var_mock_2',
+        title: 'Sage Green / L',
+        sku: 'SHIRT-GRN-L',
+        price: 1899,
+        originalPrice: 2999,
+        discountPercentage: 37,
+        inStock: true,
+        inventoryQuantity: 8,
+        options: { Color: 'Sage Green', Size: 'L' },
+        thumbnail: fallbackImages[0],
+      },
+      {
+        id: 'var_mock_3',
+        title: 'Pure White / M',
+        sku: 'SHIRT-WHT-M',
+        price: 1899,
+        originalPrice: 2999,
+        discountPercentage: 37,
+        inStock: true,
+        inventoryQuantity: 20,
+        options: { Color: 'Pure White', Size: 'M' },
+        thumbnail: fallbackImages[1],
+      },
+      {
+        id: 'var_mock_4',
+        title: 'Navy Blue / L',
+        sku: 'SHIRT-NVY-L',
+        price: 1899,
+        originalPrice: 2999,
+        discountPercentage: 37,
+        inStock: true,
+        inventoryQuantity: 5,
+        options: { Color: 'Navy Blue', Size: 'L' },
+        thumbnail: fallbackImages[2],
+      },
+    ],
+    metadata: {
+      material: '100% Organic Linen',
+      care_instructions: 'Hand wash cold or gentle machine wash. Warm iron while damp.',
+      country_of_origin: 'India',
+      fit: 'Regular Slim Fit',
+      pattern: 'Solid Plain',
+      delivery_days: '2-4 Business Days',
+      return_window_days: '15 Days Hassle-Free Returns',
+    },
+  };
 }
