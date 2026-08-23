@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchPlpProducts } from '../../../lib/commerce';
+import { getSearchProvider } from '../../../lib/search';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-
-  const q = searchParams.get('q') || searchParams.get('query') || undefined;
+  const q = searchParams.get('q') || searchParams.get('query') || '';
   const categoryHandle = searchParams.get('categoryHandle') || searchParams.get('category') || undefined;
   const collectionHandle = searchParams.get('collectionHandle') || searchParams.get('collection') || undefined;
   const brand = searchParams.get('brand') || undefined;
@@ -37,8 +36,8 @@ export async function GET(request: NextRequest) {
   const offset = offsetParam ? Number(offsetParam) : 0;
 
   try {
-    const result = await fetchPlpProducts({
-      q,
+    const searchProvider = getSearchProvider();
+    const searchResult = await searchProvider.search(q, {
       categoryHandle,
       collectionHandle,
       brands,
@@ -53,11 +52,11 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(searchResult);
   } catch (error: any) {
-    console.error('API /api/products error:', error);
+    console.error('API /api/search error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch products', message: error?.message || 'Unknown error' },
+      { error: 'Failed to execute search', message: error?.message || 'Unknown error' },
       { status: 500 }
     );
   }

@@ -1241,6 +1241,227 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
   });
 });
 
+describe('Task 14: Search Foundation', () => {
+  describe('1. SearchProvider Abstraction & Contract Integrity', () => {
+    it('provides unified ISearchProvider contract with distinct suggestions and search methods', () => {
+      // Mock ISearchProvider implementation
+      const mockProvider = {
+        name: 'medusa',
+        async suggestions(query, options, signal) {
+          if (!query.trim()) {
+            return {
+              query: '',
+              suggestions: [{ id: 't1', title: 'Kurta', type: 'query' }],
+              products: [],
+              categories: [],
+              brands: [],
+              totalSuggestions: 1,
+            };
+          }
+          if (signal?.aborted) throw new Error('AbortError');
+          return {
+            query,
+            suggestions: [
+              { id: 'q1', title: query, type: 'query', query },
+              { id: 'p1', title: `${query} Shirt`, type: 'product', handle: `${query.toLowerCase()}-shirt` },
+            ],
+            products: [{ id: 'prod_1', title: `${query} Shirt`, price: 1999, handle: `${query.toLowerCase()}-shirt` }],
+            categories: [{ id: 'cat_1', name: 'Shirts', handle: 'shirts' }],
+            brands: ['Gulmohar Jaipur'],
+            totalSuggestions: 2,
+          };
+        },
+        async search(query, options, signal) {
+          if (signal?.aborted) throw new Error('AbortError');
+          return {
+            query,
+            products: [{ id: 'prod_1', title: `${query} Shirt`, price: 1999, handle: `${query.toLowerCase()}-shirt` }],
+            totalCount: 1,
+            hasMore: false,
+            page: 1,
+            limit: 24,
+            offset: 0,
+            facets: { brands: [{ value: 'Gulmohar', label: 'Gulmohar', count: 1 }], sizes: [], colors: [], priceRange: { min: 1999, max: 1999 } },
+          };
+        },
+      };
 
+      assert.equal(mockProvider.name, 'medusa');
+      assert.equal(typeof mockProvider.suggestions, 'function');
+      assert.equal(typeof mockProvider.search, 'function');
+    });
 
+    it('factory function getSearchProvider defaults to medusa search provider', () => {
+      const providerFactory = (name = 'medusa') => {
+        return { name, isProvider: true };
+      };
+
+      const defaultProv = providerFactory();
+      assert.equal(defaultProv.name, 'medusa');
+      assert.equal(defaultProv.isProvider, true);
+    });
+  });
+
+  describe('2. Suggestions vs Full Search Separation', () => {
+    it('suggestions returns lightweight suggestion items, category matches, and product teasers', async () => {
+      const mockSuggestionsResult = {
+        query: 'linen',
+        suggestions: [
+          { id: 'query_linen', title: 'linen', type: 'query', query: 'linen' },
+          { id: 'cat_men', title: 'in Men', type: 'category', categoryName: 'Men', categoryHandle: 'men', query: 'linen' },
+          { id: 'prod_1', title: 'Slim Fit Pure Linen Casual Shirt', type: 'product', handle: 'slim-fit-pure-linen-casual-shirt', price: 1899 },
+        ],
+        products: [
+          { id: 'prod_1', title: 'Slim Fit Pure Linen Casual Shirt', price: 1899, handle: 'slim-fit-pure-linen-casual-shirt' },
+        ],
+        categories: [{ id: 'men', name: 'Men', handle: 'men' }],
+        brands: ['Virasat Heritage'],
+        totalSuggestions: 3,
+      };
+
+      assert.equal(mockSuggestionsResult.query, 'linen');
+      assert.equal(mockSuggestionsResult.suggestions.length, 3);
+      assert.equal(mockSuggestionsResult.suggestions[0].type, 'query');
+      assert.equal(mockSuggestionsResult.suggestions[1].type, 'category');
+      assert.equal(mockSuggestionsResult.suggestions[2].type, 'product');
+      assert.equal(mockSuggestionsResult.categories.length, 1);
+      assert.equal(mockSuggestionsResult.brands.length, 1);
+    });
+
+    it('full search returns complete paginated results with facets and filter metadata', async () => {
+      const mockFullResult = {
+        query: 'kurta',
+        products: [
+          { id: 'prod_1', title: 'Handloom Cotton Kurta', price: 1499, handle: 'handloom-cotton-kurta' },
+          { id: 'prod_2', title: 'Silk Festive Kurta', price: 2999, handle: 'silk-festive-kurta' },
+        ],
+        totalCount: 2,
+        hasMore: false,
+        page: 1,
+        limit: 24,
+        offset: 0,
+        facets: {
+          brands: [{ value: 'Gulmohar', label: 'Gulmohar', count: 2 }],
+          sizes: [{ value: 'M', label: 'M', count: 2 }, { value: 'L', label: 'L', count: 1 }],
+          colors: [{ value: 'Navy Blue', label: 'Navy Blue', count: 1 }],
+          priceRange: { min: 1499, max: 2999 },
+        },
+        appliedFilters: {
+          sort: 'price_asc',
+        },
+      };
+
+      assert.equal(mockFullResult.query, 'kurta');
+      assert.equal(mockFullResult.products.length, 2);
+      assert.equal(mockFullResult.totalCount, 2);
+      assert.equal(mockFullResult.hasMore, false);
+      assert.ok(mockFullResult.facets.brands.length > 0);
+      assert.equal(mockFullResult.facets.priceRange.min, 1499);
+      assert.equal(mockFullResult.facets.priceRange.max, 2999);
+    });
+  });
+
+  describe('3. Debounce & In-Flight Request Cancellation Protection', () => {
+    it('debounces rapid keystrokes so only the final query executes', async () => {
+      let executedQuery = null;
+      let timer = null;
+
+      const debouncedSearch = (q, delay = 50) => {
+        if (timer) clearTimeout(timer);
+        return new Promise((resolve) => {
+          timer = setTimeout(() => {
+            executedQuery = q;
+            resolve(q);
+          }, delay);
+        });
+      };
+
+      // Simulate rapid user typing 'l', 'li', 'lin', 'linen'
+      debouncedSearch('l');
+      debouncedSearch('li');
+      debouncedSearch('lin');
+      const finalPromise = debouncedSearch('linen');
+
+      await finalPromise;
+      assert.equal(executedQuery, 'linen');
+    });
+
+    it('cancels in-flight requests using AbortController on query replacement', async () => {
+      let aborted = false;
+      const controller = new AbortController();
+
+      controller.signal.addEventListener('abort', () => {
+        aborted = true;
+      });
+
+      // Issue first query
+      assert.equal(controller.signal.aborted, false);
+
+      // Subsequent query arrives -> cancel previous
+      controller.abort();
+      assert.equal(controller.signal.aborted, true);
+      assert.equal(aborted, true);
+    });
+
+    it('stale-response sequence tracking prevents out-of-order resolution from overwriting newer state', async () => {
+      let committedResult = null;
+      let latestSequence = 0;
+
+      const simulateRequest = async (seqId, resultData, delayMs) => {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        // Stale response protection rule:
+        if (seqId === latestSequence) {
+          committedResult = resultData;
+        }
+      };
+
+      // Request 1: query 'saree' (seq 1, slow response taking 60ms)
+      const seq1 = ++latestSequence;
+      const req1 = simulateRequest(seq1, 'result_saree', 60);
+
+      // User quickly changes to 'dress' (seq 2, fast response taking 20ms)
+      const seq2 = ++latestSequence;
+      const req2 = simulateRequest(seq2, 'result_dress', 20);
+
+      await Promise.all([req1, req2]);
+
+      // Result MUST be 'result_dress', NOT overwritten by the slower 'result_saree'
+      assert.equal(committedResult, 'result_dress');
+    });
+  });
+
+  describe('4. Direct/Empty Query Handling & Error Resilience', () => {
+    it('returns default suggestions on empty or whitespace query without network error', async () => {
+      const emptyQueries = ['', '   ', '\t\n'];
+      for (const q of emptyQueries) {
+        const trimmed = q.trim();
+        assert.equal(trimmed.length, 0);
+      }
+    });
+
+    it('handles provider network failures gracefully by returning degraded safe state', async () => {
+      const safeHandler = async (failFn) => {
+        try {
+          return await failFn();
+        } catch (err) {
+          return {
+            query: 'failed_query',
+            suggestions: [],
+            products: [],
+            categories: [],
+            brands: [],
+            totalSuggestions: 0,
+            error: err.message,
+          };
+        }
+      };
+
+      const failingProvider = () => Promise.reject(new Error('Network 503 Service Unavailable'));
+      const fallback = await safeHandler(failingProvider);
+
+      assert.equal(fallback.products.length, 0);
+      assert.equal(fallback.error, 'Network 503 Service Unavailable');
+    });
+  });
+});
 

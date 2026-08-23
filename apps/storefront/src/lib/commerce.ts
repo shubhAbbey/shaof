@@ -84,6 +84,7 @@ export interface ProductFacets {
 }
 
 export interface PlpFilterOptions {
+  q?: string;
   categoryHandle?: string;
   categoryId?: string;
   collectionHandle?: string;
@@ -386,6 +387,7 @@ export async function fetchPlpProducts(
   options: PlpFilterOptions = {}
 ): Promise<FetchPlpResult> {
   const {
+    q,
     limit = 24,
     offset = 0,
     collectionHandle,
@@ -435,13 +437,16 @@ export async function fetchPlpProducts(
     }
   }
 
-  // Fetch all candidate products for the context (category/collection) to compute facets & filter
+  // Fetch all candidate products for the context (category/collection/search) to compute facets & filter
   const queryParams = new URLSearchParams({
     limit: '100',
     offset: '0',
     fields: '*variants.prices,*categories,*collection,+metadata,*tags,*options.values',
   });
 
+  if (q && q.trim()) {
+    queryParams.append('q', q.trim());
+  }
   if (resolvedCollectionId) {
     queryParams.append('collection_id', resolvedCollectionId);
   }
@@ -524,6 +529,19 @@ export async function fetchPlpProducts(
 
     // Apply Filter Pipeline
     let filtered = allCandidates.filter((p) => {
+      // 0. Search Query Text Matching (guarantees accuracy across mock & remote fallbacks)
+      if (q && q.trim()) {
+        const queryTerms = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
+        const matchesQuery = queryTerms.every((term) =>
+          p.title.toLowerCase().includes(term) ||
+          (p.brand && p.brand.toLowerCase().includes(term)) ||
+          (p.categoryName && p.categoryName.toLowerCase().includes(term)) ||
+          (p.sizes && p.sizes.some((s) => s.toLowerCase().includes(term))) ||
+          (p.colors && p.colors.some((c) => c.toLowerCase().includes(term)))
+        );
+        if (!matchesQuery) return false;
+      }
+
       // 1. Brand Filter
       if (activeBrands.length > 0) {
         if (!p.brand) return false;
@@ -583,6 +601,13 @@ export async function fetchPlpProducts(
         return (b.createdAt || '').localeCompare(a.createdAt || '');
       }
       // 'relevance' (default)
+      if (q && q.trim()) {
+        const lowerQ = q.toLowerCase().trim();
+        const aExact = a.title.toLowerCase().startsWith(lowerQ);
+        const bExact = b.title.toLowerCase().startsWith(lowerQ);
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+      }
       if (a.isHot && !b.isHot) return -1;
       if (!a.isHot && b.isHot) return 1;
       return 0;

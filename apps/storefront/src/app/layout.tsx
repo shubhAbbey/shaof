@@ -7,6 +7,7 @@ import { MiniPdpModal } from '../components/pdp/mini-pdp-modal';
 import { Header } from '../components/layout/header';
 import { Footer } from '../components/layout/footer';
 import { constructMetadata } from '../lib/seo';
+import { SearchProvider } from '../context/search-context';
 
 export const metadata: Metadata = constructMetadata();
 
@@ -21,10 +22,12 @@ export default function RootLayout({
         <ToastProvider>
           <UiProvider>
             <MiniPdpProvider>
-              <Header />
-              <div className="flex-1">{children}</div>
-              <Footer />
-              <MiniPdpModal />
+              <SearchProvider>
+                <Header />
+                <div className="flex-1">{children}</div>
+                <Footer />
+                <MiniPdpModal />
+              </SearchProvider>
             </MiniPdpProvider>
           </UiProvider>
         </ToastProvider>

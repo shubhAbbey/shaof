@@ -46,12 +46,15 @@ export const apiConfig = {
       collection: (handle: string) => `/collections/${encodeURIComponent(handle)}`,
       brand: (brand: string) => `/brand/${encodeURIComponent(brand.toLowerCase().replace(/\s+/g, '-'))}`,
       sale: '/sale',
+      search: (query?: string) => (query ? `/search?q=${encodeURIComponent(query)}` : '/search'),
       cart: '/cart',
       wishlist: '/wishlist',
       checkout: '/checkout',
     },
     internalApi: {
       productDetail: (handle: string) => `/api/products/${encodeURIComponent(handle)}`,
+      searchSuggestions: (query: string) => `/api/search/suggestions?q=${encodeURIComponent(query)}`,
+      search: (query: string) => `/api/search?q=${encodeURIComponent(query)}`,
     },
   },
 };
