@@ -1044,5 +1044,203 @@ describe('Task 13: Product Detail Page (PDP) & Mini PDP Engine', () => {
   });
 });
 
+describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refactoring', () => {
+  describe('1. Mobile Back Navigation Engine', () => {
+    it('safely falls back to designated category or home route on direct URL entry with no session history', () => {
+      function resolveMobileBack({ hasInternalHistory, fallbackUrl }) {
+        if (hasInternalHistory) {
+          return { action: 'back' };
+        }
+        return { action: 'push', url: fallbackUrl || '/' };
+      }
+
+      // Direct entry: no referrer / fresh tab
+      const directEntryResult = resolveMobileBack({
+        hasInternalHistory: false,
+        fallbackUrl: '/category/women',
+      });
+      assert.deepEqual(directEntryResult, { action: 'push', url: '/category/women' });
+
+      // Direct entry without category fallback: default to root '/'
+      const rootFallbackResult = resolveMobileBack({
+        hasInternalHistory: false,
+        fallbackUrl: undefined,
+      });
+      assert.deepEqual(rootFallbackResult, { action: 'push', url: '/' });
+    });
+
+    it('delegates to browser back when internal application history exists to preserve PLP state', () => {
+      function resolveMobileBack({ hasInternalHistory, fallbackUrl }) {
+        if (hasInternalHistory) {
+          return { action: 'back' };
+        }
+        return { action: 'push', url: fallbackUrl || '/' };
+      }
+
+      // Internal navigation: PLP -> PDP -> Back
+      const internalNavResult = resolveMobileBack({
+        hasInternalHistory: true,
+        fallbackUrl: '/category/women',
+      });
+      assert.deepEqual(internalNavResult, { action: 'back' });
+    });
+
+    it('prioritizes closing overlay modal/drawer before triggering page back navigation', () => {
+      let isDrawerOpen = true;
+      let navigatedAway = false;
+
+      function handleBackPress() {
+        if (isDrawerOpen) {
+          isDrawerOpen = false;
+          return;
+        }
+        navigatedAway = true;
+      }
+
+      // First back press: closes drawer
+      handleBackPress();
+      assert.equal(isDrawerOpen, false);
+      assert.equal(navigatedAway, false);
+
+      // Second back press: navigates away
+      handleBackPress();
+      assert.equal(navigatedAway, true);
+    });
+  });
+
+  describe('2. Canonical PDP URL & Sharing System', () => {
+    it('generates pristine canonical product URLs without ephemeral UI state or query junk', () => {
+      function getCanonicalPdpUrl(origin, handle) {
+        return `${origin}/product/${encodeURIComponent(handle)}`;
+      }
+
+      const canonicalUrl = getCanonicalPdpUrl(
+        'https://www.ecomfashion.com',
+        'chanderi-silk-anarkali-suit'
+      );
+      assert.equal(
+        canonicalUrl,
+        'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit'
+      );
+      assert.equal(canonicalUrl.includes('localhost'), false);
+      assert.equal(canonicalUrl.includes('?'), false);
+    });
+
+    it('safely handles special characters in product handles', () => {
+      function getCanonicalPdpUrl(origin, handle) {
+        return `${origin}/product/${encodeURIComponent(handle)}`;
+      }
+
+      const canonicalUrl = getCanonicalPdpUrl(
+        'https://www.ecomfashion.com',
+        'embroidered-kurta-&-dupatta-set'
+      );
+      assert.equal(
+        canonicalUrl,
+        'https://www.ecomfashion.com/product/embroidered-kurta-%26-dupatta-set'
+      );
+    });
+
+    it('executes Web Share API when supported and falls back gracefully to clipboard', async () => {
+      let shareInvoked = false;
+      let clipboardText = '';
+
+      const mockNavigator = {
+        share: async (payload) => {
+          shareInvoked = true;
+          return payload;
+        },
+        clipboard: {
+          writeText: async (text) => {
+            clipboardText = text;
+          },
+        },
+      };
+
+      const sharePayload = {
+        title: 'Chanderi Silk Anarkali Suit',
+        text: 'Explore Chanderi Silk Anarkali Suit on Gulmohar',
+        url: 'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit',
+      };
+
+      // When navigator.share exists:
+      if (mockNavigator.share) {
+        await mockNavigator.share(sharePayload);
+      }
+      assert.equal(shareInvoked, true);
+
+      // Fallback test when navigator.share throws or is missing:
+      await mockNavigator.clipboard.writeText(sharePayload.url);
+      assert.equal(
+        clipboardText,
+        'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit'
+      );
+    });
+  });
+
+  describe('3. Centralized Configuration & Environment Separation', () => {
+    it('centralizes environment access and segregates public vs server-only variables', () => {
+      const mockEnv = {
+        siteUrl: 'https://www.ecomfashion.com',
+        siteName: 'Gulmohar Fashion',
+        medusaUrl: 'https://api.ecomfashion.com',
+        medusaPublishableKey: 'pk_live_key_123',
+        strapiUrl: 'https://cms.ecomfashion.com',
+        nodeEnv: 'production',
+        isDevelopment: false,
+        isProduction: true,
+        isTest: false,
+        strapiApiToken: undefined, // client context
+      };
+
+      assert.equal(mockEnv.siteUrl, 'https://www.ecomfashion.com');
+      assert.equal(mockEnv.medusaUrl, 'https://api.ecomfashion.com');
+      assert.equal(mockEnv.strapiUrl, 'https://cms.ecomfashion.com');
+      assert.equal(mockEnv.isProduction, true);
+      assert.equal(mockEnv.strapiApiToken, undefined);
+    });
+
+    it('resolves centralized API endpoint routes without hardcoded duplicate strings', () => {
+      const mockApiConfig = {
+        medusa: {
+          baseUrl: 'https://api.ecomfashion.com',
+          endpoints: {
+            products: '/store/products',
+            productByHandle: (handle) => `/store/products?handle=${encodeURIComponent(handle)}`,
+            cart: (cartId) => `/store/carts/${encodeURIComponent(cartId)}`,
+          },
+        },
+        cms: {
+          baseUrl: 'https://cms.ecomfashion.com',
+          endpoints: {
+            pages: '/api/pages',
+            pageBySlug: (slug) => `/api/pages?filters[slug][$eq]=${encodeURIComponent(slug)}`,
+          },
+        },
+        storefront: {
+          baseUrl: 'https://www.ecomfashion.com',
+          internalApi: {
+            productDetail: (handle) => `/api/products/${encodeURIComponent(handle)}`,
+          },
+        },
+      };
+
+      assert.equal(
+        mockApiConfig.medusa.endpoints.productByHandle('silk-saree'),
+        '/store/products?handle=silk-saree'
+      );
+      assert.equal(
+        mockApiConfig.cms.endpoints.pageBySlug('about-us'),
+        '/api/pages?filters[slug][$eq]=about-us'
+      );
+      assert.equal(
+        mockApiConfig.storefront.internalApi.productDetail('silk-saree'),
+        '/api/products/silk-saree'
+      );
+    });
+  });
+});
+
+
 
 

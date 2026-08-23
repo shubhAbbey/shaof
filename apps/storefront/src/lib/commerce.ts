@@ -111,10 +111,10 @@ export interface FetchPlpResult {
   facets: ProductFacets;
 }
 
-const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || 'http://localhost:9000';
-const PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ||
-  'pk_962772bcd68f09b11833d76684644ae47e3f46059f995ff0c5eeba74d0cc01e3';
+import { config } from '../config';
+
+const MEDUSA_BACKEND_URL = config.medusa.baseUrl;
+const PUBLISHABLE_KEY = config.medusa.publishableKey;
 
 export interface FetchProductsOptions {
   collectionHandle?: string;
@@ -756,6 +756,7 @@ export async function fetchProductByHandle(handle: string): Promise<ProductDetai
       if (raw) {
         return mapMedusaProductToDetail(raw);
       }
+      return null;
     }
   } catch (err) {
     console.error(`Error fetching product by handle "${handle}":`, err);

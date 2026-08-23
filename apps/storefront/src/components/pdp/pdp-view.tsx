@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import type { ProductDetail, StorefrontProduct } from '../../lib/commerce';
 import { usePdpLogic } from './use-pdp-logic';
@@ -11,14 +11,17 @@ import { Container } from '../ui/container';
 import { Heading, Text } from '../ui/typography';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { MobileBackButton } from '../ui/mobile-back-button';
 import { ProductCard } from '../sections/product-card';
 import { HorizontalItemScroller } from '../ui/horizontal-item-scroller';
 import { formatINR } from '../../lib/utils';
 import { cn } from '../../lib/utils';
+import { config } from '../../config';
 import {
   ShoppingBag,
   Zap,
   Heart,
+  Share2,
   ChevronRight,
   ShieldCheck,
   Truck,
@@ -37,38 +40,104 @@ export interface PdpViewProps {
 
 export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] }) => {
   const pdp = usePdpLogic({ product });
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+
+  const handleShare = async () => {
+    const canonicalUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/product/${product.handle}`
+        : `${config.site.url}/product/${product.handle}`;
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: product.title,
+          text: `Explore ${product.title} on ${config.site.name}`,
+          url: canonicalUrl,
+        });
+        return;
+      } catch (err: any) {
+        // Ignore user cancellation (AbortError)
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: Clipboard copy
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(canonicalUrl);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = canonicalUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setShareFeedback('Link copied to clipboard!');
+      setTimeout(() => setShareFeedback(null), 3000);
+    } catch (err) {
+      console.error('Failed to copy share URL:', err);
+      setShareFeedback('Unable to copy link');
+      setTimeout(() => setShareFeedback(null), 3000);
+    }
+  };
+
+  const fallbackCategoryUrl = product.categoryHandle
+    ? `/category/${product.categoryHandle}`
+    : '/';
 
   return (
     <div className="min-h-screen bg-white pb-16">
-      {/* 1. Breadcrumbs Header */}
+      {/* 1. Breadcrumbs & Mobile Back Header */}
       <div className="border-b border-gray-100 bg-gray-50/50 py-3">
         <Container size="xl">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-gray-500 overflow-x-auto scrollbar-none">
-            <Link href="/" className="hover:text-gray-900 transition-colors">
-              Home
-            </Link>
-            <ChevronRight className="h-3 w-3 flex-shrink-0 text-gray-400" />
-            {product.categoryHierarchy && product.categoryHierarchy.length > 0 ? (
-              product.categoryHierarchy.map((cat, idx) => (
-                <React.Fragment key={cat.handle}>
-                  <Link href={`/category/${cat.handle}`} className="hover:text-gray-900 transition-colors">
-                    {cat.name}
+          <div className="flex items-center justify-between">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-gray-500 overflow-x-auto scrollbar-none">
+              {/* Mobile Back Button (Mobile only) */}
+              <div className="sm:hidden mr-1 shrink-0">
+                <MobileBackButton fallbackUrl={fallbackCategoryUrl} />
+              </div>
+
+              <Link href="/" className="hover:text-gray-900 transition-colors shrink-0">
+                Home
+              </Link>
+              <ChevronRight className="h-3 w-3 flex-shrink-0 text-gray-400" />
+              {product.categoryHierarchy && product.categoryHierarchy.length > 0 ? (
+                product.categoryHierarchy.map((cat, idx) => (
+                  <React.Fragment key={cat.handle}>
+                    <Link href={`/category/${cat.handle}`} className="hover:text-gray-900 transition-colors shrink-0">
+                      {cat.name}
+                    </Link>
+                    <ChevronRight className="h-3 w-3 flex-shrink-0 text-gray-400" />
+                  </React.Fragment>
+                ))
+              ) : product.categoryName ? (
+                <>
+                  <Link href={`/category/${product.categoryHandle || 'women'}`} className="hover:text-gray-900 transition-colors shrink-0">
+                    {product.categoryName}
                   </Link>
                   <ChevronRight className="h-3 w-3 flex-shrink-0 text-gray-400" />
-                </React.Fragment>
-              ))
-            ) : product.categoryName ? (
-              <>
-                <Link href={`/category/${product.categoryHandle || 'women'}`} className="hover:text-gray-900 transition-colors">
-                  {product.categoryName}
-                </Link>
-                <ChevronRight className="h-3 w-3 flex-shrink-0 text-gray-400" />
-              </>
-            ) : null}
-            <span className="font-semibold text-gray-900 truncate max-w-[200px] sm:max-w-none">
-              {product.title}
-            </span>
-          </nav>
+                </>
+              ) : null}
+              <span className="font-semibold text-gray-900 truncate max-w-[160px] sm:max-w-[240px] md:max-w-none">
+                {product.title}
+              </span>
+            </nav>
+
+            {/* Quick Share action on Breadcrumb bar */}
+            <button
+              type="button"
+              onClick={handleShare}
+              data-testid="pdp-share-top-btn"
+              aria-label="Share product"
+              className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-200/60 rounded-md transition-colors shrink-0 ml-2"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          </div>
         </Container>
       </div>
 
@@ -197,7 +266,7 @@ export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] 
                 onClick={pdp.handleToggleWishlist}
                 aria-label="Add to wishlist"
                 className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-xl border transition-all',
+                  'flex h-12 w-12 items-center justify-center rounded-xl border transition-all shrink-0',
                   pdp.isWishlisted
                     ? 'border-brand-600 bg-brand-50 text-brand-600 ring-2 ring-brand-500/20'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:text-brand-600 hover:bg-gray-50'
@@ -205,7 +274,38 @@ export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] 
               >
                 <Heart className={cn('h-5 w-5', pdp.isWishlisted && 'fill-brand-600')} />
               </button>
+
+              <button
+                type="button"
+                onClick={handleShare}
+                data-testid="pdp-share-btn"
+                aria-label="Share this product"
+                className={cn(
+                  'flex h-12 w-12 items-center justify-center rounded-xl border transition-all shrink-0',
+                  shareFeedback
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-600 ring-2 ring-emerald-500/20'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:text-brand-600 hover:bg-gray-50'
+                )}
+              >
+                {shareFeedback ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                ) : (
+                  <Share2 className="h-5 w-5" />
+                )}
+              </button>
             </div>
+
+            {/* Share Feedback Toast */}
+            {shareFeedback && (
+              <div
+                data-testid="pdp-share-toast"
+                role="status"
+                className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-semibold text-emerald-800 animate-fadeIn shadow-2xs"
+              >
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>{shareFeedback}</span>
+              </div>
+            )}
 
             {/* Pincode & Delivery Checker */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-2 mt-2">

@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Drawer } from '../ui/drawer';
 import { EmptyState } from '../ui/empty-state';
+import { MobileBackButton } from '../ui/mobile-back-button';
 import { ProductCard } from '../sections/product-card';
 import { PlpFiltersPanel, type ActiveFilters } from './plp-filters-panel';
 import type { StorefrontProduct, ProductFacets } from '../../lib/commerce';
@@ -332,7 +333,10 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
     <div className="w-full bg-white pb-16 pt-4 sm:pt-6">
       <Container size="xl">
         {/* 1. Breadcrumb Navigation */}
-        <nav aria-label="Breadcrumb" className="mb-4 sm:mb-6">
+        <nav aria-label="Breadcrumb" className="mb-4 sm:mb-6 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          <div className="sm:hidden shrink-0">
+            <MobileBackButton fallbackUrl="/" />
+          </div>
           <ol className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
             {breadcrumbs.map((item, index) => {
               const isLast = index === breadcrumbs.length - 1;

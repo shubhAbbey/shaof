@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { StorefrontProduct, ProductDetail } from '../lib/commerce';
+import { config } from '../config';
 
 interface MiniPdpContextValue {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export const MiniPdpProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(product.handle)}`);
+      const res = await fetch(config.storefront.internalApi.productDetail(product.handle));
       if (res.ok) {
         const data: ProductDetail = await res.json();
         setDetailedProduct(data);

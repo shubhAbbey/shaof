@@ -1,7 +1,8 @@
 import type { CmsPageDto, CmsNavigationDto } from '@ecom/types';
+import { config } from '../config';
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
-const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
+const STRAPI_URL = config.cms.baseUrl;
+const STRAPI_API_TOKEN = config.cms.apiToken;
 
 export function getStrapiMediaUrl(url?: string): string {
   if (!url) return '';

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import type { CmsSeoDto } from '@ecom/types';
+import { config } from '../config';
 
-const SITE_NAME = 'Fashion Ecommerce MVP';
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const SITE_NAME = config.site.name;
+const SITE_URL = config.site.url;
 const DEFAULT_DESCRIPTION =
   'India-First fashion ecommerce destination for high-trend apparel, ethnic and modern collections with seamless checkout and COD.';
 
