@@ -4,6 +4,7 @@
  */
 
 import { fetchPlpProducts, StorefrontProduct, ProductFacets } from '../commerce';
+import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import {
   ISearchProvider,
   SearchOptions,
@@ -105,6 +106,29 @@ export class MedusaSearchProvider implements ISearchProvider {
         }
       });
 
+      // Also check navigation categories for direct category matches
+      NAVIGATION_CATEGORIES.forEach((cat) => {
+        if (cat.name.toLowerCase().includes(trimmedQuery.toLowerCase())) {
+          categoriesMap.set(cat.handle, {
+            id: cat.id,
+            name: cat.name,
+            handle: cat.handle,
+          });
+        }
+        cat.groups.forEach((g) => {
+          g.items.forEach((item) => {
+            if (item.label.toLowerCase().includes(trimmedQuery.toLowerCase())) {
+              const handle = item.href.replace('/category/', '').replace('/sale', 'sale');
+              categoriesMap.set(handle, {
+                id: handle,
+                name: item.label,
+                handle,
+              });
+            }
+          });
+        });
+      });
+
       categoriesMap.forEach((cat) => {
         suggestions.push({
           id: `cat_${cat.handle}`,
@@ -116,7 +140,54 @@ export class MedusaSearchProvider implements ISearchProvider {
         });
       });
 
-      // 3. Extract matching brands
+      // 3. Extract matching collections
+      const collectionsMap = new Map<string, { id: string; title: string; handle: string }>();
+      products.forEach((p: any) => {
+        if (p.collectionTitle && p.collectionHandle) {
+          if (
+            p.collectionTitle.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
+            p.collectionHandle.toLowerCase().includes(trimmedQuery.toLowerCase())
+          ) {
+            collectionsMap.set(p.collectionHandle, {
+              id: p.collectionHandle,
+              title: p.collectionTitle,
+              handle: p.collectionHandle,
+            });
+          }
+        }
+      });
+
+      // Also check featured collections in NAVIGATION_CATEGORIES
+      NAVIGATION_CATEGORIES.forEach((cat) => {
+        cat.featured?.forEach((f) => {
+          if (f.href.startsWith('/collections/')) {
+            const handle = f.href.replace('/collections/', '');
+            if (
+              f.title.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
+              handle.toLowerCase().includes(trimmedQuery.toLowerCase())
+            ) {
+              collectionsMap.set(handle, {
+                id: handle,
+                title: f.title,
+                handle,
+              });
+            }
+          }
+        });
+      });
+
+      collectionsMap.forEach((col) => {
+        suggestions.push({
+          id: `col_${col.handle}`,
+          title: `Collection: ${col.title}`,
+          type: 'collection',
+          collectionTitle: col.title,
+          collectionHandle: col.handle,
+          query: trimmedQuery,
+        });
+      });
+
+      // 4. Extract matching brands
       const brandsSet = new Set<string>();
       products.forEach((p) => {
         if (p.brand && p.brand.toLowerCase().includes(trimmedQuery.toLowerCase())) {
@@ -134,8 +205,8 @@ export class MedusaSearchProvider implements ISearchProvider {
         });
       });
 
-      // 4. Product suggestions
-      products.slice(0, 4).forEach((p) => {
+      // 5. Product suggestions (top 4-6 products)
+      products.slice(0, 5).forEach((p) => {
         suggestions.push({
           id: `prod_${p.id}`,
           title: p.title,
@@ -156,6 +227,7 @@ export class MedusaSearchProvider implements ISearchProvider {
         suggestions,
         products,
         categories: Array.from(categoriesMap.values()),
+        collections: Array.from(collectionsMap.values()),
         brands: Array.from(brandsSet),
         totalSuggestions: suggestions.length,
       };

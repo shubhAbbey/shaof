@@ -2,16 +2,14 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Menu, Search, Heart, ShoppingBag, Sparkles, X } from 'lucide-react';
+import { Menu, Search, Heart, ShoppingBag, Sparkles } from 'lucide-react';
 import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
-import { SearchBar } from './search-bar';
 import { cn } from '../../lib/utils';
 
 export const MobileHeader: React.FC = () => {
   const { openMobileNav, openCartDrawer } = useUi();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number>(0);
-  const [isSearchExpanded, setIsSearchExpanded] = useState<boolean>(false);
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white shadow-xs md:hidden">
@@ -45,15 +43,14 @@ export const MobileHeader: React.FC = () => {
 
         {/* Right Action Icons */}
         <div className="flex items-center gap-3">
-          {/* Search Trigger */}
-          <button
-            type="button"
-            onClick={() => setIsSearchExpanded((prev) => !prev)}
+          {/* Search Trigger -> dedicated /search page */}
+          <Link
+            href="/search"
             aria-label="Search catalog"
             className="p-1.5 text-gray-700 hover:text-brand-600"
           >
-            {isSearchExpanded ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
-          </button>
+            <Search className="h-5 w-5" />
+          </Link>
 
           {/* Wishlist */}
           <Link
@@ -81,17 +78,6 @@ export const MobileHeader: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* 3. Expandable Mobile Search Box */}
-      {isSearchExpanded && (
-        <div className="p-3 border-b border-gray-100 bg-gray-50/80 animate-fadeIn">
-          <SearchBar
-            autoFocus
-            placeholder="Search for dresses, kurtas, shirts..."
-            onSearchSubmit={() => setIsSearchExpanded(false)}
-          />
-        </div>
-      )}
 
       {/* 4. Touch-Friendly Horizontal Category Pills */}
       <div className="w-full max-w-full overflow-hidden border-b border-gray-200 bg-white">

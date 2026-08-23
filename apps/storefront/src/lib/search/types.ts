@@ -5,7 +5,7 @@
 
 import { StorefrontProduct, ProductFacets } from '../commerce';
 
-export type SuggestionType = 'query' | 'product' | 'category' | 'brand';
+export type SuggestionType = 'query' | 'product' | 'category' | 'collection' | 'brand';
 
 export interface SearchSuggestionItem {
   id: string;
@@ -15,6 +15,8 @@ export interface SearchSuggestionItem {
   handle?: string;
   categoryName?: string;
   categoryHandle?: string;
+  collectionTitle?: string;
+  collectionHandle?: string;
   brand?: string;
   thumbnail?: string | null;
   price?: number;
@@ -27,6 +29,7 @@ export interface SearchSuggestionsResult {
   suggestions: SearchSuggestionItem[];
   products: StorefrontProduct[];
   categories: { id: string; name: string; handle: string }[];
+  collections?: { id: string; title: string; handle: string }[];
   brands: string[];
   totalSuggestions: number;
 }

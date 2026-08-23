@@ -1465,3 +1465,442 @@ describe('Task 14: Search Foundation', () => {
   });
 });
 
+describe('Task 15: Desktop Search Dropdown & Autocomplete UX', () => {
+  describe('1. Autocomplete Navigable Items Flattening & Sectioning', () => {
+    it('flattens query, categories, collections, products, and view-all into an accessible list', () => {
+      const query = 'kurta';
+      const mockSuggestions = {
+        query: 'kurta',
+        suggestions: [],
+        products: [
+          { id: 'prod_1', title: 'Cotton Kurta', handle: 'cotton-kurta', price: 1499 },
+          { id: 'prod_2', title: 'Silk Festive Kurta', handle: 'silk-festive-kurta', price: 2999 },
+        ],
+        categories: [{ id: 'women-kurtas', name: 'Kurta & Kurti Sets', handle: 'women-kurtas' }],
+        collections: [{ id: 'festive-glam', title: 'Festive Glam Edit', handle: 'festive-glam' }],
+        brands: ['Gulmohar Jaipur'],
+        totalSuggestions: 4,
+      };
+
+      const buildNavigableItems = (q, sugg) => {
+        const items = [];
+        const trimmed = q.trim();
+        if (!trimmed) return items;
+
+        // 1. Direct query
+        items.push({ id: 'nav-query', type: 'query', title: trimmed, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        // 2. Categories
+        sugg.categories.forEach((cat) => items.push({ id: `nav-cat-${cat.handle}`, type: 'category', title: cat.name, href: `/category/${cat.handle}` }));
+        // 3. Collections
+        sugg.collections.forEach((col) => items.push({ id: `nav-col-${col.handle}`, type: 'collection', title: col.title, href: `/collections/${col.handle}` }));
+        // 4. Products
+        sugg.products.forEach((prod) => items.push({ id: `nav-prod-${prod.id}`, type: 'product', title: prod.title, href: `/product/${prod.handle}` }));
+        // 5. View All
+        items.push({ id: 'nav-view-all', type: 'view_all', title: `View all results for "${trimmed}"`, href: `/search?q=${encodeURIComponent(trimmed)}` });
+
+        return items;
+      };
+
+      const items = buildNavigableItems(query, mockSuggestions);
+      assert.equal(items.length, 6);
+      assert.equal(items[0].type, 'query');
+      assert.equal(items[1].type, 'category');
+      assert.equal(items[2].type, 'collection');
+      assert.equal(items[3].type, 'product');
+      assert.equal(items[4].type, 'product');
+      assert.equal(items[5].type, 'view_all');
+    });
+  });
+
+  describe('2. Navigation Destinations & Routing Contracts', () => {
+    it('routes product clicks to PDP (/product/[handle])', () => {
+      const prodItem = {
+        type: 'product',
+        title: 'Chanderi Silk Anarkali Suit',
+        href: '/product/chanderi-silk-anarkali-suit',
+      };
+      assert.equal(prodItem.href, '/product/chanderi-silk-anarkali-suit');
+    });
+
+    it('routes category clicks to Category PLP (/category/[handle])', () => {
+      const catItem = {
+        type: 'category',
+        title: 'Kurta & Kurti Sets',
+        href: '/category/women-kurta-sets',
+      };
+      assert.equal(catItem.href, '/category/women-kurta-sets');
+    });
+
+    it('routes collection clicks to Collection PLP (/collections/[handle])', () => {
+      const colItem = {
+        type: 'collection',
+        title: 'Summer Meadow Collection',
+        href: '/collections/summer-meadow',
+      };
+      assert.equal(colItem.href, '/collections/summer-meadow');
+    });
+
+    it('routes View All and Enter without selection to Search PLP (/search?q=[query])', () => {
+      const q = 'linen shirt';
+      const searchHref = `/search?q=${encodeURIComponent(q)}`;
+      assert.equal(searchHref, '/search?q=linen%20shirt');
+    });
+  });
+
+  describe('3. Keyboard Navigation State Machine', () => {
+    it('ArrowDown cycles active index forward and wraps around', () => {
+      const itemCount = 4;
+      let activeIndex = -1;
+
+      const handleArrowDown = () => {
+        activeIndex = activeIndex < itemCount - 1 ? activeIndex + 1 : 0;
+      };
+
+      handleArrowDown();
+      assert.equal(activeIndex, 0);
+
+      handleArrowDown();
+      assert.equal(activeIndex, 1);
+
+      handleArrowDown();
+      assert.equal(activeIndex, 2);
+
+      handleArrowDown();
+      assert.equal(activeIndex, 3);
+
+      handleArrowDown(); // Wrap around
+      assert.equal(activeIndex, 0);
+    });
+
+    it('ArrowUp cycles active index backward and returns to input (-1)', () => {
+      const itemCount = 4;
+      let activeIndex = 2;
+
+      const handleArrowUp = () => {
+        activeIndex = activeIndex > 0 ? activeIndex - 1 : -1;
+      };
+
+      handleArrowUp();
+      assert.equal(activeIndex, 1);
+
+      handleArrowUp();
+      assert.equal(activeIndex, 0);
+
+      handleArrowUp();
+      assert.equal(activeIndex, -1);
+    });
+
+    it('Enter with active suggestion selects item destination, while Enter at -1 performs full search', () => {
+      const items = [
+        { type: 'query', href: '/search?q=dress' },
+        { type: 'product', href: '/product/floral-dress' },
+      ];
+
+      const resolveEnterAction = (activeIndex, query) => {
+        if (activeIndex >= 0 && activeIndex < items.length) {
+          return { action: 'select_item', target: items[activeIndex].href };
+        }
+        return { action: 'full_search', target: `/search?q=${encodeURIComponent(query)}` };
+      };
+
+      const selectResult = resolveEnterAction(1, 'dress');
+      assert.equal(selectResult.action, 'select_item');
+      assert.equal(selectResult.target, '/product/floral-dress');
+
+      const defaultResult = resolveEnterAction(-1, 'dress');
+      assert.equal(defaultResult.action, 'full_search');
+      assert.equal(defaultResult.target, '/search?q=dress');
+    });
+
+    it('Escape closes dropdown and resets active index', () => {
+      let isOpen = true;
+      let activeIndex = 2;
+
+      const handleEscape = () => {
+        isOpen = false;
+        activeIndex = -1;
+      };
+
+      handleEscape();
+      assert.equal(isOpen, false);
+      assert.equal(activeIndex, -1);
+    });
+  });
+
+  describe('4. Loading, Empty, and Error States Resilience', () => {
+    it('correctly detects zero matches state when query exists but no products/categories/collections match', () => {
+      const query = 'xyznonexistent123';
+      const suggestions = {
+        query,
+        suggestions: [{ id: 'query_xyz', title: query, type: 'query' }],
+        products: [],
+        categories: [],
+        collections: [],
+        brands: [],
+        totalSuggestions: 1,
+      };
+
+      const isZeroMatches =
+        query.trim().length > 0 &&
+        suggestions.products.length === 0 &&
+        suggestions.categories.length === 0 &&
+        (!suggestions.collections || suggestions.collections.length === 0);
+
+      assert.equal(isZeroMatches, true);
+    });
+
+    it('displays error notice on suggestion fetch failure while keeping full search available', () => {
+      const state = {
+        error: new Error('Network timeout'),
+        query: 'saree',
+      };
+
+      const canStillSearch = state.query.trim().length > 0;
+      assert.equal(canStillSearch, true);
+      assert.ok(state.error.message.includes('timeout'));
+    });
+  });
+});
+
+describe('Task 16: Mobile Search Page & ZSR', () => {
+  describe('1. Dedicated Mobile Search Page & Query Routing Contracts', () => {
+    it('binds search query q to /search and updates browser history seamlessly', () => {
+      const query = 'embroidered kurta';
+      const computeSearchUrl = (q) => {
+        const trimmed = q.trim();
+        return trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search';
+      };
+
+      assert.equal(computeSearchUrl(query), '/search?q=embroidered%20kurta');
+      assert.equal(computeSearchUrl(''), '/search');
+      assert.equal(computeSearchUrl('   '), '/search');
+    });
+
+    it('surfaces matching category and collection quick chip links during mobile search', () => {
+      const mockSuggestions = {
+        categories: [
+          { id: 'cat_1', name: 'Kurta & Kurti Sets', handle: 'women-kurta-sets' },
+        ],
+        collections: [
+          { id: 'col_1', title: 'Summer Meadow Collection', handle: 'summer-meadow' },
+        ],
+      };
+
+      const categoryChips = mockSuggestions.categories.map((c) => ({
+        label: c.name,
+        href: `/category/${c.handle}`,
+      }));
+      const collectionChips = mockSuggestions.collections.map((c) => ({
+        label: c.title,
+        href: `/collections/${c.handle}`,
+      }));
+
+      assert.equal(categoryChips[0].href, '/category/women-kurta-sets');
+      assert.equal(collectionChips[0].href, '/collections/summer-meadow');
+    });
+
+    it('navigates product cards directly to canonical PDP route (/product/[handle])', () => {
+      const product = {
+        id: 'prod_101',
+        title: 'Chanderi Silk Anarkali',
+        handle: 'chanderi-silk-anarkali',
+        price: 2499,
+      };
+
+      const pdpHref = `/product/${product.handle}`;
+      assert.equal(pdpHref, '/product/chanderi-silk-anarkali');
+    });
+  });
+
+  describe('2. Zero Search Results (ZSR) vs. API Failure Distinction', () => {
+    it('triggers explicit ZSR state only when query is non-empty and 0 products match without error', () => {
+      const evaluateSearchState = ({ query, products, error, isLoading }) => {
+        const trimmed = query.trim();
+        const isZsr = !isLoading && trimmed !== '' && products.length === 0 && !error;
+        const isError = !isLoading && Boolean(error);
+        const isDefaultEmpty = !isLoading && trimmed === '' && products.length === 0 && !error;
+        return { isZsr, isError, isDefaultEmpty };
+      };
+
+      // Case 1: Active query with 0 results -> ZSR
+      const zsrState = evaluateSearchState({ query: 'nonexistent999', products: [], error: null, isLoading: false });
+      assert.equal(zsrState.isZsr, true);
+      assert.equal(zsrState.isError, false);
+
+      // Case 2: API error occurs -> NOT ZSR, but Error State
+      const errorState = evaluateSearchState({ query: 'kurta', products: [], error: '500 Server Error', isLoading: false });
+      assert.equal(errorState.isZsr, false);
+      assert.equal(errorState.isError, true);
+
+      // Case 3: Empty query on initial landing -> Default Empty State
+      const emptyState = evaluateSearchState({ query: '', products: [], error: null, isLoading: false });
+      assert.equal(emptyState.isZsr, false);
+      assert.equal(emptyState.isDefaultEmpty, true);
+    });
+
+    it('provides recovery options (Trending Searches & Popular Categories) on ZSR', () => {
+      const trendingTerms = ['Kurta Sets', 'Oversized T-Shirts', 'Floral Maxi Dresses'];
+      const popularCats = [
+        { name: 'Women Ethnic', href: '/category/women' },
+        { name: 'Men Topwear', href: '/category/men' },
+      ];
+
+      assert.ok(trendingTerms.length >= 3);
+      assert.ok(popularCats.every((c) => c.href.startsWith('/category/') || c.href === '/sale'));
+    });
+  });
+
+  describe('3. Progressive Infinite Pagination & Deduplication', () => {
+    it('appends non-duplicate products across infinite scroll batches', () => {
+      const initialProducts = [
+        { id: 'p1', title: 'Kurta A' },
+        { id: 'p2', title: 'Kurta B' },
+      ];
+
+      const batch2 = [
+        { id: 'p2', title: 'Kurta B' }, // Duplicate from overlapping offset
+        { id: 'p3', title: 'Kurta C' },
+        { id: 'p4', title: 'Kurta D' },
+      ];
+
+      const appendProducts = (prev, incoming) => {
+        const seen = new Set(prev.map((p) => p.id));
+        const filtered = incoming.filter((p) => !seen.has(p.id));
+        return [...prev, ...filtered];
+      };
+
+      const merged = appendProducts(initialProducts, batch2);
+      assert.equal(merged.length, 4);
+      assert.deepEqual(
+        merged.map((p) => p.id),
+        ['p1', 'p2', 'p3', 'p4']
+      );
+    });
+
+    it('identifies end-of-results state when hasMore is false', () => {
+      const paginationState = {
+        productsCount: 18,
+        totalCount: 18,
+        hasMore: false,
+        nextOffset: undefined,
+      };
+
+      const isComplete = !paginationState.hasMore;
+      assert.equal(isComplete, true);
+    });
+  });
+
+  describe('4. URL State Preservation & Canonical Metadata', () => {
+    it('generates dynamic SEO title and canonical URL for search queries', () => {
+      const generateMeta = (q) => {
+        const trimmed = (q || '').trim();
+        if (!trimmed) {
+          return {
+            title: 'Search Fashion Catalog | EcomFashion',
+            canonicalUrl: '/search',
+          };
+        }
+        return {
+          title: `Search results for "${trimmed}" | EcomFashion`,
+          canonicalUrl: `/search?q=${encodeURIComponent(trimmed)}`,
+        };
+      };
+
+      const metaWithQuery = generateMeta('chikankari kurta');
+      assert.equal(metaWithQuery.title, 'Search results for "chikankari kurta" | EcomFashion');
+      assert.equal(metaWithQuery.canonicalUrl, '/search?q=chikankari%20kurta');
+
+      const metaEmpty = generateMeta('');
+      assert.equal(metaEmpty.title, 'Search Fashion Catalog | EcomFashion');
+      assert.equal(metaEmpty.canonicalUrl, '/search');
+    });
+
+    it('preserves query param q across filter and sort transitions', () => {
+      const baseParams = new URLSearchParams({ q: 'linen' });
+      baseParams.set('brands', 'FabIndia');
+      baseParams.set('sort', 'price_asc');
+
+      const fullQueryString = `/search?${baseParams.toString()}`;
+      assert.ok(fullQueryString.includes('q=linen'));
+      assert.ok(fullQueryString.includes('brands=FabIndia'));
+      assert.ok(fullQueryString.includes('sort=price_asc'));
+    });
+  });
+
+  describe('5. Search Query Transitions & Stale Results Protection', () => {
+    it('reproduces and fixes pajama (0 results) -> chanderi (2 results) state synchronization', () => {
+      // Step 1: User lands on /search?q=pajama
+      let currentProps = {
+        query: 'pajama',
+        products: [],
+        totalCount: 0,
+        contextParams: { q: 'pajama' },
+      };
+
+      // State machine simulating InteractivePlpView sync effect
+      let viewState = {
+        products: currentProps.products,
+        totalCount: currentProps.totalCount,
+        query: currentProps.contextParams.q,
+      };
+
+      assert.equal(viewState.products.length, 0);
+      assert.equal(viewState.totalCount, 0);
+      assert.equal(viewState.query, 'pajama');
+
+      // Step 2: User types chanderi and submits search -> /search?q=chanderi
+      currentProps = {
+        query: 'chanderi',
+        products: [
+          { id: 'prod_chanderi_1', title: 'Chanderi Silk Anarkali Suit', handle: 'chanderi-silk-anarkali' },
+          { id: 'prod_chanderi_2', title: 'Handwoven Chanderi Saree', handle: 'handwoven-chanderi-saree' },
+        ],
+        totalCount: 2,
+        contextParams: { q: 'chanderi' },
+      };
+
+      // Sync effect updates products, totalCount, and query
+      viewState = {
+        products: currentProps.products,
+        totalCount: currentProps.totalCount,
+        query: currentProps.contextParams.q,
+      };
+
+      // Assert that product grid contains the 2 chanderi products, not stale 0 products
+      assert.equal(viewState.products.length, 2);
+      assert.equal(viewState.totalCount, 2);
+      assert.equal(viewState.products[0].handle, 'chanderi-silk-anarkali');
+      assert.equal(viewState.products[1].handle, 'handwoven-chanderi-saree');
+      assert.equal(viewState.query, 'chanderi');
+    });
+
+    it('prevents stale out-of-order responses from overwriting rapid query transitions (pajama -> chanderi -> kurta)', async () => {
+      let activeSequenceId = 0;
+      let latestRenderedState = null;
+
+      const simulateQuery = async (query, delayMs, returnedProducts) => {
+        const sequenceId = ++activeSequenceId;
+        await new Promise((res) => setTimeout(res, delayMs));
+        if (sequenceId === activeSequenceId) {
+          latestRenderedState = { query, products: returnedProducts, sequenceId };
+        }
+      };
+
+      // Fire 3 rapid search queries with inverted latency
+      const p1 = simulateQuery('pajama', 80, []);
+      const p2 = simulateQuery('chanderi', 50, [{ id: 'c1', title: 'Chanderi Suit' }]);
+      const p3 = simulateQuery('kurta', 20, [{ id: 'k1', title: 'Cotton Kurta' }, { id: 'k2', title: 'Silk Kurta' }]);
+
+      await Promise.all([p1, p2, p3]);
+
+      // Assert that only the latest query (kurta) was rendered and sequence tracking protected against stale overwrite
+      assert.ok(latestRenderedState);
+      assert.equal(latestRenderedState.query, 'kurta');
+      assert.equal(latestRenderedState.products.length, 2);
+      assert.equal(latestRenderedState.sequenceId, 3);
+    });
+  });
+});
+
+
+

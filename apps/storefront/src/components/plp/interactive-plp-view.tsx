@@ -35,6 +35,7 @@ export interface InteractivePlpViewProps {
     collectionHandle?: string;
     brand?: string;
     onSaleOnly?: boolean;
+    q?: string;
   };
   emptyTitle?: string;
   emptyDescription?: string;
@@ -68,7 +69,7 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
   const searchParams = useSearchParams();
 
   // Parse filters from URL search params or props
-  const getInitialFiltersFromUrl = (): ActiveFilters => {
+  const getInitialFiltersFromUrl = useCallback((): ActiveFilters => {
     const brandsParam = searchParams.get('brands') || searchParams.get('brand');
     const sizesParam = searchParams.get('sizes') || searchParams.get('size');
     const colorsParam = searchParams.get('colors') || searchParams.get('color');
@@ -92,7 +93,7 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
       inStock: inStockParam === 'true',
       onSaleOnly: onSaleParam === 'true' || Boolean(contextParams.onSaleOnly),
     };
-  };
+  }, [searchParams, contextParams.brand, contextParams.onSaleOnly]);
 
   const initialSort = (searchParams.get('sort') as SortOption) || 'relevance';
 
@@ -113,11 +114,37 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
   const observerTargetRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
 
+  // Synchronize internal state when server props or query change
+  useEffect(() => {
+    setProducts(initialProducts);
+    setTotalCount(initialTotalCount);
+    setHasMore(initialHasMore);
+    setNextOffset(initialNextOffset);
+    setFacets(initialFacets);
+    setActiveFilters(getInitialFiltersFromUrl());
+    setSort(initialSort);
+  }, [
+    initialProducts,
+    initialTotalCount,
+    initialHasMore,
+    initialNextOffset,
+    initialFacets,
+    initialSort,
+    getInitialFiltersFromUrl,
+    contextParams.q,
+    contextParams.categoryHandle,
+    contextParams.collectionHandle,
+    contextParams.brand,
+  ]);
+
   // Sync state with URL
   const syncUrlParams = useCallback(
     (filters: ActiveFilters, currentSort: SortOption) => {
       const params = new URLSearchParams();
 
+      if (contextParams.q) {
+        params.set('q', contextParams.q);
+      }
       if (filters.brands.length > 0) {
         params.set('brands', filters.brands.join(','));
       }
@@ -147,7 +174,7 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
       const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
       window.history.replaceState(null, '', targetUrl);
     },
-    [pathname, contextParams.onSaleOnly]
+    [pathname, contextParams.onSaleOnly, contextParams.q]
   );
 
   // Fetch filtered products
@@ -163,8 +190,10 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
           sort: currentSort,
         });
 
+        if (contextParams.q) query.set('q', contextParams.q);
         if (contextParams.categoryHandle) query.set('categoryHandle', contextParams.categoryHandle);
         if (contextParams.collectionHandle) query.set('collectionHandle', contextParams.collectionHandle);
+        if (contextParams.brand) query.set('brand', contextParams.brand);
         if (filters.brands.length > 0) query.set('brands', filters.brands.join(','));
         if (filters.sizes.length > 0) query.set('sizes', filters.sizes.join(','));
         if (filters.colors.length > 0) query.set('colors', filters.colors.join(','));
@@ -207,8 +236,10 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
         sort,
       });
 
+      if (contextParams.q) query.set('q', contextParams.q);
       if (contextParams.categoryHandle) query.set('categoryHandle', contextParams.categoryHandle);
       if (contextParams.collectionHandle) query.set('collectionHandle', contextParams.collectionHandle);
+      if (contextParams.brand) query.set('brand', contextParams.brand);
       if (activeFilters.brands.length > 0) query.set('brands', activeFilters.brands.join(','));
       if (activeFilters.sizes.length > 0) query.set('sizes', activeFilters.sizes.join(','));
       if (activeFilters.colors.length > 0) query.set('colors', activeFilters.colors.join(','));

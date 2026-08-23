@@ -21,6 +21,7 @@ export interface PlpViewProps {
     collectionHandle?: string;
     brand?: string;
     onSaleOnly?: boolean;
+    q?: string;
   };
   emptyTitle?: string;
   emptyDescription?: string;
