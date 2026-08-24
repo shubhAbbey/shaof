@@ -1,63 +1,64 @@
 'use client';
 
 import React from 'react';
-import { Dialog } from '../ui/dialog';
-import { Drawer } from '../ui/drawer';
+import { X } from 'lucide-react';
+import { useAuth } from '../../context/auth-context';
 import { LoginForm } from './login-form';
 import { RegisterForm } from './register-form';
-import { useAuth } from '../../context/auth-context';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, authView, setAuthView, intendedDestination } = useAuth();
+  const {
+    isAuthModalOpen,
+    authView,
+    closeAuthModal,
+    intendedDestination,
+    authMobile,
+    openLogin,
+    openRegister,
+  } = useAuth();
+
+  if (!isAuthModalOpen) return null;
 
   return (
-    <>
-      <div className="hidden md:block">
-        <Dialog
-          isOpen={isAuthModalOpen}
-          onClose={closeAuthModal}
-          size="sm"
-          className="p-8"
-        >
-          {authView === 'login' ? (
-            <LoginForm
-              onSuccess={closeAuthModal}
-              onSwitchToRegister={() => setAuthView('register')}
-              redirectUrl={intendedDestination || undefined}
-            />
-          ) : (
-            <RegisterForm
-              onSuccess={closeAuthModal}
-              onSwitchToLogin={() => setAuthView('login')}
-              redirectUrl={intendedDestination || undefined}
-            />
-          )}
-        </Dialog>
-      </div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-fadeIn"
+        onClick={closeAuthModal}
+        aria-hidden="true"
+      />
 
-      <div className="block md:hidden">
-        <Drawer
-          isOpen={isAuthModalOpen}
-          onClose={closeAuthModal}
-          position="bottom"
-          size="full"
-          className="p-6 max-h-[90vh] rounded-t-3xl"
+      {/* Responsive Container: Desktop Dialog / Mobile Bottom Sheet */}
+      <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 sm:p-8 z-10 animate-slideUp sm:animate-scaleIn max-h-[90vh] overflow-y-auto mt-auto sm:my-auto">
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={closeAuthModal}
+          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+          aria-label="Close dialog"
         >
-          {authView === 'login' ? (
-            <LoginForm
-              onSuccess={closeAuthModal}
-              onSwitchToRegister={() => setAuthView('register')}
-              redirectUrl={intendedDestination || undefined}
-            />
-          ) : (
-            <RegisterForm
-              onSuccess={closeAuthModal}
-              onSwitchToLogin={() => setAuthView('login')}
-              redirectUrl={intendedDestination || undefined}
-            />
-          )}
-        </Drawer>
+          <X className="h-5 w-5" />
+        </button>
+
+        {authView === 'login' ? (
+          <LoginForm
+            onSuccess={closeAuthModal}
+            onSwitchToRegister={(mobile) => openRegister(intendedDestination, mobile)}
+            redirectUrl={intendedDestination}
+          />
+        ) : (
+          <RegisterForm
+            onSuccess={closeAuthModal}
+            onSwitchToLogin={() => openLogin(intendedDestination)}
+            redirectUrl={intendedDestination}
+            initialMobile={authMobile}
+          />
+        )}
       </div>
-    </>
+    </div>
   );
 };

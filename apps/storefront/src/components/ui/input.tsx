@@ -37,8 +37,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               leftIcon ? 'pl-10' : 'pl-3',
               rightIcon ? 'pr-10' : 'pr-3',
               error
-                ? 'border-red-500 focus-visible:ring-red-500'
-                : 'border-gray-300 focus-visible:border-brand-500 focus-visible:ring-brand-500',
+                ? 'border-red-500 focus-visible:border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/20'
+                : 'border-gray-300 focus-visible:border-gray-900 focus-visible:ring-1 focus-visible:ring-gray-900/10',
               className
             )}
             {...props}

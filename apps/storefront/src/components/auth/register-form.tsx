@@ -7,18 +7,21 @@ import { Input } from '../ui/input';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
 import { normalizeIndianMobile } from '../../lib/auth/phone-utils';
+import { cn } from '../../lib/utils';
 import type { GenderType } from '@ecom/types';
 
 export interface RegisterFormProps {
   onSuccess?: () => void;
   onSwitchToLogin?: () => void;
   redirectUrl?: string;
+  initialMobile?: string;
 }
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({
   onSuccess,
   onSwitchToLogin,
   redirectUrl,
+  initialMobile,
 }) => {
   const { login } = useAuth();
 
@@ -26,7 +29,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [mobile, setMobile] = useState(initialMobile ? initialMobile.replace(/^\+91/, '') : '');
   const [gender, setGender] = useState<GenderType>('prefer_not_to_say');
   const [dateOfBirth, setDateOfBirth] = useState('');
 
@@ -36,6 +39,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
   const [countdown, setCountdown] = useState(30);
   const [canResend, setCanResend] = useState(false);
+
+  useEffect(() => {
+    if (initialMobile) {
+      setMobile(initialMobile.replace(/^\+91/, ''));
+    }
+  }, [initialMobile]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -233,12 +242,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
                   setError(null);
                 }}
                 disabled={isLoading}
-                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-600"
+                className={cn(
+                  'flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none transition-colors',
+                  error
+                    ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+                    : 'border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10'
+                )}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="reg-gender" className="block text-sm font-medium text-gray-700">
                 Gender
@@ -248,7 +262,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
                 value={gender}
                 onChange={(e) => setGender(e.target.value as GenderType)}
                 disabled={isLoading}
-                className="block w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-600"
+                className="block w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 transition-colors"
               >
                 <option value="prefer_not_to_say">Prefer not to say</option>
                 <option value="female">Female</option>
@@ -257,7 +271,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
               </select>
             </div>
 
-            <div className="space-y-1.5">
+            {/* <div className="space-y-1.5">
               <label htmlFor="reg-dob" className="block text-sm font-medium text-gray-700">
                 Date of Birth (Optional)
               </label>
@@ -267,9 +281,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
                 value={dateOfBirth}
                 onChange={(e) => setDateOfBirth(e.target.value)}
                 disabled={isLoading}
-                className="block w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-600"
+                className="block w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 transition-colors"
               />
-            </div>
+            </div> */}
           </div>
 
           {error && <p className="text-xs text-red-600 mt-1" role="alert">{error}</p>}

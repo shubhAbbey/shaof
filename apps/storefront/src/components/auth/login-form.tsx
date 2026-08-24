@@ -6,10 +6,11 @@ import { Button } from '../ui/button';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
 import { normalizeIndianMobile } from '../../lib/auth/phone-utils';
+import { cn } from '../../lib/utils';
 
 export interface LoginFormProps {
   onSuccess?: () => void;
-  onSwitchToRegister?: () => void;
+  onSwitchToRegister?: (mobile?: string) => void;
   redirectUrl?: string;
 }
 
@@ -18,7 +19,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onSwitchToRegister,
   redirectUrl,
 }) => {
-  const { login } = useAuth();
+  const { login, openRegister } = useAuth();
 
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
   const [mobile, setMobile] = useState('');
@@ -49,12 +50,40 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       return;
     }
 
+    const canonicalMobile = validation.normalized;
+
     try {
       setIsLoading(true);
+
+      // 1. Check customer existence against Medusa
+      const lookupRes = await fetch('/api/auth/customer/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile: canonicalMobile }),
+      });
+
+      const lookupData = await lookupRes.json();
+
+      if (!lookupRes.ok || !lookupData.success) {
+        setError(lookupData.message || 'Failed to verify account. Please try again.');
+        return;
+      }
+
+      // 2. Branching: If customer does NOT exist, do NOT send OTP -> transition to Registration
+      if (!lookupData.exists) {
+        if (onSwitchToRegister) {
+          onSwitchToRegister(canonicalMobile);
+        } else {
+          openRegister(redirectUrl, canonicalMobile);
+        }
+        return;
+      }
+
+      // 3. Existing customer -> Dispatch Phase 17 Login OTP
       const res = await fetch('/api/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: validation.normalized, type: 'login' }),
+        body: JSON.stringify({ mobile: canonicalMobile, type: 'login' }),
       });
 
       const data = await res.json();
@@ -63,7 +92,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         return;
       }
 
-      setMobile(validation.normalized);
+      setMobile(canonicalMobile);
       setStep('otp');
       setCountdown(30);
       setCanResend(false);
@@ -165,7 +194,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 }}
                 autoFocus
                 disabled={isLoading}
-                className="flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-md border border-gray-300 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-600"
+                className={cn(
+                  'flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-md border text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none transition-colors',
+                  error
+                    ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+                    : 'border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10'
+                )}
               />
             </div>
             {error && <p className="text-xs text-red-600 mt-1" role="alert">{error}</p>}
@@ -188,7 +222,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 New user?{' '}
                 <button
                   type="button"
-                  onClick={onSwitchToRegister}
+                  onClick={() => onSwitchToRegister(mobile ? (mobile.startsWith('+91') ? mobile : '+91' + mobile) : undefined)}
                   className="font-bold text-brand-600 hover:text-brand-700 hover:underline"
                 >
                   Create an account

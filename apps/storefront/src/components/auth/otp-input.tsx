@@ -132,12 +132,11 @@ export const OtpInput: React.FC<OtpInputProps> = ({
             aria-label={'Digit ' + (i + 1) + ' of ' + length}
             className={cn(
               'h-12 w-10 sm:h-14 sm:w-12 text-center text-xl font-bold rounded-lg border bg-white transition-all',
-              'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-600',
+              'focus:outline-none',
               hasError
-                ? 'border-red-500 text-red-600 focus:ring-red-400'
-                : digit
-                ? 'border-brand-600 text-gray-900 bg-brand-50/20'
-                : 'border-gray-300 text-gray-900',
+                ? 'border-red-500 text-red-600 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+                : 'focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10',
+              !hasError && (digit ? 'border-gray-800 text-gray-900 bg-gray-50/50' : 'border-gray-300 text-gray-900'),
               disabled && 'bg-gray-100 text-gray-400 cursor-not-allowed'
             )}
           />
