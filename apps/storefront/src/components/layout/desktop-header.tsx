@@ -9,6 +9,7 @@ import { SearchBar } from './search-bar';
 import { MegaMenu } from './mega-menu';
 import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
+import { useAuth } from '../../context/auth-context';
 import { cn } from '../../lib/utils';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
@@ -23,6 +24,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   globalSettings,
 }) => {
   const { openCartDrawer } = useUi();
+  const { customer, isAuthenticated, openLogin } = useAuth();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [arrowOffset, setArrowOffset] = useState<number>(100);
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -100,13 +102,28 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
           {/* Action Icons */}
           <div className="flex items-center gap-6 shrink-0">
             {/* Account */}
-            <Link
-              href="/account"
-              className="flex flex-col items-center text-gray-700 hover:text-brand-600 transition-colors group"
-            >
-              <User className="h-5 w-5 group-hover:scale-105 transition-transform" />
-              <span className="text-[11px] font-medium mt-0.5">Account</span>
-            </Link>
+            {isAuthenticated && customer ? (
+              <Link
+                href="/account"
+                className="flex flex-col items-center text-gray-700 hover:text-brand-600 transition-colors group"
+                title={customer.firstName ? `Signed in as ${customer.firstName}` : 'My Account'}
+              >
+                <User className="h-5 w-5 text-brand-600 group-hover:scale-105 transition-transform" />
+                <span className="text-[11px] font-medium mt-0.5 text-brand-600 truncate max-w-[64px]">
+                  {customer.firstName || 'Account'}
+                </span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openLogin('/account')}
+                className="flex flex-col items-center text-gray-700 hover:text-brand-600 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded p-0.5"
+                aria-label="Sign In or Register"
+              >
+                <User className="h-5 w-5 group-hover:scale-105 transition-transform" />
+                <span className="text-[11px] font-medium mt-0.5">Sign In</span>
+              </button>
+            )}
 
             {/* Wishlist */}
             <Link

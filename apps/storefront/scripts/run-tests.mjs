@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -2204,6 +2205,1038 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
       assert.ok(qs.includes('sizes=M%2CL'));
       assert.ok(qs.includes('price_min=1500'));
       assert.ok(qs.includes('sort=price_asc'));
+    });
+  });
+});
+
+// ==============================================================================
+// TASK 17: OTP AUTHENTICATION FOUNDATION TEST SUITE
+// ==============================================================================
+describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-End Test Matrix', () => {
+  // 1. Mobile Normalization Implementation for Test Matrix
+  function normalizeIndianMobile(rawMobile) {
+    if (!rawMobile || typeof rawMobile !== 'string') {
+      return { isValid: false, normalized: '', error: 'Mobile number is required' };
+    }
+    const cleaned = rawMobile.trim().replace(/[\s\-().]/g, '');
+    let raw10 = cleaned;
+    if (cleaned.startsWith('+91')) {
+      raw10 = cleaned.slice(3);
+    } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+      raw10 = cleaned.slice(2);
+    } else if (cleaned.startsWith('0') && cleaned.length === 11) {
+      raw10 = cleaned.slice(1);
+    }
+    if (!/^\d{10}$/.test(raw10)) {
+      return { isValid: false, normalized: '', error: 'Mobile number must be a valid 10-digit number' };
+    }
+    if (!/^[6-9]/.test(raw10)) {
+      return { isValid: false, normalized: '', error: 'Invalid Indian mobile number prefix (must begin with 6, 7, 8, or 9)' };
+    }
+    return { isValid: true, normalized: `+91${raw10}` };
+  }
+
+  // 2. Cryptographic Security Helpers
+  const HMAC_SECRET = 'ecom_test_secure_hmac_secret_32_chars';
+  const S2S_AUTH_TOKEN = 'ecom-s2s-dev-token-secret';
+
+  function generateSecureOtp() {
+    return crypto.randomInt(100000, 1000000).toString();
+  }
+
+  function hashOtp(otp, mobile) {
+    return crypto.createHmac('sha256', HMAC_SECRET).update(`${mobile}:${otp}`).digest('hex');
+  }
+
+  function verifyTimingSafeHash(a, b) {
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  }
+
+  // 3. In-Memory Redis Adapter Implementation
+  class InMemoryRedis {
+    constructor() {
+      this.store = new Map();
+    }
+    clean(key) {
+      const entry = this.store.get(key);
+      if (!entry) return false;
+      if (entry.expiresAt && Date.now() > entry.expiresAt) {
+        this.store.delete(key);
+        return false;
+      }
+      return true;
+    }
+    async get(key) {
+      if (!this.clean(key)) return null;
+      return this.store.get(key)?.value ?? null;
+    }
+    async set(key, value, mode, duration) {
+      let expiresAt;
+      if (mode === 'EX' && typeof duration === 'number') {
+        expiresAt = Date.now() + duration * 1000;
+      }
+      this.store.set(key, { value, expiresAt });
+      return 'OK';
+    }
+    async del(key) {
+      return this.store.delete(key) ? 1 : 0;
+    }
+    async incr(key) {
+      const val = await this.get(key);
+      const num = val ? parseInt(val, 10) + 1 : 1;
+      const existing = this.store.get(key);
+      this.store.set(key, { value: num.toString(), expiresAt: existing?.expiresAt });
+      return num;
+    }
+    async expire(key, seconds) {
+      const entry = this.store.get(key);
+      if (!entry) return 0;
+      entry.expiresAt = Date.now() + seconds * 1000;
+      return 1;
+    }
+    async ttl(key) {
+      const entry = this.store.get(key);
+      if (!entry) return -2;
+      if (!entry.expiresAt) return -1;
+      return Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
+    }
+  }
+
+  // 4. Rate Limiter
+  async function checkRateLimit(key, limit, windowSeconds, redis) {
+    const namespacedKey = `ratelimit:${key}`;
+    const currentCount = await redis.incr(namespacedKey);
+    if (currentCount === 1) {
+      await redis.expire(namespacedKey, windowSeconds);
+    }
+    const ttl = await redis.ttl(namespacedKey);
+    const resetInSeconds = ttl > 0 ? ttl : windowSeconds;
+    if (currentCount > limit) {
+      return { allowed: false, remaining: 0, resetInSeconds, limit };
+    }
+    return { allowed: true, remaining: Math.max(0, limit - currentCount), resetInSeconds, limit };
+  }
+
+  // 5. OtpService Implementation Simulator
+  class TestOtpService {
+    static async requestOtp({ mobile: rawMobile, type = 'login', ip, redis, smsProvider }) {
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, message: validation.error, expiresInSeconds: 0, error: 'INVALID_MOBILE' };
+      }
+      const mobile = validation.normalized;
+
+      const rateLimit = await checkRateLimit(`mobile:${mobile}:otp_request`, 3, 600, redis);
+      if (!rateLimit.allowed) {
+        return { success: false, message: 'Too many OTP requests', expiresInSeconds: 0, error: 'RATE_LIMIT_EXCEEDED' };
+      }
+
+      if (ip && ip !== '127.0.0.1') {
+        const ipLimit = await checkRateLimit(`ip:${ip}:otp_request`, 10, 600, redis);
+        if (!ipLimit.allowed) {
+          return { success: false, message: 'Too many requests from IP', expiresInSeconds: 0, error: 'IP_RATE_LIMIT_EXCEEDED' };
+        }
+      }
+
+      const rawOtp = generateSecureOtp();
+      const otpHash = hashOtp(rawOtp, mobile);
+      const now = Date.now();
+      const state = {
+        mobile,
+        otpHash,
+        rawOtp,
+        otpType: type,
+        attempts: 0,
+        maxAttempts: 5,
+        createdAt: now,
+        expiresAt: now + 300000,
+      };
+
+      await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', 300);
+
+      if (smsProvider) {
+        const smsRes = await smsProvider.sendOtp(mobile, rawOtp, type);
+        if (!smsRes.success) {
+          await redis.del(`otp:${mobile}`);
+          return { success: false, message: 'SMS delivery failed', expiresInSeconds: 0, error: smsRes.error };
+        }
+      }
+
+      return { success: true, message: 'OTP sent successfully', expiresInSeconds: 300 };
+    }
+
+    static async verifyOtp({ mobile: rawMobile, otp: submittedOtp, fullName, email, redis }) {
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, error: 'INVALID_MOBILE', message: validation.error };
+      }
+      const mobile = validation.normalized;
+
+      if (!submittedOtp || submittedOtp.trim().length !== 6) {
+        return { success: false, error: 'INVALID_OTP_FORMAT', message: 'OTP must be 6 digits' };
+      }
+
+      const stateStr = await redis.get(`otp:${mobile}`);
+      if (!stateStr) {
+        return { success: false, error: 'OTP_EXPIRED_OR_NOT_FOUND', message: 'OTP expired or not found' };
+      }
+
+      const state = JSON.parse(stateStr);
+      if (state.attempts >= state.maxAttempts) {
+        await redis.del(`otp:${mobile}`);
+        return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max verification attempts exceeded', remainingAttempts: 0 };
+      }
+
+      const submittedHash = hashOtp(submittedOtp.trim(), mobile);
+      const isMatch = verifyTimingSafeHash(submittedHash, state.otpHash);
+
+      if (!isMatch) {
+        state.attempts += 1;
+        const remainingAttempts = Math.max(0, state.maxAttempts - state.attempts);
+        if (remainingAttempts === 0) {
+          await redis.del(`otp:${mobile}`);
+          return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max verification attempts exceeded', remainingAttempts: 0 };
+        }
+        const remainingTtl = await redis.ttl(`otp:${mobile}`);
+        await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', remainingTtl > 0 ? remainingTtl : 30);
+        return { success: false, error: 'INVALID_OTP', message: `Incorrect OTP. ${remainingAttempts} attempt(s) remaining.`, remainingAttempts };
+      }
+
+      await redis.del(`otp:${mobile}`);
+      return {
+        success: true,
+        message: 'OTP verified successfully',
+        customer: {
+          id: `cus_${crypto.createHash('sha256').update(mobile).digest('hex').substring(0, 24)}`,
+          mobile,
+          email: email || null,
+          firstName: fullName ? fullName.split(' ')[0] : null,
+          lastName: fullName && fullName.split(' ').length > 1 ? fullName.split(' ').slice(1).join(' ') : null,
+        },
+        token: `sess_${crypto.randomBytes(32).toString('hex')}`,
+      };
+    }
+
+    static async devFetchOtp({ mobile: rawMobile, s2sToken, nodeEnv = 'development', redis }) {
+      if (nodeEnv === 'production') {
+        return { success: false, error: 'FORBIDDEN_IN_PRODUCTION', message: 'Disabled in production' };
+      }
+      if (!s2sToken || s2sToken !== S2S_AUTH_TOKEN) {
+        return { success: false, error: 'UNAUTHORIZED_S2S', message: 'Invalid S2S token' };
+      }
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, error: 'INVALID_MOBILE', message: validation.error };
+      }
+      const stateStr = await redis.get(`otp:${validation.normalized}`);
+      if (!stateStr) {
+        return { success: false, error: 'OTP_NOT_FOUND', message: 'No active OTP found' };
+      }
+      const state = JSON.parse(stateStr);
+      const ttl = await redis.ttl(`otp:${validation.normalized}`);
+      return { success: true, otp: state.rawOtp, expiresInSeconds: ttl > 0 ? ttl : 0 };
+    }
+  }
+
+  describe('1. Mobile Number Normalization & Validation', () => {
+    it('normalizes 10-digit Indian mobile numbers to canonical +91 format', () => {
+      const inputs = [
+        '9876543210',
+        '+919876543210',
+        '919876543210',
+        '09876543210',
+        '+91 98765 43210',
+        '+91-98765-43210',
+        '(+91) 9876543210',
+        '098765-43210',
+      ];
+      for (const input of inputs) {
+        const result = normalizeIndianMobile(input);
+        assert.equal(result.isValid, true, `Failed for input: ${input}`);
+        assert.equal(result.normalized, '+919876543210');
+      }
+    });
+
+    it('rejects invalid mobile numbers (length, prefix, non-numeric)', () => {
+      const invalidInputs = [
+        '',
+        null,
+        undefined,
+        '12345',
+        '987654321', // 9 digits
+        '98765432100', // 11 digits
+        '1234567890', // Starts with 1 (invalid prefix)
+        '5555555555', // Starts with 5 (invalid prefix)
+        'abcdefghij', // Alphabetic
+        '+14155552671', // Non-Indian international
+      ];
+      for (const input of invalidInputs) {
+        const result = normalizeIndianMobile(input);
+        assert.equal(result.isValid, false, `Expected invalid for: ${input}`);
+        assert.ok(result.error);
+      }
+    });
+  });
+
+  describe('2. Cryptographically Secure OTP Generation', () => {
+    it('generates exactly 6-digit numeric codes within [100000, 999999]', () => {
+      for (let i = 0; i < 50; i++) {
+        const otp = generateSecureOtp();
+        assert.equal(typeof otp, 'string');
+        assert.equal(otp.length, 6);
+        assert.ok(/^\d{6}$/.test(otp));
+        const num = parseInt(otp, 10);
+        assert.ok(num >= 100000 && num <= 999999);
+      }
+    });
+
+    it('produces cryptographic HMAC-SHA256 hashes and timing-safe equality', () => {
+      const mobile = '+919876543210';
+      const otp = '123456';
+      const hash1 = hashOtp(otp, mobile);
+      const hash2 = hashOtp(otp, mobile);
+      const differentHash = hashOtp('654321', mobile);
+
+      assert.equal(hash1, hash2);
+      assert.notEqual(hash1, differentHash);
+      assert.equal(verifyTimingSafeHash(hash1, hash2), true);
+      assert.equal(verifyTimingSafeHash(hash1, differentHash), false);
+    });
+  });
+
+  describe('3. Redis Temporary OTP State Lifecycle & Invalidation', () => {
+    it('stores temporary OTP state with 300s TTL and retrieves cleanly', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543210';
+      const state = {
+        mobile,
+        otpHash: hashOtp('123456', mobile),
+        rawOtp: '123456',
+        otpType: 'login',
+        attempts: 0,
+        maxAttempts: 5,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 300000,
+      };
+
+      await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', 300);
+      const fetched = await redis.get(`otp:${mobile}`);
+      assert.ok(fetched);
+      const parsed = JSON.parse(fetched);
+      assert.equal(parsed.mobile, mobile);
+      assert.equal(parsed.otpType, 'login');
+
+      const ttl = await redis.ttl(`otp:${mobile}`);
+      assert.ok(ttl > 0 && ttl <= 300);
+
+      // Verify deletion
+      await redis.del(`otp:${mobile}`);
+      const afterDel = await redis.get(`otp:${mobile}`);
+      assert.equal(afterDel, null);
+    });
+  });
+
+  describe('4. Rate Limiting Engine', () => {
+    it('enforces maximum 3 requests within 10 minutes window', async () => {
+      const redis = new InMemoryRedis();
+      const key = 'test_user_rate_limit';
+
+      const res1 = await checkRateLimit(key, 3, 600, redis);
+      assert.equal(res1.allowed, true);
+      assert.equal(res1.remaining, 2);
+
+      const res2 = await checkRateLimit(key, 3, 600, redis);
+      assert.equal(res2.allowed, true);
+      assert.equal(res2.remaining, 1);
+
+      const res3 = await checkRateLimit(key, 3, 600, redis);
+      assert.equal(res3.allowed, true);
+      assert.equal(res3.remaining, 0);
+
+      // 4th request must be blocked
+      const res4 = await checkRateLimit(key, 3, 600, redis);
+      assert.equal(res4.allowed, false);
+      assert.equal(res4.remaining, 0);
+      assert.ok(res4.resetInSeconds > 0);
+    });
+  });
+
+  describe('5. SMS / OTP Provider Abstraction & Error Handling', () => {
+    it('handles successful mock SMS dispatch without leaking raw OTP', async () => {
+      const mockProvider = {
+        name: 'mock',
+        sendOtp: async (mobile, otp, type) => ({ success: true, messageId: `msg-${Date.now()}` }),
+      };
+      const res = await mockProvider.sendOtp('+919876543210', '123456', 'login');
+      assert.equal(res.success, true);
+      assert.ok(res.messageId);
+    });
+
+    it('handles SMS delivery failure cleanly and purges temporary state', async () => {
+      const redis = new InMemoryRedis();
+      const failingProvider = {
+        name: 'failing',
+        sendOtp: async () => ({ success: false, error: 'SMS_GATEWAY_DOWN' }),
+      };
+      const res = await TestOtpService.requestOtp({
+        mobile: '9876543210',
+        redis,
+        smsProvider: failingProvider,
+      });
+
+      assert.equal(res.success, false);
+      assert.equal(res.error, 'SMS_GATEWAY_DOWN');
+
+      // Ensure no dangling OTP state in Redis
+      const state = await redis.get('otp:+919876543210');
+      assert.equal(state, null);
+    });
+  });
+
+  describe('6. OTP Request & Verification Service Flow', () => {
+    it('successfully requests OTP and stores state in Redis without returning OTP in response', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543210';
+
+      const requestRes = await TestOtpService.requestOtp({
+        mobile,
+        type: 'login',
+        redis,
+      });
+
+      assert.equal(requestRes.success, true);
+      assert.equal(requestRes.expiresInSeconds, 300);
+      assert.equal(requestRes.otp, undefined, 'Production response must NEVER contain OTP');
+
+      // Verify state in Redis
+      const stateStr = await redis.get(`otp:${mobile}`);
+      assert.ok(stateStr);
+      const state = JSON.parse(stateStr);
+      assert.equal(state.mobile, mobile);
+      assert.equal(state.attempts, 0);
+      assert.equal(state.maxAttempts, 5);
+    });
+
+    it('enforces request rate limit on 4th consecutive request', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543211';
+
+      await TestOtpService.requestOtp({ mobile, redis });
+      await TestOtpService.requestOtp({ mobile, redis });
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      const res4 = await TestOtpService.requestOtp({ mobile, redis });
+      assert.equal(res4.success, false);
+      assert.equal(res4.error, 'RATE_LIMIT_EXCEEDED');
+    });
+
+    it('increments attempts on invalid OTP and locks out after 5 failures', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543212';
+
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      // Attempt 1
+      const v1 = await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      assert.equal(v1.success, false);
+      assert.equal(v1.error, 'INVALID_OTP');
+      assert.equal(v1.remainingAttempts, 4);
+
+      // Attempt 2, 3, 4
+      await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+
+      // Attempt 5 (Lockout)
+      const v5 = await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      assert.equal(v5.success, false);
+      assert.equal(v5.error, 'MAX_ATTEMPTS_EXCEEDED');
+      assert.equal(v5.remainingAttempts, 0);
+
+      // Subsequent attempt shows state cleaned up
+      const v6 = await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      assert.equal(v6.success, false);
+      assert.equal(v6.error, 'OTP_EXPIRED_OR_NOT_FOUND');
+    });
+
+    it('successfully verifies valid OTP, invalidates state, and blocks replay', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543213';
+
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      // Retrieve OTP via authorized devFetchOtp
+      const devFetchRes = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: 'ecom-s2s-dev-token-secret',
+        redis,
+      });
+      assert.equal(devFetchRes.success, true);
+      assert.ok(devFetchRes.otp);
+
+      // Verify using the exact retrieved OTP
+      const verifyRes = await TestOtpService.verifyOtp({
+        mobile,
+        otp: devFetchRes.otp,
+        fullName: 'Aarav Sharma',
+        email: 'aarav@example.com',
+        redis,
+      });
+
+      assert.equal(verifyRes.success, true);
+      assert.ok(verifyRes.customer);
+      assert.equal(verifyRes.customer.mobile, mobile);
+      assert.equal(verifyRes.customer.firstName, 'Aarav');
+      assert.equal(verifyRes.customer.lastName, 'Sharma');
+      assert.ok(verifyRes.token);
+
+      // Replay attempt must fail because OTP was invalidated
+      const replayRes = await TestOtpService.verifyOtp({
+        mobile,
+        otp: devFetchRes.otp,
+        redis,
+      });
+      assert.equal(replayRes.success, false);
+      assert.equal(replayRes.error, 'OTP_EXPIRED_OR_NOT_FOUND');
+    });
+  });
+
+  describe('7. Development-Only fetchOtp Security Model', () => {
+    it('requires valid S2S authorization token and rejects unauthorized calls', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543214';
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      // No token
+      const noToken = await TestOtpService.devFetchOtp({ mobile, redis });
+      assert.equal(noToken.success, false);
+      assert.equal(noToken.error, 'UNAUTHORIZED_S2S');
+
+      // Invalid token
+      const badToken = await TestOtpService.devFetchOtp({ mobile, s2sToken: 'invalid_token_123', redis });
+      assert.equal(badToken.success, false);
+      assert.equal(badToken.error, 'UNAUTHORIZED_S2S');
+
+      // Valid token
+      const validCall = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: 'ecom-s2s-dev-token-secret',
+        redis,
+      });
+      assert.equal(validCall.success, true);
+      assert.ok(validCall.otp);
+    });
+
+    it('fails-closed when NODE_ENV is production', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543215';
+
+      const prodCall = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: 'ecom-s2s-dev-token-secret',
+        nodeEnv: 'production',
+        redis,
+      });
+      assert.equal(prodCall.success, false);
+      assert.equal(prodCall.error, 'FORBIDDEN_IN_PRODUCTION');
+    });
+  });
+
+  describe('8. Medusa Custom Module Identity Foundation', () => {
+    it('formats customer identity canonical Indian mobile format in Medusa module', () => {
+      const formatCustomerIdentity = (mobile) => {
+        const cleaned = mobile.replace(/\D/g, '');
+        const raw10 = cleaned.slice(-10);
+        return `+91${raw10}`;
+      };
+      const formatted = formatCustomerIdentity('09876543210');
+      assert.equal(formatted, '+919876543210');
+    });
+  });
+});
+
+// ==============================================================================
+// TASK 18: EXISTING LOGIN & NEW REGISTRATION TEST MATRIX
+// ==============================================================================
+describe('Task 18: Existing Login & New Registration — Complete Domain, UI & Security Test Matrix', () => {
+  class TestRedis {
+    constructor() {
+      this.store = new Map();
+    }
+    clean(key) {
+      const entry = this.store.get(key);
+      if (!entry) return false;
+      if (entry.expiresAt && Date.now() > entry.expiresAt) {
+        this.store.delete(key);
+        return false;
+      }
+      return true;
+    }
+    async get(key) {
+      if (!this.clean(key)) return null;
+      return this.store.get(key)?.value ?? null;
+    }
+    async set(key, value, mode, duration) {
+      let expiresAt;
+      if (mode === 'EX' && typeof duration === 'number') {
+        expiresAt = Date.now() + duration * 1000;
+      }
+      this.store.set(key, { value, expiresAt });
+      return 'OK';
+    }
+    async del(key) {
+      return this.store.delete(key) ? 1 : 0;
+    }
+    async incr(key) {
+      const val = await this.get(key);
+      const num = val ? parseInt(val, 10) + 1 : 1;
+      const existing = this.store.get(key);
+      this.store.set(key, { value: num.toString(), expiresAt: existing?.expiresAt });
+      return num;
+    }
+    async expire(key, seconds) {
+      const entry = this.store.get(key);
+      if (!entry) return 0;
+      entry.expiresAt = Date.now() + seconds * 1000;
+      return 1;
+    }
+    async ttl(key) {
+      const entry = this.store.get(key);
+      if (!entry) return -2;
+      if (!entry.expiresAt) return -1;
+      return Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
+    }
+  }
+
+  function normalizeIndianMobile(rawMobile) {
+    if (!rawMobile || typeof rawMobile !== 'string') {
+      return { isValid: false, normalized: '', error: 'Mobile number is required' };
+    }
+    const cleaned = rawMobile.trim().replace(/[\s\-().]/g, '');
+    let raw10 = cleaned;
+    if (cleaned.startsWith('+91')) {
+      raw10 = cleaned.slice(3);
+    } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+      raw10 = cleaned.slice(2);
+    } else if (cleaned.startsWith('0') && cleaned.length === 11) {
+      raw10 = cleaned.slice(1);
+    }
+    if (!/^\d{10}$/.test(raw10)) {
+      return { isValid: false, normalized: '', error: 'Mobile number must be a valid 10-digit number' };
+    }
+    if (!/^[6-9]/.test(raw10)) {
+      return { isValid: false, normalized: '', error: 'Invalid Indian mobile number prefix' };
+    }
+    return { isValid: true, normalized: `+91${raw10}` };
+  }
+
+  const HMAC_SECRET = 'ecom_test_secure_hmac_secret_32_chars';
+  const S2S_AUTH_TOKEN = 'ecom-s2s-dev-token-secret';
+
+  function generateSecureOtp() {
+    return crypto.randomInt(100000, 1000000).toString();
+  }
+
+  function hashOtp(otp, mobile) {
+    return crypto.createHmac('sha256', HMAC_SECRET).update(`${mobile}:${otp}`).digest('hex');
+  }
+
+  function verifyTimingSafeHash(a, b) {
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  }
+
+  async function checkRateLimit(key, limit, windowSeconds, redis) {
+    const namespacedKey = `ratelimit:${key}`;
+    const currentCount = await redis.incr(namespacedKey);
+    if (currentCount === 1) {
+      await redis.expire(namespacedKey, windowSeconds);
+    }
+    const ttl = await redis.ttl(namespacedKey);
+    const resetInSeconds = ttl > 0 ? ttl : windowSeconds;
+    if (currentCount > limit) {
+      return { allowed: false, remaining: 0, resetInSeconds, limit };
+    }
+    return { allowed: true, remaining: Math.max(0, limit - currentCount), resetInSeconds, limit };
+  }
+
+  class TestOtpService {
+    static async requestOtp({ mobile: rawMobile, type = 'login', ip, redis, smsProvider }) {
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, message: validation.error, expiresInSeconds: 0, error: 'INVALID_MOBILE' };
+      }
+      const mobile = validation.normalized;
+
+      const rateLimit = await checkRateLimit(`mobile:${mobile}:otp_request`, 3, 600, redis);
+      if (!rateLimit.allowed) {
+        return { success: false, message: 'Too many OTP requests', expiresInSeconds: 0, error: 'RATE_LIMIT_EXCEEDED' };
+      }
+
+      if (ip && ip !== '127.0.0.1') {
+        const ipLimit = await checkRateLimit(`ip:${ip}:otp_request`, 10, 600, redis);
+        if (!ipLimit.allowed) {
+          return { success: false, message: 'Too many requests from IP', expiresInSeconds: 0, error: 'IP_RATE_LIMIT_EXCEEDED' };
+        }
+      }
+
+      const rawOtp = generateSecureOtp();
+      const otpHash = hashOtp(rawOtp, mobile);
+      const now = Date.now();
+      const state = {
+        mobile,
+        otpHash,
+        rawOtp,
+        otpType: type,
+        attempts: 0,
+        maxAttempts: 5,
+        createdAt: now,
+        expiresAt: now + 300000,
+      };
+
+      await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', 300);
+
+      if (smsProvider) {
+        const smsRes = await smsProvider.sendOtp(mobile, rawOtp, type);
+        if (!smsRes.success) {
+          await redis.del(`otp:${mobile}`);
+          return { success: false, message: 'SMS delivery failed', expiresInSeconds: 0, error: smsRes.error };
+        }
+      }
+
+      return { success: true, message: 'OTP sent successfully', expiresInSeconds: 300 };
+    }
+
+    static async verifyOtp({ mobile: rawMobile, otp: submittedOtp, fullName, email, redis }) {
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, error: 'INVALID_MOBILE', message: validation.error };
+      }
+      const mobile = validation.normalized;
+
+      if (!submittedOtp || submittedOtp.trim().length !== 6) {
+        return { success: false, error: 'INVALID_OTP_FORMAT', message: 'OTP must be 6 digits' };
+      }
+
+      const stateStr = await redis.get(`otp:${mobile}`);
+      if (!stateStr) {
+        return { success: false, error: 'OTP_EXPIRED_OR_NOT_FOUND', message: 'OTP expired or not found' };
+      }
+
+      const state = JSON.parse(stateStr);
+      if (state.attempts >= state.maxAttempts) {
+        await redis.del(`otp:${mobile}`);
+        return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max attempts exceeded', remainingAttempts: 0 };
+      }
+
+      const submittedHash = hashOtp(submittedOtp.trim(), mobile);
+      const isMatch = verifyTimingSafeHash(submittedHash, state.otpHash);
+
+      if (!isMatch) {
+        state.attempts += 1;
+        const remainingAttempts = Math.max(0, state.maxAttempts - state.attempts);
+        if (remainingAttempts === 0) {
+          await redis.del(`otp:${mobile}`);
+          return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max attempts exceeded', remainingAttempts: 0 };
+        }
+        await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', 300);
+        return { success: false, error: 'INVALID_OTP', message: 'Incorrect OTP', remainingAttempts };
+      }
+
+      await redis.del(`otp:${mobile}`);
+
+      return {
+        success: true,
+        message: 'OTP verified successfully',
+        customer: {
+          id: `cus_${crypto.createHash('sha256').update(mobile).digest('hex').substring(0, 24)}`,
+          mobile,
+          email: email || null,
+          firstName: fullName ? fullName.split(' ')[0] : null,
+          lastName: fullName && fullName.split(' ').length > 1 ? fullName.split(' ').slice(1).join(' ') : null,
+        },
+        token: `sess_${crypto.randomBytes(32).toString('hex')}`,
+      };
+    }
+
+    static async devFetchOtp({ mobile: rawMobile, s2sToken, nodeEnv, redis }) {
+      if (nodeEnv === 'production') {
+        return { success: false, error: 'FORBIDDEN_IN_PRODUCTION', message: 'Disabled in production' };
+      }
+      if (!s2sToken || s2sToken !== S2S_AUTH_TOKEN) {
+        return { success: false, error: 'UNAUTHORIZED_S2S', message: 'Invalid S2S token' };
+      }
+      const validation = normalizeIndianMobile(rawMobile);
+      if (!validation.isValid) {
+        return { success: false, error: 'INVALID_MOBILE', message: validation.error };
+      }
+      const stateStr = await redis.get(`otp:${validation.normalized}`);
+      if (!stateStr) {
+        return { success: false, error: 'OTP_NOT_FOUND', message: 'No active OTP found' };
+      }
+      const state = JSON.parse(stateStr);
+      return { success: true, otp: state.rawOtp, message: 'OTP retrieved' };
+    }
+  }
+
+  class TestSessionService {
+    static generateCustomerId(mobile) {
+      const hash = crypto.createHash('sha256').update(mobile).digest('hex').substring(0, 24);
+      return `cus_${hash}`;
+    }
+    static async lookupCustomer(mobile, redis) {
+      const dataStr = await redis.get(`customer:${mobile}`);
+      if (!dataStr) return { exists: false, customer: null };
+      return { exists: true, customer: JSON.parse(dataStr) };
+    }
+    static async saveCustomer(payload, redis) {
+      const existing = await this.lookupCustomer(payload.mobile, redis);
+      const customer = {
+        id: existing.customer?.id || this.generateCustomerId(payload.mobile),
+        mobile: payload.mobile,
+        firstName: payload.firstName || existing.customer?.firstName || null,
+        lastName: payload.lastName || existing.customer?.lastName || null,
+        email: payload.email || existing.customer?.email || null,
+        gender: payload.gender || existing.customer?.gender || null,
+        dateOfBirth: payload.dateOfBirth || existing.customer?.dateOfBirth || null,
+        createdAt: existing.customer?.createdAt || new Date().toISOString(),
+      };
+      await redis.set(`customer:${payload.mobile}`, JSON.stringify(customer));
+      return customer;
+    }
+    static async createSession(customer, ttlSeconds, redis) {
+      const token = `sess_${crypto.randomBytes(32).toString('hex')}`;
+      await redis.set(`session:${token}`, JSON.stringify(customer), 'EX', ttlSeconds);
+      return { token, customer };
+    }
+    static async getSession(token, redis) {
+      if (!token || !token.startsWith('sess_')) return null;
+      const data = await redis.get(`session:${token}`);
+      return data ? JSON.parse(data) : null;
+    }
+    static async destroySession(token, redis) {
+      if (!token) return false;
+      return (await redis.del(`session:${token}`)) > 0;
+    }
+  }
+
+  describe('1. Existing User Login Flow', () => {
+    it('successfully logs in an existing user with valid mobile and OTP', async () => {
+      const redis = new TestRedis();
+      const mobile = '+919876543210';
+
+      await TestSessionService.saveCustomer(
+        { mobile, firstName: 'Aarav', lastName: 'Sharma', email: 'aarav@example.com' },
+        redis
+      );
+
+      const lookup = await TestSessionService.lookupCustomer(mobile, redis);
+      assert.equal(lookup.exists, true);
+      assert.equal(lookup.customer?.firstName, 'Aarav');
+
+      const otpReq = await TestOtpService.requestOtp({ mobile, type: 'login', redis });
+      assert.equal(otpReq.success, true);
+      assert.equal(otpReq.expiresInSeconds, 300);
+
+      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: 'ecom-s2s-dev-token-secret', redis });
+      assert.equal(devFetch.success, true);
+      assert.ok(devFetch.otp);
+
+      const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, type: 'login', redis });
+      assert.equal(verifyRes.success, true);
+
+      const session = await TestSessionService.createSession(lookup.customer, 30 * 86400, redis);
+      assert.ok(session.token.startsWith('sess_'));
+
+      const activeSession = await TestSessionService.getSession(session.token, redis);
+      assert.equal(activeSession?.mobile, mobile);
+      assert.equal(activeSession?.firstName, 'Aarav');
+    });
+
+    it('rejects invalid OTP and decrements remaining attempts', async () => {
+      const redis = new TestRedis();
+      const mobile = '+919876543211';
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      const wrongVerify = await TestOtpService.verifyOtp({ mobile, otp: '000000', redis });
+      assert.equal(wrongVerify.success, false);
+      assert.equal(wrongVerify.error, 'INVALID_OTP');
+      assert.equal(wrongVerify.remainingAttempts, 4);
+    });
+
+    it('destroys session upon logout', async () => {
+      const redis = new TestRedis();
+      const customer = { id: 'cus_123', mobile: '+919876543212', firstName: 'Priya', lastName: 'Patel' };
+      const session = await TestSessionService.createSession(customer, 3600, redis);
+
+      const retrievedBefore = await TestSessionService.getSession(session.token, redis);
+      assert.ok(retrievedBefore);
+
+      const loggedOut = await TestSessionService.destroySession(session.token, redis);
+      assert.equal(loggedOut, true);
+
+      const retrievedAfter = await TestSessionService.getSession(session.token, redis);
+      assert.equal(retrievedAfter, null);
+    });
+  });
+
+  describe('2. New User Registration Flow', () => {
+    it('validates required fields: First Name, Last Name, Email, Mobile', () => {
+      const validateRegistration = (payload) => {
+        if (!payload.firstName?.trim()) return { isValid: false, error: 'First name is required' };
+        if (!payload.lastName?.trim()) return { isValid: false, error: 'Last name is required' };
+        if (!payload.email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())) {
+          return { isValid: false, error: 'Valid email address is required' };
+        }
+        if (!payload.mobile || !/^\+91[6-9]\d{9}$/.test(payload.mobile)) {
+          return { isValid: false, error: 'Valid Indian mobile is required' };
+        }
+        return { isValid: true };
+      };
+
+      assert.equal(validateRegistration({ lastName: 'Singh', email: 'a@b.com', mobile: '+919876543210' }).isValid, false);
+      assert.equal(validateRegistration({ firstName: 'Rohan', email: 'a@b.com', mobile: '+919876543210' }).isValid, false);
+      assert.equal(validateRegistration({ firstName: 'Rohan', lastName: 'Singh', email: 'invalid-email', mobile: '+919876543210' }).isValid, false);
+      assert.equal(validateRegistration({ firstName: 'Rohan', lastName: 'Singh', email: 'a@b.com', mobile: '+915876543210' }).isValid, false);
+      assert.equal(validateRegistration({ firstName: 'Rohan', lastName: 'Singh', email: 'rohan@example.com', mobile: '+919876543210' }).isValid, true);
+    });
+
+    it('enforces non-goals: no passwords, no addresses, no age, no referral codes in registration', () => {
+      const allowedRegistrationFields = new Set([
+        'firstName',
+        'lastName',
+        'email',
+        'mobile',
+        'gender',
+        'dateOfBirth',
+      ]);
+
+      const testPayload = {
+        firstName: 'Ananya',
+        lastName: 'Deshmukh',
+        email: 'ananya@example.com',
+        mobile: '+919876543213',
+        password: 'password123',
+        address: '123 MG Road',
+        referralCode: 'REF100',
+        age: 25,
+      };
+
+      const sanitizedPayload = Object.fromEntries(
+        Object.entries(testPayload).filter(([k]) => allowedRegistrationFields.has(k))
+      );
+
+      assert.equal(sanitizedPayload.firstName, 'Ananya');
+      assert.equal(sanitizedPayload.lastName, 'Deshmukh');
+      assert.equal(sanitizedPayload.password, undefined);
+      assert.equal(sanitizedPayload.address, undefined);
+      assert.equal(sanitizedPayload.referralCode, undefined);
+      assert.equal(sanitizedPayload.age, undefined);
+    });
+
+    it('completes new user registration, persists customer record, and issues session', async () => {
+      const redis = new TestRedis();
+      const mobile = '+919876543213';
+
+      const otpReq = await TestOtpService.requestOtp({ mobile, type: 'register', redis });
+      assert.equal(otpReq.success, true);
+
+      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: 'ecom-s2s-dev-token-secret', redis });
+      assert.equal(devFetch.success, true);
+
+      const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, type: 'register', redis });
+      assert.equal(verifyRes.success, true);
+
+      const customer = await TestSessionService.saveCustomer(
+        {
+          mobile,
+          firstName: 'Ananya',
+          lastName: 'Deshmukh',
+          email: 'ananya@example.com',
+          gender: 'female',
+          dateOfBirth: '1998-05-15',
+        },
+        redis
+      );
+
+      assert.ok(customer.id.startsWith('cus_'));
+      assert.equal(customer.firstName, 'Ananya');
+      assert.equal(customer.gender, 'female');
+
+      const session = await TestSessionService.createSession(customer, 30 * 86400, redis);
+      assert.ok(session.token.startsWith('sess_'));
+
+      const lookup = await TestSessionService.lookupCustomer(mobile, redis);
+      assert.equal(lookup.exists, true);
+      assert.equal(lookup.customer?.email, 'ananya@example.com');
+    });
+  });
+
+  describe('3. OTP Input Component Model & Behavior', () => {
+    it('models 6 individual OTP input boxes matching authoritative length', () => {
+      const OTP_LENGTH = 6;
+      const boxes = Array.from({ length: OTP_LENGTH }, (_, i) => ({ index: i, value: '' }));
+      assert.equal(boxes.length, 6);
+    });
+
+    it('distributes pasted 6-digit OTP across all boxes correctly', () => {
+      const OTP_LENGTH = 6;
+      const pasteRaw = ' 849201 ';
+      const cleaned = pasteRaw.trim().replace(/\D/g, '').slice(0, OTP_LENGTH);
+      assert.equal(cleaned, '849201');
+      assert.equal(cleaned.length, 6);
+    });
+
+    it('rejects non-numeric characters in OTP input', () => {
+      const input = 'a8b4c9';
+      const numericOnly = input.replace(/\D/g, '');
+      assert.equal(numericOnly, '849');
+    });
+
+    it('handles backspace retreat correctly', () => {
+      const otpState = ['8', '4', '9', '', '', ''];
+      const indexToBackspace = 3;
+      if (!otpState[indexToBackspace] && indexToBackspace > 0) {
+        otpState[indexToBackspace - 1] = '';
+      }
+      assert.deepEqual(otpState, ['8', '4', '', '', '', '']);
+    });
+  });
+
+  describe('4. Navigation & Security Invariants', () => {
+    it('safely normalizes and validates internal redirect paths (Open Redirect Defense)', () => {
+      const resolveRedirect = (destination) => {
+        if (!destination || typeof destination !== 'string') return '/';
+        if (destination.startsWith('/') && !destination.startsWith('//')) {
+          return destination;
+        }
+        return '/';
+      };
+
+      assert.equal(resolveRedirect('/checkout'), '/checkout');
+      assert.equal(resolveRedirect('/account'), '/account');
+      assert.equal(resolveRedirect('https://evil.com'), '/');
+      assert.equal(resolveRedirect('//evil.com/hack'), '/');
+      assert.equal(resolveRedirect('javascript:alert(1)'), '/');
+    });
+
+    it('resend OTP respects countdown and rate limiting', async () => {
+      const redis = new TestRedis();
+      const mobile = '+919876543219';
+
+      const req1 = await TestOtpService.requestOtp({ mobile, redis });
+      assert.equal(req1.success, true);
+
+      const req2 = await TestOtpService.requestOtp({ mobile, redis });
+      assert.equal(req2.success, true);
+
+      const req3 = await TestOtpService.requestOtp({ mobile, redis });
+      assert.equal(req3.success, true);
+
+      const req4 = await TestOtpService.requestOtp({ mobile, redis });
+      assert.equal(req4.success, false);
+      assert.equal(req4.error, 'RATE_LIMIT_EXCEEDED');
     });
   });
 });

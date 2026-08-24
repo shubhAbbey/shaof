@@ -21,6 +21,11 @@ export interface PublicEnvConfig {
 export interface ServerEnvConfig extends PublicEnvConfig {
   strapiApiToken?: string;
   medusaServerPublishableKey?: string;
+  redisUrl?: string;
+  smsProvider?: string;
+  smsApiKey?: string;
+  smsSenderId?: string;
+  s2sAuthToken?: string;
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -55,6 +60,11 @@ export const env: ServerEnvConfig = {
   strapiApiToken: typeof window === 'undefined' ? process.env.STRAPI_API_TOKEN : undefined,
   medusaServerPublishableKey:
     typeof window === 'undefined' ? process.env.MEDUSA_PUBLISHABLE_KEY : undefined,
+  redisUrl: typeof window === 'undefined' ? process.env.REDIS_URL || 'redis://localhost:6379' : undefined,
+  smsProvider: typeof window === 'undefined' ? process.env.SMS_PROVIDER || 'mock' : undefined,
+  smsApiKey: typeof window === 'undefined' ? process.env.SMS_API_KEY : undefined,
+  smsSenderId: typeof window === 'undefined' ? process.env.SMS_SENDER_ID : undefined,
+  s2sAuthToken: typeof window === 'undefined' ? process.env.S2S_AUTH_TOKEN || 'ecom-s2s-dev-token-secret' : undefined,
 };
 
 /**

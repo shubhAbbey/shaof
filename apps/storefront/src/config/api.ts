@@ -50,11 +50,22 @@ export const apiConfig = {
       cart: '/cart',
       wishlist: '/wishlist',
       checkout: '/checkout',
+      login: '/login',
+      register: '/register',
+      account: '/account',
     },
     internalApi: {
       productDetail: (handle: string) => `/api/products/${encodeURIComponent(handle)}`,
       searchSuggestions: (query: string) => `/api/search/suggestions?q=${encodeURIComponent(query)}`,
       search: (query: string) => `/api/search?q=${encodeURIComponent(query)}`,
+      requestOtp: '/api/auth/otp/request',
+      verifyOtp: '/api/auth/otp/verify',
+      devFetchOtp: (mobile: string, type?: string) =>
+        `/api/auth/otp/dev-fetch?mobile=${encodeURIComponent(mobile)}${type ? `&type=${encodeURIComponent(type)}` : ''}`,
+      session: '/api/auth/session',
+      logout: '/api/auth/logout',
+      customerLookup: '/api/auth/customer/lookup',
+      customerRegister: '/api/auth/customer/register',
     },
   },
 };

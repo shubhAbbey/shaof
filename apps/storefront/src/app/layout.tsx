@@ -11,6 +11,9 @@ import { SearchProvider } from '../context/search-context';
 
 import { fetchCmsNavigation, fetchCmsGlobalSettings } from '../lib/strapi-client';
 
+import { AuthProvider } from '../context/auth-context';
+import { AuthModal } from '../components/auth/auth-modal';
+
 export const metadata: Metadata = constructMetadata();
 
 export default async function RootLayout({
@@ -29,14 +32,17 @@ export default async function RootLayout({
       <body className="flex min-h-screen flex-col bg-white font-sans antialiased text-gray-900 selection:bg-brand-500 selection:text-white">
         <ToastProvider>
           <UiProvider>
-            <MiniPdpProvider>
-              <SearchProvider>
-                <Header navigation={headerNav?.items} globalSettings={globalSettings} />
-                <div className="flex-1">{children}</div>
-                <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
-                <MiniPdpModal />
-              </SearchProvider>
-            </MiniPdpProvider>
+            <AuthProvider>
+              <MiniPdpProvider>
+                <SearchProvider>
+                  <Header navigation={headerNav?.items} globalSettings={globalSettings} />
+                  <div className="flex-1">{children}</div>
+                  <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
+                  <MiniPdpModal />
+                  <AuthModal />
+                </SearchProvider>
+              </MiniPdpProvider>
+            </AuthProvider>
           </UiProvider>
         </ToastProvider>
       </body>

@@ -16,6 +16,7 @@ import { Drawer } from '../ui/drawer';
 import { Badge } from '../ui/badge';
 import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
+import { useAuth } from '../../context/auth-context';
 import { cn } from '../../lib/utils';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
@@ -30,6 +31,7 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
   globalSettings,
 }) => {
   const { isMobileNavOpen, closeMobileNav } = useUi();
+  const { customer, isAuthenticated, openLogin } = useAuth();
   const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
   const [selectedCatId, setSelectedCatId] = useState<string>(categories[0]?.id || 'women');
   const [openGroupTitle, setOpenGroupTitle] = useState<string | null>(null);
@@ -77,22 +79,46 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
     >
       <div className="space-y-6">
         {/* 1. Account / Login Banner */}
-        <Link
-          href="/account"
-          onClick={closeMobileNav}
-          className="flex items-center justify-between rounded-xl bg-brand-50 p-4 border border-brand-100"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center">
-              <User className="h-5 w-5" />
+        {isAuthenticated && customer ? (
+          <Link
+            href="/account"
+            onClick={closeMobileNav}
+            className="flex items-center justify-between rounded-xl bg-brand-50 p-4 border border-brand-100"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm">
+                {(customer.firstName || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">
+                  {customer.firstName ? `Hello, ${customer.firstName}` : 'My Account'}
+                </p>
+                <p className="text-xs text-brand-700">{customer.mobile}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Sign In / Register</p>
-              <p className="text-xs text-brand-700">Quick OTP login & saved bag</p>
+            <ChevronRight className="h-4 w-4 text-brand-600" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              closeMobileNav();
+              openLogin('/account');
+            }}
+            className="w-full flex items-center justify-between rounded-xl bg-brand-50 p-4 border border-brand-100 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-brand-600 text-white flex items-center justify-center">
+                <User className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">Sign In / Register</p>
+                <p className="text-xs text-brand-700">Quick OTP login & saved bag</p>
+              </div>
             </div>
-          </div>
-          <ChevronRight className="h-4 w-4 text-brand-600" />
-        </Link>
+            <ChevronRight className="h-4 w-4 text-brand-600" />
+          </button>
+        )}
 
         {/* 2. Top-Level Category Switcher Pills */}
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-100">
