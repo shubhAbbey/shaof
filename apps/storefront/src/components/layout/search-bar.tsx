@@ -19,6 +19,7 @@ import {
   ChevronRight,
   FolderTree,
   Layers,
+  Tag,
   Loader2,
   PackageOpen,
   AlertCircle,
@@ -158,7 +159,21 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       });
     }
 
-    // 4. Matching Product Suggestions (Top 4)
+    // 4. Matching Brand Items
+    if (suggestions?.brands && suggestions.brands.length > 0) {
+      suggestions.brands.slice(0, 2).forEach((brand) => {
+        const brandSlug = brand.toLowerCase().replace(/\s+/g, '-');
+        items.push({
+          id: `nav-brand-${brandSlug}`,
+          type: 'brand',
+          title: brand,
+          href: `/brand/${encodeURIComponent(brandSlug)}`,
+          brand,
+        });
+      });
+    }
+
+    // 5. Matching Product Suggestions (Top 4)
     if (suggestions?.products && suggestions.products.length > 0) {
       suggestions.products.slice(0, 4).forEach((prod) => {
         items.push({
@@ -171,7 +186,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       });
     }
 
-    // 5. "View All Results" Item
+    // 6. "View All Results" Item
     items.push({
       id: `nav-view-all-${encodeURIComponent(trimmed)}`,
       type: 'view_all',
@@ -488,7 +503,45 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 </div>
               )}
 
-              {/* 5. Product Suggestions Section */}
+              {/* 5. Matching Brands Section */}
+              {suggestions?.brands && suggestions.brands.length > 0 && (
+                <div className="space-y-1.5 border-t border-gray-100 pt-2.5">
+                  <div className="flex items-center gap-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                    <Tag className="h-3 w-3 text-brand-600" />
+                    <span>Brands</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 px-1">
+                    {navigableItems
+                      .filter((item) => item.type === 'brand')
+                      .map((item) => {
+                        const globalIdx = navigableItems.findIndex((i) => i.id === item.id);
+                        const isItemActive = activeIndex === globalIdx;
+                        return (
+                          <button
+                            key={item.id}
+                            id={`suggestion-item-${globalIdx}`}
+                            role="option"
+                            aria-selected={isItemActive}
+                            type="button"
+                            onClick={() => handleSelectItem(item)}
+                            onMouseEnter={() => setActiveIndex(globalIdx)}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                              isItemActive
+                                ? 'bg-brand-600 text-white shadow-xs'
+                                : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
+                            )}
+                          >
+                            <span>{item.title}</span>
+                            <ChevronRight className="h-3 w-3 opacity-60" />
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Product Suggestions Section */}
               {suggestions?.products && suggestions.products.length > 0 && (
                 <div className="space-y-1.5 border-t border-gray-100 pt-2.5">
                   <div className="flex items-center justify-between px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">
@@ -573,11 +626,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 </div>
               )}
 
-              {/* 6. Zero Direct Results State */}
+              {/* 7. Zero Direct Results State */}
               {!isLoadingSuggestions &&
                 (!suggestions?.products || suggestions.products.length === 0) &&
                 (!suggestions?.categories || suggestions.categories.length === 0) &&
-                (!suggestions?.collections || suggestions.collections.length === 0) && (
+                (!suggestions?.collections || suggestions.collections.length === 0) &&
+                (!suggestions?.brands || suggestions.brands.length === 0) && (
                   <div className="py-4 text-center">
                     <p className="text-xs font-semibold text-gray-600">
                       No direct matches found for &ldquo;{query.trim()}&rdquo;

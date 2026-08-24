@@ -86,9 +86,10 @@ export default async function SearchPage({ searchParams = {} }: SearchPageProps)
     offset: 0,
   });
 
-  // 2. Fetch lightweight suggestions for quick category/collection chips if query is present
+  // 2. Fetch lightweight suggestions for quick category/collection/brand chips if query is present
   let initialCategories: { id: string; name: string; handle: string }[] = [];
   let initialCollections: { id: string; title: string; handle: string }[] = [];
+  let initialBrands: string[] = [];
 
   if (query) {
     try {
@@ -96,6 +97,7 @@ export default async function SearchPage({ searchParams = {} }: SearchPageProps)
       const suggestionsResult = await searchProvider.suggestions(query);
       initialCategories = suggestionsResult.categories || [];
       initialCollections = suggestionsResult.collections || [];
+      initialBrands = suggestionsResult.brands || [];
     } catch {
       // Non-blocking fallback
     }
@@ -147,6 +149,7 @@ export default async function SearchPage({ searchParams = {} }: SearchPageProps)
           initialNextOffset={nextOffset}
           initialCategories={initialCategories}
           initialCollections={initialCollections}
+          initialBrands={initialBrands}
         />
       </div>
     </main>

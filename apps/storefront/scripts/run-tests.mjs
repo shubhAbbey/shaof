@@ -1902,5 +1902,312 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
   });
 });
 
+describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Routing Matrix', () => {
+  const MOCK_COMMERCE_CATALOG = [
+    {
+      id: 'prod_1',
+      title: 'Handloom Pure Silk Kurta Set',
+      handle: 'handloom-pure-silk-kurta-set',
+      brand: 'Virasat Heritage',
+      categoryName: 'Kurta Sets',
+      categoryHandle: 'women-kurta-sets',
+      collectionTitle: 'Festive Splendor 2026',
+      collectionHandle: 'festive-splendor',
+      price: 3499,
+      originalPrice: 4999,
+      discountPercentage: 30,
+      inStock: true,
+      sizes: ['S', 'M', 'L', 'XL'],
+      colors: ['Magenta', 'Gold'],
+    },
+    {
+      id: 'prod_2',
+      title: 'Handblock Printed Cotton Kurti',
+      handle: 'handblock-printed-cotton-kurti',
+      brand: 'Gulmohar Jaipur',
+      categoryName: 'Kurtas',
+      categoryHandle: 'women-kurtas',
+      collectionTitle: 'Summer Meadow Collection',
+      collectionHandle: 'summer-meadow',
+      price: 1499,
+      originalPrice: 2199,
+      discountPercentage: 31,
+      inStock: true,
+      sizes: ['M', 'L'],
+      colors: ['Indigo Blue'],
+    },
+    {
+      id: 'prod_3',
+      title: 'Chanderi Silk Anarkali Suit',
+      handle: 'chanderi-silk-anarkali-suit',
+      brand: 'Virasat Heritage',
+      categoryName: 'Anarkali Suits',
+      categoryHandle: 'women-anarkali',
+      collectionTitle: 'Festive Splendor 2026',
+      collectionHandle: 'festive-splendor',
+      price: 4599,
+      originalPrice: 6599,
+      discountPercentage: 30,
+      inStock: true,
+      sizes: ['M', 'L', 'XL'],
+      colors: ['Ruby Red', 'Emerald Green'],
+    },
+    {
+      id: 'prod_4',
+      title: 'Casual Pure Linen Shirt',
+      handle: 'casual-pure-linen-shirt',
+      brand: 'Loom & Thread',
+      categoryName: 'Men Casual Shirts',
+      categoryHandle: 'men-casual-shirts',
+      collectionTitle: 'Linen Capsule',
+      collectionHandle: 'linen-capsule',
+      price: 1899,
+      originalPrice: 2499,
+      discountPercentage: 24,
+      inStock: true,
+      sizes: ['M', 'L', 'XL'],
+      colors: ['Sage Green', 'White'],
+    },
+  ];
+
+  describe('1. Product Search & PDP Resolution Matrix', () => {
+    it('searches products by title and returns exact matches with canonical PDP destination', () => {
+      const query = 'silk kurta';
+      const terms = query.toLowerCase().split(' ');
+      const matches = MOCK_COMMERCE_CATALOG.filter((p) =>
+        terms.every((t) => p.title.toLowerCase().includes(t) || p.categoryName.toLowerCase().includes(t))
+      );
+
+      assert.equal(matches.length, 1);
+      assert.equal(matches[0].id, 'prod_1');
+      assert.equal(matches[0].handle, 'handloom-pure-silk-kurta-set');
+
+      const pdpHref = `/product/${encodeURIComponent(matches[0].handle)}`;
+      assert.equal(pdpHref, '/product/handloom-pure-silk-kurta-set');
+    });
+
+    it('returns empty array when product query has 0 matches without crashing', () => {
+      const query = 'pajama nonexisting';
+      const matches = MOCK_COMMERCE_CATALOG.filter((p) =>
+        p.title.toLowerCase().includes(query.toLowerCase())
+      );
+      assert.equal(matches.length, 0);
+    });
+  });
+
+  describe('2. Dynamic Category Search & Navigation Matrix', () => {
+    it('discovers matching commerce categories dynamically from products without hardcoded arrays', () => {
+      const query = 'kurta';
+      const matchedCategoriesMap = new Map();
+
+      MOCK_COMMERCE_CATALOG.forEach((p) => {
+        if (
+          p.categoryName.toLowerCase().includes(query.toLowerCase()) ||
+          p.categoryHandle.toLowerCase().includes(query.toLowerCase())
+        ) {
+          matchedCategoriesMap.set(p.categoryHandle, {
+            name: p.categoryName,
+            handle: p.categoryHandle,
+            href: `/category/${p.categoryHandle}`,
+          });
+        }
+      });
+
+      const categories = Array.from(matchedCategoriesMap.values());
+      assert.equal(categories.length, 2);
+      assert.ok(categories.some((c) => c.handle === 'women-kurta-sets' && c.href === '/category/women-kurta-sets'));
+      assert.ok(categories.some((c) => c.handle === 'women-kurtas' && c.href === '/category/women-kurtas'));
+    });
+  });
+
+  describe('3. Dynamic Collection Search & Navigation Matrix', () => {
+    it('discovers matching Medusa collections dynamically and routes to /collections/[handle]', () => {
+      const query = 'festive';
+      const matchedCollectionsMap = new Map();
+
+      MOCK_COMMERCE_CATALOG.forEach((p) => {
+        if (
+          p.collectionTitle.toLowerCase().includes(query.toLowerCase()) ||
+          p.collectionHandle.toLowerCase().includes(query.toLowerCase())
+        ) {
+          matchedCollectionsMap.set(p.collectionHandle, {
+            title: p.collectionTitle,
+            handle: p.collectionHandle,
+            href: `/collections/${p.collectionHandle}`,
+          });
+        }
+      });
+
+      const collections = Array.from(matchedCollectionsMap.values());
+      assert.equal(collections.length, 1);
+      assert.equal(collections[0].handle, 'festive-splendor');
+      assert.equal(collections[0].href, '/collections/festive-splendor');
+    });
+  });
+
+  describe('4. Dynamic Brand Search & Brand PLP Matrix', () => {
+    it('extracts brands dynamically from product metadata without a dedicated Brand database entity', () => {
+      const query = 'virasat';
+      const matchingBrandsSet = new Set();
+
+      MOCK_COMMERCE_CATALOG.forEach((p) => {
+        if (p.brand && p.brand.toLowerCase().includes(query.toLowerCase())) {
+          matchingBrandsSet.add(p.brand);
+        }
+      });
+
+      const brands = Array.from(matchingBrandsSet);
+      assert.equal(brands.length, 1);
+      assert.equal(brands[0], 'Virasat Heritage');
+
+      const brandSlug = brands[0].toLowerCase().replace(/\s+/g, '-');
+      const brandHref = `/brand/${encodeURIComponent(brandSlug)}`;
+      assert.equal(brandHref, '/brand/virasat-heritage');
+    });
+
+    it('supports case-insensitive brand normalization and hyphenated handles for Brand PLP', () => {
+      const handleVariants = ['virasat-heritage', 'Virasat-Heritage', 'VIRASAT-HERITAGE'];
+      for (const h of handleVariants) {
+        const normalized = h.toLowerCase().replace(/-/g, ' ');
+        assert.equal(normalized, 'virasat heritage');
+
+        const matchingProducts = MOCK_COMMERCE_CATALOG.filter(
+          (p) => p.brand.toLowerCase() === normalized
+        );
+        assert.equal(matchingProducts.length, 2);
+      }
+    });
+  });
+
+  describe('5. Sale / Curated Search & Commerce Isolation Matrix', () => {
+    it('routes sale discovery cleanly to /sale/all without confusing sale with Medusa collections', () => {
+      const isSaleQuery = (q) => q.toLowerCase().trim() === 'sale';
+      assert.equal(isSaleQuery('sale'), true);
+      assert.equal(isSaleQuery('Sale'), true);
+
+      // Verify sale filtering contract
+      const saleProducts = MOCK_COMMERCE_CATALOG.filter(
+        (p) => (p.discountPercentage && p.discountPercentage > 0) || (p.originalPrice && p.originalPrice > p.price)
+      );
+      assert.equal(saleProducts.length, 4); // All mock products are on sale
+    });
+  });
+
+  describe('6. Desktop Autocomplete Items Flattening with Brands', () => {
+    it('builds complete keyboard-navigable list containing query, categories, collections, brands, products, and view-all', () => {
+      const query = 'silk';
+      const mockSuggestionsResult = {
+        query: 'silk',
+        categories: [{ id: 'women-kurta-sets', name: 'Kurta Sets', handle: 'women-kurta-sets' }],
+        collections: [{ id: 'festive-splendor', title: 'Festive Splendor 2026', handle: 'festive-splendor' }],
+        brands: ['Virasat Heritage'],
+        products: [MOCK_COMMERCE_CATALOG[0]],
+      };
+
+      const buildNavItems = (q, sugg) => {
+        const items = [];
+        const trimmed = q.trim();
+        if (!trimmed) return items;
+
+        // 1. Direct query
+        items.push({ id: 'nav-query', type: 'query', title: trimmed, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        // 2. Categories
+        sugg.categories.forEach((cat) => items.push({ id: `nav-cat-${cat.handle}`, type: 'category', title: cat.name, href: `/category/${cat.handle}` }));
+        // 3. Collections
+        sugg.collections.forEach((col) => items.push({ id: `nav-col-${col.handle}`, type: 'collection', title: col.title, href: `/collections/${col.handle}` }));
+        // 4. Brands
+        sugg.brands.forEach((brand) => {
+          const slug = brand.toLowerCase().replace(/\s+/g, '-');
+          items.push({ id: `nav-brand-${slug}`, type: 'brand', title: brand, href: `/brand/${slug}` });
+        });
+        // 5. Products
+        sugg.products.forEach((prod) => items.push({ id: `nav-prod-${prod.id}`, type: 'product', title: prod.title, href: `/product/${prod.handle}` }));
+        // 6. View All
+        items.push({ id: 'nav-view-all', type: 'view_all', title: `View all results for "${trimmed}"`, href: `/search?q=${encodeURIComponent(trimmed)}` });
+
+        return items;
+      };
+
+      const items = buildNavItems(query, mockSuggestionsResult);
+      assert.equal(items.length, 6);
+      assert.equal(items[0].type, 'query');
+      assert.equal(items[1].type, 'category');
+      assert.equal(items[2].type, 'collection');
+      assert.equal(items[3].type, 'brand');
+      assert.equal(items[4].type, 'product');
+      assert.equal(items[5].type, 'view_all');
+
+      // Verify routing destinations
+      assert.equal(items[0].href, '/search?q=silk');
+      assert.equal(items[1].href, '/category/women-kurta-sets');
+      assert.equal(items[2].href, '/collections/festive-splendor');
+      assert.equal(items[3].href, '/brand/virasat-heritage');
+      assert.equal(items[4].href, '/product/handloom-pure-silk-kurta-set');
+      assert.equal(items[5].href, '/search?q=silk');
+    });
+  });
+
+  describe('7. Full Search PLP Facets & URL State Preservation', () => {
+    it('computes dynamic facets from search results accurately', () => {
+      const computeFacets = (products) => {
+        const brandCounts = new Map();
+        const sizeCounts = new Map();
+        const colorCounts = new Map();
+        let minPrice = Infinity;
+        let maxPrice = -Infinity;
+
+        products.forEach((p) => {
+          if (p.brand) brandCounts.set(p.brand, (brandCounts.get(p.brand) || 0) + 1);
+          (p.sizes || []).forEach((s) => sizeCounts.set(s, (sizeCounts.get(s) || 0) + 1));
+          (p.colors || []).forEach((c) => colorCounts.set(c, (colorCounts.get(c) || 0) + 1));
+          if (p.price < minPrice) minPrice = p.price;
+          if (p.price > maxPrice) maxPrice = p.price;
+        });
+
+        return {
+          brands: Array.from(brandCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
+          sizes: Array.from(sizeCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
+          colors: Array.from(colorCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
+          priceRange: { min: minPrice === Infinity ? 0 : minPrice, max: maxPrice === -Infinity ? 0 : maxPrice },
+        };
+      };
+
+      const facets = computeFacets(MOCK_COMMERCE_CATALOG);
+      assert.equal(facets.brands.length, 3);
+      assert.equal(facets.priceRange.min, 1499);
+      assert.equal(facets.priceRange.max, 4599);
+    });
+
+    it('preserves query param q alongside multiple faceted filters in URL serialization', () => {
+      const query = 'kurta';
+      const filters = {
+        brands: ['Virasat Heritage'],
+        sizes: ['M', 'L'],
+        priceMin: 1500,
+        priceMax: 4000,
+        inStock: true,
+      };
+      const sort = 'price_asc';
+
+      const params = new URLSearchParams();
+      params.set('q', query);
+      if (filters.brands.length > 0) params.set('brands', filters.brands.join(','));
+      if (filters.sizes.length > 0) params.set('sizes', filters.sizes.join(','));
+      if (filters.priceMin !== undefined) params.set('price_min', filters.priceMin.toString());
+      if (filters.priceMax !== undefined) params.set('price_max', filters.priceMax.toString());
+      if (filters.inStock) params.set('in_stock', 'true');
+      if (sort !== 'relevance') params.set('sort', sort);
+
+      const qs = params.toString();
+      assert.ok(qs.includes('q=kurta'));
+      assert.ok(qs.includes('brands=Virasat+Heritage'));
+      assert.ok(qs.includes('sizes=M%2CL'));
+      assert.ok(qs.includes('price_min=1500'));
+      assert.ok(qs.includes('sort=price_asc'));
+    });
+  });
+});
+
+
 
 

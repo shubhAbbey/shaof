@@ -113,6 +113,7 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
 
   const observerTargetRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
+  const activeFetchRequestIdRef = useRef<number>(0);
 
   // Synchronize internal state when server props or query change
   useEffect(() => {
@@ -180,6 +181,7 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
   // Fetch filtered products
   const fetchFilteredProducts = useCallback(
     async (filters: ActiveFilters, currentSort: SortOption) => {
+      const requestId = ++activeFetchRequestIdRef.current;
       setIsLoading(true);
       setLoadMoreError(null);
 
@@ -206,17 +208,23 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
         const data = await res.json();
-        setProducts(data.products || []);
-        setTotalCount(data.totalCount || 0);
-        setHasMore(Boolean(data.hasMore));
-        setNextOffset(data.nextOffset);
-        if (data.facets && data.facets.brands?.length > 0) {
-          setFacets(data.facets);
+        if (requestId === activeFetchRequestIdRef.current) {
+          setProducts(data.products || []);
+          setTotalCount(data.totalCount || 0);
+          setHasMore(Boolean(data.hasMore));
+          setNextOffset(data.nextOffset);
+          if (data.facets && data.facets.brands?.length > 0) {
+            setFacets(data.facets);
+          }
         }
       } catch (err: any) {
-        console.error('Error loading filtered products:', err);
+        if (requestId === activeFetchRequestIdRef.current) {
+          console.error('Error loading filtered products:', err);
+        }
       } finally {
-        setIsLoading(false);
+        if (requestId === activeFetchRequestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     },
     [contextParams]

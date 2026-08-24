@@ -15,6 +15,7 @@ import {
   Loader2,
   ChevronRight,
   Layers,
+  Tag,
 } from 'lucide-react';
 import { MobileBackButton } from '../ui/mobile-back-button';
 import { ProductCard } from '../sections/product-card';
@@ -31,6 +32,7 @@ export interface MobileSearchViewProps {
   initialNextOffset?: number;
   initialCategories?: { id: string; name: string; handle: string }[];
   initialCollections?: { id: string; title: string; handle: string }[];
+  initialBrands?: string[];
 }
 
 export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
@@ -41,6 +43,7 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
   initialNextOffset,
   initialCategories = [],
   initialCollections = [],
+  initialBrands = [],
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -199,6 +202,9 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
   const matchingCollections = suggestions?.collections?.length
     ? suggestions.collections
     : initialCollections;
+  const matchingBrands = suggestions?.brands?.length
+    ? suggestions.brands
+    : initialBrands;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:hidden">
@@ -232,10 +238,10 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Category & Collection Suggestions Quick Chips */}
-        {trimmedQuery !== '' && (matchingCategories.length > 0 || matchingCollections.length > 0) && (
+        {/* 2. Category, Collection & Brand Suggestions Quick Chips */}
+        {trimmedQuery !== '' && (matchingCategories.length > 0 || matchingCollections.length > 0 || matchingBrands.length > 0) && (
           <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 scroll-smooth">
-            {matchingCategories.slice(0, 4).map((cat) => (
+            {matchingCategories.slice(0, 3).map((cat) => (
               <Link
                 key={cat.id}
                 href={`/category/${cat.handle}`}
@@ -245,7 +251,7 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
                 <span>{cat.name}</span>
               </Link>
             ))}
-            {matchingCollections.slice(0, 3).map((col) => (
+            {matchingCollections.slice(0, 2).map((col) => (
               <Link
                 key={col.id}
                 href={`/collections/${col.handle}`}
@@ -255,6 +261,19 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
                 <span>{col.title}</span>
               </Link>
             ))}
+            {matchingBrands.slice(0, 2).map((brand) => {
+              const brandSlug = brand.toLowerCase().replace(/\s+/g, '-');
+              return (
+                <Link
+                  key={brand}
+                  href={`/brand/${encodeURIComponent(brandSlug)}`}
+                  className="inline-flex items-center gap-1 shrink-0 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100"
+                >
+                  <Tag className="h-3 w-3 text-blue-500" />
+                  <span>{brand}</span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
