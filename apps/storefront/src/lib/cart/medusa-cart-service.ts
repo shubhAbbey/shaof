@@ -178,7 +178,16 @@ export class MedusaCartService {
 
 
     const data = await response.json();
-    return mapMedusaCartToDto(data.cart);
+    const rawCart = data.cart || data.parent;
+    if (rawCart && rawCart.id) {
+      return mapMedusaCartToDto(rawCart);
+    }
+
+    const freshCart = await this.getCart(cartId);
+    if (!freshCart) {
+      throw new Error('Failed to retrieve cart after adding line item');
+    }
+    return freshCart;
   }
 
   /**
@@ -221,7 +230,16 @@ export class MedusaCartService {
     }
 
     const data = await response.json();
-    return mapMedusaCartToDto(data.cart);
+    const rawCart = data.cart || data.parent;
+    if (rawCart && rawCart.id) {
+      return mapMedusaCartToDto(rawCart);
+    }
+
+    const freshCart = await this.getCart(cartId);
+    if (!freshCart) {
+      throw new Error('Failed to retrieve cart after line item update');
+    }
+    return freshCart;
   }
 
   /**
@@ -249,6 +267,16 @@ export class MedusaCartService {
     }
 
     const data = await response.json();
-    return mapMedusaCartToDto(data.cart);
+    const rawCart = data.parent || data.cart;
+    if (rawCart && rawCart.id) {
+      return mapMedusaCartToDto(rawCart);
+    }
+
+    const freshCart = await this.getCart(cartId);
+    if (!freshCart) {
+      throw new Error('Failed to retrieve cart after item deletion');
+    }
+    return freshCart;
   }
 }
+

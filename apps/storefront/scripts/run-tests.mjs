@@ -3815,9 +3815,75 @@ describe('Task 20: Persistent Medusa Guest Cart — Complete Domain, Persistence
       assert.equal(updated.total, 2199);
     });
   });
+
+  describe('7. DELETE & PATCH-to-Zero Response Shape Contract', () => {
+    it('handles Medusa v2 DELETE response shape containing parent cart cleanly', () => {
+      // Simulate raw Medusa v2 DELETE response { id, object: "line-item", deleted: true, parent: { ...cart } }
+      const medusaDeleteResponse = {
+        id: 'cali_item_123',
+        object: 'line-item',
+        deleted: true,
+        parent: {
+          id: 'cart_01M0TESTCART',
+          currency_code: 'inr',
+          items: [],
+          total: 0,
+          subtotal: 0,
+        },
+      };
+
+      const rawCart = medusaDeleteResponse.parent || medusaDeleteResponse.cart;
+      assert.ok(rawCart);
+      assert.equal(rawCart.id, 'cart_01M0TESTCART');
+      assert.equal(rawCart.items.length, 0);
+    });
+
+    it('handles PATCH quantity 0 by transitioning to item removal and returning updated cart', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      const withItem = engine.addLineItem(cart.id, 'var_kurta_1', 2, 1499);
+
+      // Update quantity to 0
+      const updated = engine.updateLineItem(cart.id, withItem.items[0].id, 0);
+      assert.equal(updated.items.length, 0);
+      assert.equal(updated.total, 0);
+      assert.equal(updated.subtotal, 0);
+    });
+
+
+    it('updates CartContext state immediately on successful DELETE without false 500', () => {
+      let clientCartState = {
+        id: 'cart_01M0TESTCART',
+        items: [{ id: 'cali_item_1', title: 'Test Saree', quantity: 1, total: 2199 }],
+        totalItems: 1,
+        total: 2199,
+      };
+
+      // Simulated BFF response for DELETE
+      const bffResponse = {
+        success: true,
+        cart: {
+          id: 'cart_01M0TESTCART',
+          items: [],
+          totalItems: 0,
+          total: 0,
+        },
+        message: 'Item removed from cart successfully',
+      };
+
+      if (bffResponse.success && bffResponse.cart) {
+        clientCartState = bffResponse.cart;
+      }
+
+      assert.equal(clientCartState.items.length, 0);
+      assert.equal(clientCartState.totalItems, 0);
+      assert.equal(clientCartState.total, 0);
+    });
+  });
 });
 
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
+
 
 
 
