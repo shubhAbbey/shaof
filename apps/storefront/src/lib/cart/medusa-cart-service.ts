@@ -74,16 +74,18 @@ export class MedusaCartService {
    * Create a new Medusa guest cart
    */
   static async createCart(regionId?: string): Promise<CartDto> {
+    const payload: Record<string, any> = {};
+    if (regionId) {
+      payload.region_id = regionId;
+    }
+
     const response = await fetch(`${config.medusa.baseUrl}/store/carts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-publishable-api-key': config.medusa.publishableKey,
       },
-      body: JSON.stringify({
-        region_id: regionId,
-        country_code: 'in',
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -94,6 +96,7 @@ export class MedusaCartService {
     const data = await response.json();
     return mapMedusaCartToDto(data.cart);
   }
+
 
 
   /**
