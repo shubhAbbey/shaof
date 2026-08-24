@@ -7,15 +7,28 @@ import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { cn } from '../../lib/utils';
 
-export const MobileHeader: React.FC = () => {
+import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
+
+export interface MobileHeaderProps {
+  navigation?: CmsCategoryNavItemDto[];
+  globalSettings?: CmsGlobalSettingsDto | null;
+}
+
+export const MobileHeader: React.FC<MobileHeaderProps> = ({
+  navigation,
+  globalSettings,
+}) => {
   const { openMobileNav, openCartDrawer } = useUi();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number>(0);
+
+  const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
+  const announcementText = globalSettings?.announcementText || 'Free Shipping above ₹999 | COD Available';
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white shadow-xs md:hidden">
       {/* 1. Mobile Announcement Strip */}
       <div className="bg-brand-900 text-white text-[11px] py-1 px-3 text-center font-medium">
-        <span>Free Shipping above ₹999 | COD Available</span>
+        <span>{announcementText}</span>
       </div>
 
       {/* 2. Main Mobile Bar */}
@@ -85,11 +98,11 @@ export const MobileHeader: React.FC = () => {
           aria-label="Category Pills"
           className="no-scrollbar flex w-full max-w-full items-center gap-1.5 overflow-x-auto px-3 py-2 scroll-smooth"
         >
-          {NAVIGATION_CATEGORIES.map((cat, idx) => {
+          {categories.map((cat, idx) => {
             const isActive = activeCategoryIndex === idx;
             return (
               <Link
-                key={cat.id}
+                key={cat.id || cat.handle}
                 href={cat.href}
                 onClick={() => setActiveCategoryIndex(idx)}
                 className={cn(

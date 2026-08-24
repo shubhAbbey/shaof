@@ -49,6 +49,8 @@ export interface SearchBarProps {
   placeholder?: string;
   autoFocus?: boolean;
   onSearchSubmit?: (query: string) => void;
+  trendingSearches?: string[];
+  popularCategories?: { name: string; href: string }[];
 }
 
 export type NavigableItemType =
@@ -77,8 +79,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   placeholder = 'Search for kurtas, dresses, t-shirts, brands and more...',
   autoFocus = false,
   onSearchSubmit,
+  trendingSearches,
+  popularCategories,
 }) => {
   const router = useRouter();
+  const activeTrendingSearches = trendingSearches && trendingSearches.length > 0 ? trendingSearches : TRENDING_SEARCHES;
+  const activePopularCategories = popularCategories && popularCategories.length > 0 ? popularCategories : POPULAR_CATEGORIES;
+
   const {
     query,
     setQuery,
@@ -91,7 +98,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     autoFetchSuggestions: true,
   });
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +111,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
     if (!trimmed) {
       // Empty query state: Trending searches are keyboard-navigable
-      TRENDING_SEARCHES.forEach((trend, idx) => {
+      activeTrendingSearches.forEach((trend, idx) => {
         items.push({
           id: `nav-trend-${idx}`,
           type: 'trending',
@@ -174,7 +181,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     });
 
     return items;
-  }, [query, suggestions]);
+  }, [query, suggestions, activeTrendingSearches]);
 
   // Reset activeIndex when query or suggestions change
   useEffect(() => {
@@ -621,7 +628,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                   <span>Trending Searches</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {TRENDING_SEARCHES.map((item, idx) => {
+                  {activeTrendingSearches.map((item, idx) => {
                     const isItemActive = activeIndex === idx;
                     return (
                       <button
@@ -654,7 +661,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                   <span>Explore Popular Categories</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {POPULAR_CATEGORIES.map((cat) => (
+                  {activePopularCategories.map((cat) => (
                     <button
                       key={cat.name}
                       type="button"

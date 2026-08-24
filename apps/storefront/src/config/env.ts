@@ -24,7 +24,7 @@ export interface ServerEnvConfig extends PublicEnvConfig {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-const SITE_NAME = 'Gulmohar Fashion';
+const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'EcomFashion';
 const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || 'http://localhost:9000';
 const MEDUSA_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ||

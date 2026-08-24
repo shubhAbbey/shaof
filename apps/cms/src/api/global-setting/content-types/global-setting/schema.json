@@ -1,0 +1,51 @@
+{
+  "kind": "singleType",
+  "collectionName": "global_settings",
+  "info": {
+    "singularName": "global-setting",
+    "pluralName": "global-settings",
+    "displayName": "Global Settings",
+    "description": "Global storefront branding, announcement, footer, and default SEO settings"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "siteName": {
+      "type": "string",
+      "required": true,
+      "default": "EcomFashion"
+    },
+    "siteTagline": {
+      "type": "string",
+      "default": "India Modern Edit"
+    },
+    "announcementText": {
+      "type": "string"
+    },
+    "announcementLink": {
+      "type": "string"
+    },
+    "freeShippingThreshold": {
+      "type": "integer",
+      "default": 999
+    },
+    "footerAboutText": {
+      "type": "text"
+    },
+    "trendingSearches": {
+      "type": "json"
+    },
+    "defaultSeo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo"
+    },
+    "valuePropositions": {
+      "type": "component",
+      "repeatable": true,
+      "component": "elements.value-prop"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { CmsPageDto, CmsNavigationDto } from '@ecom/types';
+import type { CmsPageDto, CmsNavigationDto, CmsGlobalSettingsDto } from '@ecom/types';
 import { config } from '../config';
 
 const STRAPI_URL = config.cms.baseUrl;
@@ -81,3 +81,13 @@ export async function fetchCmsNavigation(handle: string): Promise<CmsNavigationD
   if (!navs || navs.length === 0) return null;
   return navs[0];
 }
+
+/**
+ * Fetch global storefront settings including announcement, site branding, value props and default SEO.
+ */
+export async function fetchCmsGlobalSettings(): Promise<CmsGlobalSettingsDto | null> {
+  const query = `/api/global-setting?populate[defaultSeo][populate]=*&populate[valuePropositions][populate]=*`;
+  const result = await fetchStrapi<CmsGlobalSettingsDto>(query, { revalidate: 300 });
+  return result;
+}
+

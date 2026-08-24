@@ -396,6 +396,40 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiGlobalSettingGlobalSetting extends Struct.SingleTypeSchema {
+  collectionName: 'global_settings';
+  info: {
+    description: 'Global storefront branding, announcement, footer, and default SEO settings';
+    displayName: 'Global Settings';
+    pluralName: 'global-settings';
+    singularName: 'global-setting';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    announcementLink: Schema.Attribute.String;
+    announcementText: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+    defaultSeo: Schema.Attribute.Component<'shared.seo', false>;
+    footerAboutText: Schema.Attribute.Text;
+    freeShippingThreshold: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<999>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::global-setting.global-setting'> &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    siteName: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'EcomFashion'>;
+    siteTagline: Schema.Attribute.String & Schema.Attribute.DefaultTo<'India Modern Edit'>;
+    trendingSearches: Schema.Attribute.JSON;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> & Schema.Attribute.Private;
+    valuePropositions: Schema.Attribute.Component<'elements.value-prop', true>;
+  };
+}
+
 export interface ApiNavigationNavigation extends Struct.CollectionTypeSchema {
   collectionName: 'navigations';
   info: {
@@ -903,6 +937,7 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
+      'api::global-setting.global-setting': ApiGlobalSettingGlobalSetting;
       'api::navigation.navigation': ApiNavigationNavigation;
       'api::page.page': ApiPagePage;
       'plugin::content-releases.release': PluginContentReleasesRelease;

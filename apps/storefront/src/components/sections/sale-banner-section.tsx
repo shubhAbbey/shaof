@@ -19,7 +19,7 @@ export const SaleBannerSection: React.FC<SaleBannerSectionProps> = ({ section })
             <div className="space-y-3">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-black tracking-wider uppercase backdrop-blur-xs">
                 <Flame className="h-3.5 w-3.5 text-yellow-300" />
-                <span>LIMITED TIME FLASH SALE</span>
+                <span>{section.badgeText || 'LIMITED TIME FLASH SALE'}</span>
               </div>
 
               <Heading level={2} size="xl" className="text-2xl sm:text-4xl font-black text-white">
@@ -34,7 +34,7 @@ export const SaleBannerSection: React.FC<SaleBannerSectionProps> = ({ section })
 
               <div className="flex items-center gap-2 text-xs text-rose-100 font-medium">
                 <Clock className="h-3.5 w-3.5" />
-                <span>Ends midnight | Free shipping above ₹999</span>
+                <span>{section.disclaimerText || 'Ends midnight | Free shipping above ₹999'}</span>
               </div>
             </div>
 

@@ -54,6 +54,7 @@ export interface CmsHeroSection extends CmsBaseSection {
   __component: 'sections.hero';
   title: string;
   subtitle?: string;
+  badgeText?: string;
   media?: CmsMediaDto;
   mobileMedia?: CmsMediaDto;
   ctaText?: string;
@@ -69,12 +70,15 @@ export interface CmsBannerSection extends CmsBaseSection {
   media?: CmsMediaDto;
   mobileMedia?: CmsMediaDto;
   ctaLink?: string;
+  ctaLabel?: string;
 }
 
 export interface CmsSaleBannerSection extends CmsBaseSection {
   __component: 'sections.sale-banner';
   title: string;
   discountHighlight?: string;
+  badgeText?: string;
+  disclaimerText?: string;
   timerEndDate?: string;
   ctaText?: string;
   ctaLink?: string;
@@ -190,20 +194,87 @@ export interface CmsPageDto {
 // 4. Navigation Models
 // ==========================================
 
+export interface CmsNavSubItemDto {
+  label: string;
+  href: string;
+  isHot?: boolean;
+  isNew?: boolean;
+}
+
+export interface CmsNavGroupDto {
+  title: string;
+  items: CmsNavSubItemDto[];
+}
+
+export interface CmsNavFeaturedDto {
+  title: string;
+  subtitle?: string;
+  href: string;
+  badge?: string;
+  image?: string;
+}
+
+export interface CmsCategoryNavItemDto {
+  id: string;
+  name: string;
+  handle: string;
+  href: string;
+  badge?: string;
+  groups: CmsNavGroupDto[];
+  featured?: CmsNavFeaturedDto[];
+}
+
+export interface CmsFooterNavColumnDto {
+  title: string;
+  items: {
+    label: string;
+    href: string;
+    isExternal?: boolean;
+  }[];
+}
+
 export interface CmsNavigationItemDto {
   label: string;
-  url: string;
+  url?: string;
+  href?: string;
   categoryHandle?: string;
   collectionHandle?: string;
   badge?: string;
   children?: CmsNavigationItemDto[];
+  [key: string]: any;
 }
 
 export interface CmsNavigationDto {
-  id: number | string;
+  id?: number | string;
   documentId?: string;
   title: string;
   handle: string;
-  items: CmsNavigationItemDto[];
+  items: any; // Flexible JSON tree for header-nav (CmsCategoryNavItemDto[]) or footer-nav (CmsFooterNavColumnDto[])
 }
+
+// ==========================================
+// 5. Global Settings Models
+// ==========================================
+
+export interface CmsValuePropositionDto {
+  id?: number | string;
+  title: string;
+  subtitle: string;
+  icon?: string;
+}
+
+export interface CmsGlobalSettingsDto {
+  id?: number | string;
+  documentId?: string;
+  siteName: string;
+  siteTagline?: string;
+  announcementText?: string;
+  announcementLink?: string;
+  freeShippingThreshold?: number;
+  footerAboutText?: string;
+  trendingSearches?: string[];
+  defaultSeo?: CmsSeoDto;
+  valuePropositions?: CmsValuePropositionDto[];
+}
+
 

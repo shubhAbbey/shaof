@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { fetchCategoryByHandle, fetchPlpProducts } from '../../../lib/commerce';
 import { constructMetadata } from '../../../lib/seo';
 import { PlpView } from '../../../components/plp';
+import { fetchCmsNavigation } from '../../../lib/strapi-client';
 import { NAVIGATION_CATEGORIES } from '../../../data/navigation';
+import type { CmsCategoryNavItemDto } from '@ecom/types';
 
 export const revalidate = 60; // ISR revalidation every 60 seconds
 
@@ -33,7 +35,10 @@ export async function generateMetadata({ params, searchParams }: CategoryPlpProp
   const category = await fetchCategoryByHandle(params.handle);
 
   if (!category) {
-    const navCategory = NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
+    const cmsNav = await fetchCmsNavigation('header-nav');
+    const headerItems = (cmsNav?.items as CmsCategoryNavItemDto[] | undefined);
+    const navCategory = headerItems?.find((c) => c.handle === params.handle) ||
+      NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
     if (navCategory) {
       return constructMetadata({
         title: `${navCategory.name} Online Collection`,
@@ -60,7 +65,10 @@ export default async function CategoryPlpPage({ params, searchParams = {} }: Cat
   const category = await fetchCategoryByHandle(params.handle);
 
   if (!category) {
-    const navCat = NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
+    const cmsNav = await fetchCmsNavigation('header-nav');
+    const headerItems = (cmsNav?.items as CmsCategoryNavItemDto[] | undefined);
+    const navCat = headerItems?.find((c) => c.handle === params.handle) ||
+      NAVIGATION_CATEGORIES.find((c) => c.handle === params.handle);
     if (!navCat) {
       notFound();
     }

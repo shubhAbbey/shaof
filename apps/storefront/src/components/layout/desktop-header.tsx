@@ -11,12 +11,27 @@ import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { cn } from '../../lib/utils';
 
-export const DesktopHeader: React.FC = () => {
+import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
+
+export interface DesktopHeaderProps {
+  navigation?: CmsCategoryNavItemDto[];
+  globalSettings?: CmsGlobalSettingsDto | null;
+}
+
+export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
+  navigation,
+  globalSettings,
+}) => {
   const { openCartDrawer } = useUi();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [arrowOffset, setArrowOffset] = useState<number>(100);
   const navContainerRef = useRef<HTMLDivElement>(null);
   const categoryTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
+  const announcementText = globalSettings?.announcementText || 'Free Express Shipping across India on orders above ₹999 | Cash on Delivery Available';
+  const siteTagline = globalSettings?.siteTagline || 'India Modern Edit';
+  const siteName = globalSettings?.siteName || 'EcomFashion';
 
   const handleCategoryHover = (index: number) => {
     setActiveCategoryIndex(index);
@@ -45,14 +60,14 @@ export const DesktopHeader: React.FC = () => {
             <span className="bg-brand-600 text-white font-bold px-2 py-0.5 rounded text-[10px] tracking-wider uppercase">
               Limited Offer
             </span>
-            <span>Free Express Shipping across India on orders above ₹999 | Cash on Delivery Available</span>
+            <span>{announcementText}</span>
           </div>
           <div className="flex items-center gap-4 text-brand-100">
-            <Link href="/track-order" className="hover:text-white transition-colors">
+            <Link href="/account/orders" className="hover:text-white transition-colors">
               Track Order
             </Link>
             <span>|</span>
-            <Link href="/help" className="hover:text-white transition-colors">
+            <Link href="/pages/help-center" className="hover:text-white transition-colors">
               Customer Support
             </Link>
           </div>
@@ -69,10 +84,10 @@ export const DesktopHeader: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
-                ECOM<span className="text-brand-600">FASHION</span>
+                {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
               </span>
               <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">
-                India Modern Edit
+                {siteTagline}
               </span>
             </div>
           </Link>
@@ -145,11 +160,11 @@ export const DesktopHeader: React.FC = () => {
             aria-label="Primary Categories"
             className="no-scrollbar flex w-full items-center gap-1 overflow-x-auto py-1 scroll-smooth"
           >
-            {NAVIGATION_CATEGORIES.map((cat, idx) => {
+            {categories.map((cat, idx) => {
               const isActive = activeCategoryIndex === idx;
               return (
                 <button
-                  key={cat.id}
+                  key={cat.id || cat.handle}
                   ref={(el) => {
                     categoryTabRefs.current[idx] = el;
                   }}
@@ -197,9 +212,9 @@ export const DesktopHeader: React.FC = () => {
         </Container>
 
         {/* Mega Menu Dropdown */}
-        {activeCategoryIndex !== null && (
+        {activeCategoryIndex !== null && categories[activeCategoryIndex] && (
           <MegaMenu
-            category={NAVIGATION_CATEGORIES[activeCategoryIndex]}
+            category={categories[activeCategoryIndex]}
             isOpen={activeCategoryIndex !== null}
             onClose={() => setActiveCategoryIndex(null)}
             arrowOffset={arrowOffset}

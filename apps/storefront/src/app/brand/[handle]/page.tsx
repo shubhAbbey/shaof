@@ -28,18 +28,9 @@ interface BrandPlpProps {
   };
 }
 
-const KNOWN_BRANDS: Record<string, string> = {
-  'virasat-heritage': 'Virasat Heritage',
-  'gulmohar-jaipur': 'Gulmohar Jaipur',
-  'meadow-studio': 'Meadow Studio',
-  'loom-thread': 'Loom & Thread',
-  'urban-drape': 'Urban Drape',
-  'kora-weaves': 'Kora Weaves',
-};
-
-function formatBrandName(handle: string): string {
-  if (KNOWN_BRANDS[handle]) {
-    return KNOWN_BRANDS[handle];
+function formatBrandName(handle: string, detectedBrand?: string): string {
+  if (detectedBrand) {
+    return detectedBrand;
   }
   return handle
     .split('-')
@@ -48,10 +39,11 @@ function formatBrandName(handle: string): string {
 }
 
 export async function generateMetadata({ params }: BrandPlpProps): Promise<Metadata> {
-  const brandName = formatBrandName(params.handle);
   const products = await fetchCommerceProducts({ brand: params.handle, limit: 1 });
+  const detectedBrand = products[0]?.brand;
+  const brandName = formatBrandName(params.handle, detectedBrand);
 
-  if (products.length === 0 && !KNOWN_BRANDS[params.handle]) {
+  if (products.length === 0) {
     return {
       title: 'Brand Not Found | EcomFashion',
       robots: { index: false, follow: false },
@@ -66,16 +58,17 @@ export async function generateMetadata({ params }: BrandPlpProps): Promise<Metad
 }
 
 export default async function BrandPlpPage({ params, searchParams = {} }: BrandPlpProps) {
-  const brandName = formatBrandName(params.handle);
-
   const initialCheck = await fetchCommerceProducts({
     brand: params.handle,
     limit: 1,
   });
 
-  if (initialCheck.length === 0 && !KNOWN_BRANDS[params.handle]) {
+  if (initialCheck.length === 0) {
     notFound();
   }
+
+  const detectedBrand = initialCheck[0]?.brand;
+  const brandName = formatBrandName(params.handle, detectedBrand);
 
   const sizes = searchParams.sizes
     ? searchParams.sizes.split(',').filter(Boolean)

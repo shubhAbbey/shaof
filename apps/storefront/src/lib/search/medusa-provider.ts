@@ -4,7 +4,6 @@
  */
 
 import { fetchPlpProducts, StorefrontProduct, ProductFacets } from '../commerce';
-import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import {
   ISearchProvider,
   SearchOptions,
@@ -89,7 +88,7 @@ export class MedusaSearchProvider implements ISearchProvider {
         query: trimmedQuery,
       });
 
-      // 2. Extract matching categories
+      // 2. Extract matching categories dynamically from commerce products
       const categoriesMap = new Map<string, { id: string; name: string; handle: string }>();
       products.forEach((p) => {
         if (p.categoryName && p.categoryHandle) {
@@ -106,29 +105,6 @@ export class MedusaSearchProvider implements ISearchProvider {
         }
       });
 
-      // Also check navigation categories for direct category matches
-      NAVIGATION_CATEGORIES.forEach((cat) => {
-        if (cat.name.toLowerCase().includes(trimmedQuery.toLowerCase())) {
-          categoriesMap.set(cat.handle, {
-            id: cat.id,
-            name: cat.name,
-            handle: cat.handle,
-          });
-        }
-        cat.groups.forEach((g) => {
-          g.items.forEach((item) => {
-            if (item.label.toLowerCase().includes(trimmedQuery.toLowerCase())) {
-              const handle = item.href.replace('/category/', '').replace('/sale', 'sale');
-              categoriesMap.set(handle, {
-                id: handle,
-                name: item.label,
-                handle,
-              });
-            }
-          });
-        });
-      });
-
       categoriesMap.forEach((cat) => {
         suggestions.push({
           id: `cat_${cat.handle}`,
@@ -140,7 +116,7 @@ export class MedusaSearchProvider implements ISearchProvider {
         });
       });
 
-      // 3. Extract matching collections
+      // 3. Extract matching collections dynamically from commerce products
       const collectionsMap = new Map<string, { id: string; title: string; handle: string }>();
       products.forEach((p: any) => {
         if (p.collectionTitle && p.collectionHandle) {
@@ -155,25 +131,6 @@ export class MedusaSearchProvider implements ISearchProvider {
             });
           }
         }
-      });
-
-      // Also check featured collections in NAVIGATION_CATEGORIES
-      NAVIGATION_CATEGORIES.forEach((cat) => {
-        cat.featured?.forEach((f) => {
-          if (f.href.startsWith('/collections/')) {
-            const handle = f.href.replace('/collections/', '');
-            if (
-              f.title.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
-              handle.toLowerCase().includes(trimmedQuery.toLowerCase())
-            ) {
-              collectionsMap.set(handle, {
-                id: handle,
-                title: f.title,
-                handle,
-              });
-            }
-          }
-        });
       });
 
       collectionsMap.forEach((col) => {

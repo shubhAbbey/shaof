@@ -65,27 +65,43 @@ export const PdpDetailsTabs: React.FC<PdpDetailsTabsProps> = ({ product }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 text-xs">
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Brand</span>
-              <span className="font-bold text-gray-900">{product.brand || 'Gulmohar Jaipur'}</span>
+              <span className="font-bold text-gray-900">{product.brand || product.metadata?.brand || 'EcomFashion'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Category</span>
-              <span className="font-bold text-gray-900">{product.categoryName || 'Ethnic Wear'}</span>
+              <span className="font-bold text-gray-900">{product.categoryName || product.metadata?.category || 'Apparel'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Product Code (SKU)</span>
               <span className="font-bold text-gray-900">{product.id}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
+              <span className="text-gray-500 font-medium">Fabric / Material</span>
+              <span className="font-bold text-gray-900">{product.metadata?.fabric || product.metadata?.material || '100% Premium Cotton'}</span>
+            </div>
+            {product.metadata?.pattern && (
+              <div className="flex justify-between py-1.5 border-b border-gray-100">
+                <span className="text-gray-500 font-medium">Pattern</span>
+                <span className="font-bold text-gray-900">{product.metadata.pattern}</span>
+              </div>
+            )}
+            {product.metadata?.fit && (
+              <div className="flex justify-between py-1.5 border-b border-gray-100">
+                <span className="text-gray-500 font-medium">Fit</span>
+                <span className="font-bold text-gray-900">{product.metadata.fit}</span>
+              </div>
+            )}
+            <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Country of Origin</span>
-              <span className="font-bold text-gray-900">India</span>
+              <span className="font-bold text-gray-900">{product.metadata?.country_of_origin || 'India'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Fabric Care</span>
-              <span className="font-bold text-gray-900">Dry Clean / Gentle Hand Wash</span>
+              <span className="font-bold text-gray-900">{product.metadata?.fabric_care || 'Dry Clean / Gentle Hand Wash'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Package Contains</span>
-              <span className="font-bold text-gray-900">1 Main Garment</span>
+              <span className="font-bold text-gray-900">{product.metadata?.package_contains || '1 Main Garment'}</span>
             </div>
           </div>
         )}

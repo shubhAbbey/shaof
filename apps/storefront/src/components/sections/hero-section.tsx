@@ -51,7 +51,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ section }) => {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-500/20 px-3.5 py-1 text-xs font-bold text-brand-300 backdrop-blur-md border border-brand-500/30">
             <Sparkles className="h-3.5 w-3.5 text-brand-400" />
-            <span>SEASON HIGHLIGHT 2026</span>
+            <span>{section.badgeText || 'SEASON HIGHLIGHT 2026'}</span>
           </div>
 
           {/* Heading */}

@@ -52,7 +52,7 @@ export const BannerSection: React.FC<BannerSectionProps> = ({ section }) => {
             )}
 
             <div className="pt-2 flex items-center gap-2 font-bold text-sm text-brand-300 group-hover:text-white transition-colors">
-              <span>Explore Collection</span>
+              <span>{section.ctaLabel || 'Explore Collection'}</span>
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </div>
           </div>

@@ -15,6 +15,20 @@ export interface ElementsCategoryItem extends Struct.ComponentSchema {
   };
 }
 
+export interface ElementsValueProp extends Struct.ComponentSchema {
+  collectionName: 'components_elements_value_props';
+  info: {
+    description: 'Storefront assurance and trust highlight item';
+    displayName: 'Value Proposition';
+    icon: 'shield';
+  };
+  attributes: {
+    icon: Schema.Attribute.String;
+    subtitle: Schema.Attribute.String & Schema.Attribute.Required;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+  };
+}
+
 export interface SectionsBanner extends Struct.ComponentSchema {
   collectionName: 'components_sections_banners';
   info: {
@@ -24,6 +38,7 @@ export interface SectionsBanner extends Struct.ComponentSchema {
   };
   attributes: {
     badgeText: Schema.Attribute.String;
+    ctaLabel: Schema.Attribute.String;
     ctaLink: Schema.Attribute.String;
     media: Schema.Attribute.Media<'images'>;
     mobileMedia: Schema.Attribute.Media<'images'>;
@@ -78,6 +93,7 @@ export interface SectionsHero extends Struct.ComponentSchema {
     icon: 'picture';
   };
   attributes: {
+    badgeText: Schema.Attribute.String;
     ctaLink: Schema.Attribute.String;
     ctaText: Schema.Attribute.String;
     media: Schema.Attribute.Media<'images' | 'videos'>;
@@ -172,8 +188,10 @@ export interface SectionsSaleBanner extends Struct.ComponentSchema {
   };
   attributes: {
     backgroundColor: Schema.Attribute.String;
+    badgeText: Schema.Attribute.String;
     ctaLink: Schema.Attribute.String;
     ctaText: Schema.Attribute.String;
+    disclaimerText: Schema.Attribute.String;
     discountHighlight: Schema.Attribute.String;
     timerEndDate: Schema.Attribute.DateTime;
     title: Schema.Attribute.String & Schema.Attribute.Required;
@@ -201,6 +219,7 @@ declare module '@strapi/strapi' {
   export namespace Public {
     export interface ComponentSchemas {
       'elements.category-item': ElementsCategoryItem;
+      'elements.value-prop': ElementsValueProp;
       'sections.banner': SectionsBanner;
       'sections.category-tiles': SectionsCategoryTiles;
       'sections.collection-carousel': SectionsCollectionCarousel;

@@ -9,13 +9,21 @@ import { Footer } from '../components/layout/footer';
 import { constructMetadata } from '../lib/seo';
 import { SearchProvider } from '../context/search-context';
 
+import { fetchCmsNavigation, fetchCmsGlobalSettings } from '../lib/strapi-client';
+
 export const metadata: Metadata = constructMetadata();
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [headerNav, footerNav, globalSettings] = await Promise.all([
+    fetchCmsNavigation('header-nav'),
+    fetchCmsNavigation('footer-nav'),
+    fetchCmsGlobalSettings(),
+  ]);
+
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col bg-white font-sans antialiased text-gray-900 selection:bg-brand-500 selection:text-white">
@@ -23,9 +31,9 @@ export default function RootLayout({
           <UiProvider>
             <MiniPdpProvider>
               <SearchProvider>
-                <Header />
+                <Header navigation={headerNav?.items} globalSettings={globalSettings} />
                 <div className="flex-1">{children}</div>
-                <Footer />
+                <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
                 <MiniPdpModal />
               </SearchProvider>
             </MiniPdpProvider>

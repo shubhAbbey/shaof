@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_elements_value_props",
+  "info": {
+    "displayName": "Value Proposition",
+    "icon": "shield",
+    "description": "Storefront assurance and trust highlight item"
+  },
+  "options": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "subtitle": {
+      "type": "string",
+      "required": true
+    },
+    "icon": {
+      "type": "string"
+    }
+  }
+}

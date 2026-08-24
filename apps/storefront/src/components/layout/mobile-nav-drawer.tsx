@@ -18,13 +18,24 @@ import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { cn } from '../../lib/utils';
 
-export const MobileNavDrawer: React.FC = () => {
+import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
+
+export interface MobileNavDrawerProps {
+  navigation?: CmsCategoryNavItemDto[];
+  globalSettings?: CmsGlobalSettingsDto | null;
+}
+
+export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
+  navigation,
+  globalSettings,
+}) => {
   const { isMobileNavOpen, closeMobileNav } = useUi();
-  const [selectedCatId, setSelectedCatId] = useState<string>('women');
+  const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
+  const [selectedCatId, setSelectedCatId] = useState<string>(categories[0]?.id || 'women');
   const [openGroupTitle, setOpenGroupTitle] = useState<string | null>(null);
 
   const selectedCategory =
-    NAVIGATION_CATEGORIES.find((c) => c.id === selectedCatId) || NAVIGATION_CATEGORIES[0];
+    categories.find((c) => (c.id || c.handle) === selectedCatId) || categories[0];
 
   const toggleGroup = (title: string) => {
     setOpenGroupTitle((prev) => (prev === title ? null : title));
@@ -85,14 +96,14 @@ export const MobileNavDrawer: React.FC = () => {
 
         {/* 2. Top-Level Category Switcher Pills */}
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-100">
-          {NAVIGATION_CATEGORIES.map((cat) => {
-            const isSelected = cat.id === selectedCatId;
+          {categories.map((cat) => {
+            const isSelected = (cat.id || cat.handle) === selectedCatId;
             return (
               <button
-                key={cat.id}
+                key={cat.id || cat.handle}
                 type="button"
                 onClick={() => {
-                  setSelectedCatId(cat.id);
+                  setSelectedCatId(cat.id || cat.handle);
                   setOpenGroupTitle(null);
                 }}
                 className={cn(
