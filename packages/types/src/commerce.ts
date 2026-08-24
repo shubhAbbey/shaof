@@ -422,3 +422,62 @@ export interface PaymentProviderContract {
   ): Promise<PaymentWebhookOutput>;
 }
 
+// ==========================================
+// 6. Guest & Customer Cart Domain (Phase 20)
+// ==========================================
+
+export const CART_COOKIE_NAME = 'ecom_cart_id';
+export const CART_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
+
+export interface CartLineItemDto {
+  id: string;
+  title: string;
+  subtitle?: string;
+  thumbnail?: string;
+  variantId: string;
+  variantTitle?: string;
+  productId: string;
+  productHandle?: string;
+  quantity: number;
+  unitPrice: number;
+  originalUnitPrice?: number;
+  total: number;
+  subtotal: number;
+  options?: Record<string, string>;
+  inStock?: boolean;
+  inventoryQuantity?: number;
+}
+
+export interface CartDto {
+  id: string;
+  items: CartLineItemDto[];
+  totalItems: number;
+  subtotal: number;
+  discountTotal: number;
+  shippingTotal: number;
+  taxTotal: number;
+  total: number;
+  currencyCode: string;
+  regionId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddToCartPayload {
+  variantId: string;
+  quantity?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateCartItemPayload {
+  quantity: number;
+}
+
+export interface CartOperationResult {
+  success: boolean;
+  cart?: CartDto | null;
+  error?: string;
+  message?: string;
+}
+
+

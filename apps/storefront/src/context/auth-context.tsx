@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { CustomerSession } from '@ecom/types';
+import { sanitizeRedirectPath } from '@ecom/types';
 
 export type AuthModalView = 'login' | 'register';
 
@@ -24,12 +25,9 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function safeDestination(url?: string): string {
-  if (!url || typeof url !== 'string') return '/';
-  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\')) {
-    return url;
-  }
-  return '/';
+  return sanitizeRedirectPath(url, '/');
 }
+
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [customer, setCustomer] = useState<CustomerSession | null>(null);

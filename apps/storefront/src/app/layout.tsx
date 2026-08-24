@@ -13,6 +13,8 @@ import { fetchCmsNavigation, fetchCmsGlobalSettings } from '../lib/strapi-client
 
 import { AuthProvider } from '../context/auth-context';
 import { AuthModal } from '../components/auth/auth-modal';
+import { CartProvider } from '../context/cart-context';
+import { CartDrawer } from '../components/cart/cart-drawer';
 
 export const metadata: Metadata = constructMetadata();
 
@@ -33,15 +35,18 @@ export default async function RootLayout({
         <ToastProvider>
           <UiProvider>
             <AuthProvider>
-              <MiniPdpProvider>
-                <SearchProvider>
-                  <Header navigation={headerNav?.items} globalSettings={globalSettings} />
-                  <div className="flex-1">{children}</div>
-                  <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
-                  <MiniPdpModal />
-                  <AuthModal />
-                </SearchProvider>
-              </MiniPdpProvider>
+              <CartProvider>
+                <MiniPdpProvider>
+                  <SearchProvider>
+                    <Header navigation={headerNav?.items} globalSettings={globalSettings} />
+                    <div className="flex-1">{children}</div>
+                    <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
+                    <MiniPdpModal />
+                    <AuthModal />
+                    <CartDrawer />
+                  </SearchProvider>
+                </MiniPdpProvider>
+              </CartProvider>
             </AuthProvider>
           </UiProvider>
         </ToastProvider>
@@ -49,3 +54,4 @@ export default async function RootLayout({
     </html>
   );
 }
+

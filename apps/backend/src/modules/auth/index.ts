@@ -21,4 +21,6 @@ export class OtpAuthService {
   }
 }
 
+export * from './auth-guard.js';
 export default OtpAuthService;
+

@@ -10,6 +10,7 @@ import { MegaMenu } from './mega-menu';
 import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { useAuth } from '../../context/auth-context';
+import { useCart } from '../../context/cart-context';
 import { cn } from '../../lib/utils';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
@@ -25,9 +26,11 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
 }) => {
   const { openCartDrawer } = useUi();
   const { customer, isAuthenticated, openLogin } = useAuth();
+  const { itemCount } = useCart();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [arrowOffset, setArrowOffset] = useState<number>(100);
   const navContainerRef = useRef<HTMLDivElement>(null);
+
   const categoryTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
@@ -149,8 +152,9 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
               <div className="relative">
                 <ShoppingBag className="h-5 w-5 group-hover:scale-105 transition-transform" />
                 <span className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-gray-900 text-[10px] font-bold text-white flex items-center justify-center">
-                  0
+                  {itemCount}
                 </span>
+
               </div>
               <span className="text-[11px] font-medium mt-0.5">Bag</span>
             </button>

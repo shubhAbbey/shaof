@@ -5,3 +5,5 @@ export * from './rate-limiter';
 export * from './otp-service';
 export * from './medusa-customer-service';
 export * from './session-service';
+export * from './auth-guard';
+

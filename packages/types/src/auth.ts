@@ -159,3 +159,53 @@ export function normalizeIndianMobile(rawMobile: string | null | undefined): Mob
     normalized: `+91${raw10}`,
   };
 }
+
+/**
+ * Strict internal URL sanitizer to prevent open redirect vulnerabilities
+ */
+export function sanitizeRedirectPath(url: string | null | undefined, fallback: string = '/account'): string {
+  if (!url || typeof url !== 'string') return fallback;
+  const trimmed = url.trim();
+  if (
+    trimmed.startsWith('/') &&
+    !trimmed.startsWith('//') &&
+    !trimmed.includes('\\') &&
+    !trimmed.includes(':')
+  ) {
+    return trimmed;
+  }
+  return fallback;
+}
+
+export interface UnauthorizedErrorResponse {
+  success: false;
+  error: 'UNAUTHORIZED';
+  message: string;
+}
+
+export interface ForbiddenErrorResponse {
+  success: false;
+  error: 'FORBIDDEN';
+  message: string;
+}
+
+export type AuthGuardErrorResponse = UnauthorizedErrorResponse | ForbiddenErrorResponse;
+
+export interface AuthGuardSuccess {
+  authorized: true;
+  customer: CustomerSession;
+  token: string;
+}
+
+export interface AuthGuardFailure {
+  authorized: false;
+  error: 'UNAUTHORIZED' | 'FORBIDDEN';
+  statusCode: 401 | 403;
+  message: string;
+}
+
+export type AuthGuardResult = AuthGuardSuccess | AuthGuardFailure;
+
+export const PROTECTED_ROUTE_PREFIXES = ['/account', '/wishlist', '/checkout'] as const;
+export const AUTH_ENTRY_ROUTE_PREFIXES = ['/login', '/register'] as const;
+

@@ -6,7 +6,9 @@ import {
   FulfillmentEngine,
   OrderEngine,
   ReturnEngine,
+  BackendAuthGuard,
 } from './index.js';
+
 import type {
   InitiatePaymentInput,
   InitiatePaymentOutput,
@@ -358,4 +360,42 @@ describe('Task 04: Commerce Core Domains', () => {
       assert.equal(payout.idempotencyKey, 'payout_order_999_ret_888_upi_1200');
     });
   });
+
+  describe('Task 19: Backend Authorization & Customer Ownership Enforcement', () => {
+    it('allows access when session customer ID matches resource owner ID', () => {
+      const result = BackendAuthGuard.validateResourceOwnership('cus_12345', 'cus_12345');
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+      assert.equal(result.error, undefined);
+    });
+
+    it('rejects with 401 UNAUTHORIZED when session customer ID is missing or null', () => {
+      const resNull = BackendAuthGuard.validateResourceOwnership(null, 'cus_12345');
+      assert.equal(resNull.allowed, false);
+      assert.equal(resNull.statusCode, 401);
+      assert.equal(resNull.error, 'UNAUTHORIZED');
+
+      const resEmpty = BackendAuthGuard.validateResourceOwnership('', 'cus_12345');
+      assert.equal(resEmpty.allowed, false);
+      assert.equal(resEmpty.statusCode, 401);
+      assert.equal(resEmpty.error, 'UNAUTHORIZED');
+    });
+
+    it('rejects with 403 FORBIDDEN when customer attempts to access another customer resource', () => {
+      const result = BackendAuthGuard.validateResourceOwnership('cus_customer_A', 'cus_customer_B');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+    });
+
+    it('sanitizes redirect paths and blocks open redirect attack vectors', () => {
+      assert.equal(BackendAuthGuard.sanitizeRedirect('/checkout'), '/checkout');
+      assert.equal(BackendAuthGuard.sanitizeRedirect('/account/orders'), '/account/orders');
+      assert.equal(BackendAuthGuard.sanitizeRedirect('https://evil.com'), '/account');
+      assert.equal(BackendAuthGuard.sanitizeRedirect('//evil.com'), '/account');
+      assert.equal(BackendAuthGuard.sanitizeRedirect('/\\evil.com'), '/account');
+      assert.equal(BackendAuthGuard.sanitizeRedirect(undefined), '/account');
+    });
+  });
 });
+

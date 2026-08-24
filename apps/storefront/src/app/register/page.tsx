@@ -2,12 +2,15 @@
 
 import React, { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { sanitizeRedirectPath } from '@ecom/types';
 import { RegisterForm } from '../../components/auth/register-form';
 
 function RegisterContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const redirect = searchParams.get('redirect') || '/';
+  const rawRedirect = searchParams.get('redirect');
+  const redirect = rawRedirect ? sanitizeRedirectPath(rawRedirect, '/') : '/';
+
   const mobile = searchParams.get('mobile') || undefined;
 
   return (

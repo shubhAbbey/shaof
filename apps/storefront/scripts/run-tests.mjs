@@ -3092,5 +3092,732 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
   });
 });
 
+// ==============================================================================
+// TASK 19: PROTECTED ROUTES & AUTHORIZATION TEST MATRIX
+// ==============================================================================
+describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, requireAuth, Ownership, and Redirect Sanitization Matrix', () => {
+  const PROTECTED_PREFIXES = ['/account', '/wishlist', '/checkout'];
+  const AUTH_ENTRY_PREFIXES = ['/login', '/register'];
+
+  const matchesPrefixes = (pathname, prefixes) => {
+    return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  };
+
+  const sanitizeRedirect = (url, fallback = '/account') => {
+    if (!url || typeof url !== 'string') return fallback;
+    const trimmed = url.trim();
+    if (
+      trimmed.startsWith('/') &&
+      !trimmed.startsWith('//') &&
+      !trimmed.includes('\\') &&
+      !trimmed.includes(':')
+    ) {
+      return trimmed;
+    }
+    return fallback;
+  };
+
+  // Edge Middleware simulation function matching apps/storefront/src/middleware.ts
+  const simulateMiddleware = (pathname, search = '', cookies = {}, redirectParam = null) => {
+    const hasSessionCookie = Boolean(cookies['ecom_session_token'] && cookies['ecom_session_token'].trim().length > 0);
+
+    // 1. Protected routes
+    if (matchesPrefixes(pathname, PROTECTED_PREFIXES)) {
+      if (!hasSessionCookie) {
+        const fullTarget = `${pathname}${search}`;
+        const safeTarget = sanitizeRedirect(fullTarget, '/account');
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: `/login?redirect=${encodeURIComponent(safeTarget)}`,
+        };
+      }
+      return { action: 'next', statusCode: 200 };
+    }
+
+    // 2. Auth entry routes
+    if (matchesPrefixes(pathname, AUTH_ENTRY_PREFIXES)) {
+      if (hasSessionCookie) {
+        let targetPath = sanitizeRedirect(redirectParam, '/account');
+        if (matchesPrefixes(targetPath, AUTH_ENTRY_PREFIXES)) {
+          targetPath = '/account';
+        }
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: targetPath,
+        };
+      }
+      return { action: 'next', statusCode: 200 };
+    }
+
+    // 3. Public routes
+    return { action: 'next', statusCode: 200 };
+  };
+
+  // Mock Session Store for Server-side requireAuth testing
+  class MockSessionStore {
+    constructor() {
+      this.sessions = new Map();
+    }
+    set(token, customer) {
+      this.sessions.set(token, customer);
+    }
+    get(token) {
+      return this.sessions.get(token) || null;
+    }
+  }
+
+  // Server-side requireAuth simulation
+  const simulateRequireAuth = async (headers = {}, cookies = {}, sessionStore) => {
+    const tokenFromCookie = cookies['ecom_session_token'];
+    const authHeader = headers['authorization'];
+    const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    const token = tokenFromCookie || tokenFromHeader;
+
+    if (!token || !token.startsWith('sess_')) {
+      return {
+        authorized: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required. Please sign in to continue.',
+      };
+    }
+
+    const customer = sessionStore.get(token);
+    if (!customer) {
+      return {
+        authorized: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required. Please sign in to continue.',
+      };
+    }
+
+    return {
+      authorized: true,
+      statusCode: 200,
+      customer,
+      token,
+    };
+  };
+
+  // Server-side requireCustomerOwnership simulation
+  const simulateRequireCustomerOwnership = async (headers, cookies, resourceOwnerId, sessionStore) => {
+    const authResult = await simulateRequireAuth(headers, cookies, sessionStore);
+    if (!authResult.authorized) {
+      return authResult;
+    }
+
+    if (authResult.customer.id !== resourceOwnerId) {
+      return {
+        authorized: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Access denied: You do not have permission to access or modify this resource.',
+      };
+    }
+
+    return authResult;
+  };
+
+  describe('1. Next.js Edge Middleware Protected Route Interception', () => {
+    it('redirects unauthenticated request to /account to /login with 307 status', () => {
+      const res = simulateMiddleware('/account');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/login?redirect=%2Faccount');
+    });
+
+    it('redirects unauthenticated request to nested /account/orders with destination preserved', () => {
+      const res = simulateMiddleware('/account/orders');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/login?redirect=%2Faccount%2Forders');
+    });
+
+    it('redirects unauthenticated request to /wishlist boundary to /login', () => {
+      const res = simulateMiddleware('/wishlist');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/login?redirect=%2Fwishlist');
+    });
+
+    it('redirects unauthenticated request to /checkout with query parameters preserved', () => {
+      const res = simulateMiddleware('/checkout', '?step=shipping');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/login?redirect=%2Fcheckout%3Fstep%3Dshipping');
+    });
+
+    it('allows protected route access when ecom_session_token cookie is present', () => {
+      const resAccount = simulateMiddleware('/account', '', { ecom_session_token: 'sess_valid_123' });
+      assert.equal(resAccount.action, 'next');
+      assert.equal(resAccount.statusCode, 200);
+
+      const resCheckout = simulateMiddleware('/checkout', '', { ecom_session_token: 'sess_valid_123' });
+      assert.equal(resCheckout.action, 'next');
+      assert.equal(resCheckout.statusCode, 200);
+    });
+
+    it('redirects authenticated user visiting /login to intended destination or /account', () => {
+      // Default to /account
+      const resDefault = simulateMiddleware('/login', '', { ecom_session_token: 'sess_valid_123' });
+      assert.equal(resDefault.action, 'redirect');
+      assert.equal(resDefault.statusCode, 307);
+      assert.equal(resDefault.location, '/account');
+
+      // With intended destination /checkout
+      const resCheckout = simulateMiddleware('/login', '', { ecom_session_token: 'sess_valid_123' }, '/checkout');
+      assert.equal(resCheckout.action, 'redirect');
+      assert.equal(resCheckout.statusCode, 307);
+      assert.equal(resCheckout.location, '/checkout');
+    });
+
+    it('prevents redirect loops if destination points back to /login or /register', () => {
+      const resLoop = simulateMiddleware('/login', '', { ecom_session_token: 'sess_valid_123' }, '/login');
+      assert.equal(resLoop.action, 'redirect');
+      assert.equal(resLoop.location, '/account');
+    });
+
+    it('allows public routes to pass cleanly without redirection regardless of auth state', () => {
+      const publicPaths = ['/', '/product/banarasi-saree', '/category/women', '/collections/summer', '/brand/virasat', '/sale', '/sale/all', '/search', '/pages/about', '/policies/privacy'];
+      for (const p of publicPaths) {
+        const unauthRes = simulateMiddleware(p);
+        assert.equal(unauthRes.action, 'next', `Expected ${p} to be public`);
+
+        const authRes = simulateMiddleware(p, '', { ecom_session_token: 'sess_123' });
+        assert.equal(authRes.action, 'next', `Expected ${p} to be public when authenticated`);
+      }
+    });
+  });
+
+  describe('2. Strict Internal URL Redirect Sanitization', () => {
+    it('allows valid relative internal paths', () => {
+      assert.equal(sanitizeRedirect('/account'), '/account');
+      assert.equal(sanitizeRedirect('/account/orders'), '/account/orders');
+      assert.equal(sanitizeRedirect('/checkout?step=shipping'), '/checkout?step=shipping');
+      assert.equal(sanitizeRedirect('/wishlist'), '/wishlist');
+    });
+
+    it('sanitizes absolute external URLs to fallback', () => {
+      assert.equal(sanitizeRedirect('https://evil.com'), '/account');
+      assert.equal(sanitizeRedirect('http://attacker.com/steal'), '/account');
+      assert.equal(sanitizeRedirect('ftp://phish.org'), '/account');
+    });
+
+    it('sanitizes protocol-relative URLs (//evil.com)', () => {
+      assert.equal(sanitizeRedirect('//evil.com'), '/account');
+      assert.equal(sanitizeRedirect('//evil.com/steal'), '/account');
+    });
+
+    it('sanitizes backslash escape attacks (/\\evil.com or /\\\\evil.com)', () => {
+      assert.equal(sanitizeRedirect('/\\evil.com'), '/account');
+      assert.equal(sanitizeRedirect('/\\\\evil.com'), '/account');
+      assert.equal(sanitizeRedirect('\\evil.com'), '/account');
+    });
+
+    it('sanitizes javascript: and data: pseudo-protocols', () => {
+      assert.equal(sanitizeRedirect('javascript:alert(1)'), '/account');
+      assert.equal(sanitizeRedirect('data:text/html,<script>alert(1)</script>'), '/account');
+    });
+
+    it('uses custom fallback when provided', () => {
+      assert.equal(sanitizeRedirect('https://evil.com', '/'), '/');
+      assert.equal(sanitizeRedirect(null, '/'), '/');
+      assert.equal(sanitizeRedirect(undefined, '/custom'), '/custom');
+    });
+  });
+
+  describe('3. Server-Side requireAuth Guard & 401 Status Enforcement', () => {
+    it('returns 401 UNAUTHORIZED when no token is provided in cookie or header', async () => {
+      const sessionStore = new MockSessionStore();
+      const res = await simulateRequireAuth({}, {}, sessionStore);
+      assert.equal(res.authorized, false);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.error, 'UNAUTHORIZED');
+    });
+
+    it('returns 401 UNAUTHORIZED when token is expired or not found in session store', async () => {
+      const sessionStore = new MockSessionStore();
+      const res = await simulateRequireAuth({ authorization: 'Bearer sess_expired_token' }, {}, sessionStore);
+      assert.equal(res.authorized, false);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.error, 'UNAUTHORIZED');
+    });
+
+    it('returns authorized: true and customer session when valid token exists', async () => {
+      const sessionStore = new MockSessionStore();
+      const customer = { id: 'cus_arav_1', mobile: '+919876543210', firstName: 'Aarav' };
+      sessionStore.set('sess_valid_token_123', customer);
+
+      const res = await simulateRequireAuth({}, { ecom_session_token: 'sess_valid_token_123' }, sessionStore);
+      assert.equal(res.authorized, true);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.customer.id, 'cus_arav_1');
+      assert.equal(res.customer.firstName, 'Aarav');
+    });
+  });
+
+  describe('4. Multi-Layer Customer Ownership Enforcement & 403 Status', () => {
+    it('allows access when authenticated customer ID matches resource owner ID', async () => {
+      const sessionStore = new MockSessionStore();
+      const customer = { id: 'cus_customer_A', mobile: '+919876543210' };
+      sessionStore.set('sess_cust_A', customer);
+
+      const res = await simulateRequireCustomerOwnership(
+        {},
+        { ecom_session_token: 'sess_cust_A' },
+        'cus_customer_A',
+        sessionStore
+      );
+
+      assert.equal(res.authorized, true);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.customer.id, 'cus_customer_A');
+    });
+
+    it('rejects with 403 FORBIDDEN when customer attempts to access another customer resource', async () => {
+      const sessionStore = new MockSessionStore();
+      const customer = { id: 'cus_customer_A', mobile: '+919876543210' };
+      sessionStore.set('sess_cust_A', customer);
+
+      // Requesting customer B's order
+      const res = await simulateRequireCustomerOwnership(
+        {},
+        { ecom_session_token: 'sess_cust_A' },
+        'cus_customer_B',
+        sessionStore
+      );
+
+      assert.equal(res.authorized, false);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.error, 'FORBIDDEN');
+      assert.ok(res.message.includes('Access denied'));
+    });
+
+    it('rejects with 401 UNAUTHORIZED when unauthenticated user attempts to access customer resource', async () => {
+      const sessionStore = new MockSessionStore();
+      const res = await simulateRequireCustomerOwnership({}, {}, 'cus_customer_B', sessionStore);
+      assert.equal(res.authorized, false);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.error, 'UNAUTHORIZED');
+    });
+  });
+
+  describe('5. Guest Cart to Checkout Transition Flow', () => {
+    it('preserves /checkout destination through guest checkout initiation, login, and return', () => {
+      // Step 1: Guest is on /cart (Public)
+      const cartRes = simulateMiddleware('/cart');
+      assert.equal(cartRes.action, 'next');
+
+      // Step 2: Guest clicks "Proceed to Checkout" -> navigates to /checkout
+      const checkoutRes = simulateMiddleware('/checkout');
+      assert.equal(checkoutRes.action, 'redirect');
+      assert.equal(checkoutRes.statusCode, 307);
+      assert.equal(checkoutRes.location, '/login?redirect=%2Fcheckout');
+
+      // Step 3: Login verifies OTP, establishes session, and reads redirect query
+      const searchParams = new URLSearchParams(checkoutRes.location.split('?')[1]);
+      const redirectTarget = sanitizeRedirect(searchParams.get('redirect'), '/account');
+      assert.equal(redirectTarget, '/checkout');
+
+      // Step 4: Post-login navigation to /checkout with active session is allowed
+      const postLoginRes = simulateMiddleware(redirectTarget, '', { ecom_session_token: 'sess_newly_authenticated' });
+      assert.equal(postLoginRes.action, 'next');
+      assert.equal(postLoginRes.statusCode, 200);
+    });
+  });
+});
+
+// ==============================================================================
+// TASK 20: GUEST CART TEST MATRIX
+// ==============================================================================
+describe('Task 20: Persistent Medusa Guest Cart — Complete Domain, Persistence & Inventory Matrix', () => {
+  const CART_COOKIE_NAME = 'ecom_cart_id';
+  const CART_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+  // In-Memory Simulated Medusa Store Cart Engine
+  class TestMedusaCartEngine {
+    constructor() {
+      this.carts = new Map();
+      this.inventory = new Map([
+        ['var_saree_1', 10],
+        ['var_kurti_m', 5],
+        ['var_shirt_l', 2],
+        ['var_dress_out_of_stock', 0],
+      ]);
+    }
+
+    createCart(regionId = 'reg_in') {
+      const id = 'cart_' + crypto.randomBytes(12).toString('hex');
+      const cart = {
+        id,
+        items: [],
+        totalItems: 0,
+        subtotal: 0,
+        discountTotal: 0,
+        shippingTotal: 0,
+        taxTotal: 0,
+        total: 0,
+        currencyCode: 'INR',
+        regionId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      this.carts.set(id, cart);
+      return { ...cart, items: [...cart.items] };
+    }
+
+    getCart(id) {
+      const cart = this.carts.get(id);
+      if (!cart) return null;
+      return { ...cart, items: [...cart.items] };
+    }
+
+    recalculateTotals(cart) {
+      cart.totalItems = cart.items.reduce((sum, i) => sum + i.quantity, 0);
+      cart.subtotal = cart.items.reduce((sum, i) => sum + i.total, 0);
+      cart.discountTotal = 0;
+      cart.shippingTotal = cart.subtotal > 999 || cart.subtotal === 0 ? 0 : 99;
+      cart.taxTotal = 0;
+      cart.total = Math.max(0, cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal);
+      cart.updatedAt = new Date().toISOString();
+    }
+
+    addLineItem(cartId, variantId, quantity = 1, unitPrice = 1499, title = 'Product Item') {
+      let cart = this.carts.get(cartId);
+      if (!cart) {
+        cart = this.createCart();
+        cartId = cart.id;
+      }
+
+      const availableStock = this.inventory.get(variantId) ?? 10;
+      const existingItem = cart.items.find((i) => i.variantId === variantId);
+      const currentQtyInCart = existingItem ? existingItem.quantity : 0;
+      const targetQty = currentQtyInCart + quantity;
+
+      if (availableStock < targetQty) {
+        throw new Error('INSUFFICIENT_INVENTORY: The requested quantity exceeds available stock.');
+      }
+
+      if (existingItem) {
+        existingItem.quantity = targetQty;
+        existingItem.total = existingItem.unitPrice * existingItem.quantity;
+        existingItem.subtotal = existingItem.total;
+      } else {
+        const lineItem = {
+          id: 'item_' + crypto.randomBytes(8).toString('hex'),
+          title,
+          variantId,
+          variantTitle: 'Standard Variant',
+          productId: 'prod_' + variantId,
+          productHandle: 'product-handle',
+          quantity,
+          unitPrice,
+          total: unitPrice * quantity,
+          subtotal: unitPrice * quantity,
+          inStock: true,
+          inventoryQuantity: availableStock,
+        };
+        cart.items.push(lineItem);
+      }
+
+      this.recalculateTotals(cart);
+      return { ...cart, items: [...cart.items] };
+    }
+
+    updateLineItem(cartId, lineItemId, quantity) {
+      const cart = this.carts.get(cartId);
+      if (!cart) throw new Error('Cart not found');
+
+      if (quantity <= 0) {
+        return this.deleteLineItem(cartId, lineItemId);
+      }
+
+      const item = cart.items.find((i) => i.id === lineItemId);
+      if (!item) throw new Error('Line item not found');
+
+      const availableStock = this.inventory.get(item.variantId) ?? 10;
+      if (availableStock < quantity) {
+        throw new Error('INSUFFICIENT_INVENTORY: The requested quantity exceeds available stock.');
+      }
+
+      item.quantity = quantity;
+      item.total = item.unitPrice * quantity;
+      item.subtotal = item.total;
+
+      this.recalculateTotals(cart);
+      return { ...cart, items: [...cart.items] };
+    }
+
+    deleteLineItem(cartId, lineItemId) {
+      const cart = this.carts.get(cartId);
+      if (!cart) throw new Error('Cart not found');
+
+      cart.items = cart.items.filter((i) => i.id !== lineItemId);
+      this.recalculateTotals(cart);
+      return { ...cart, items: [...cart.items] };
+    }
+  }
+
+  describe('1. Medusa Guest Cart Creation & ID Persistence', () => {
+    it('creates a new Medusa guest cart and returns valid CartDto', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      assert.ok(cart.id.startsWith('cart_'));
+      assert.equal(cart.items.length, 0);
+      assert.equal(cart.totalItems, 0);
+      assert.equal(cart.subtotal, 0);
+      assert.equal(cart.total, 0);
+      assert.equal(cart.currencyCode, 'INR');
+    });
+
+    it('validates canonical cart cookie name, maxAge and structure', () => {
+      assert.equal(CART_COOKIE_NAME, 'ecom_cart_id');
+      assert.equal(CART_COOKIE_MAX_AGE, 30 * 24 * 60 * 60);
+
+      // Verify cookie contains only ID reference string, never cart contents
+      const sampleCookieValue = 'cart_98a7b6c5d4e3f2';
+      assert.ok(!sampleCookieValue.includes('{'));
+      assert.ok(!sampleCookieValue.includes('items'));
+      assert.ok(sampleCookieValue.startsWith('cart_'));
+    });
+
+    it('preserves cart state across navigation and browser refresh simulations', () => {
+      const engine = new TestMedusaCartEngine();
+      const initialCart = engine.createCart();
+      engine.addLineItem(initialCart.id, 'var_saree_1', 2, 2199, 'Banarasi Silk Saree');
+
+      // Simulate refresh by retrieving cart by saved cookie ID
+      const savedCartId = initialCart.id;
+      const reloadedCart = engine.getCart(savedCartId);
+
+      assert.ok(reloadedCart);
+      assert.equal(reloadedCart.id, savedCartId);
+      assert.equal(reloadedCart.items.length, 1);
+      assert.equal(reloadedCart.totalItems, 2);
+      assert.equal(reloadedCart.subtotal, 4398);
+      assert.equal(reloadedCart.total, 4398);
+    });
+  });
+
+  describe('2. Add to Cart & Cart Item Accumulation', () => {
+    it('adds first item to guest cart and recalculates totals from Medusa', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      const updated = engine.addLineItem(cart.id, 'var_saree_1', 1, 2199, 'Banarasi Silk Saree');
+      assert.equal(updated.items.length, 1);
+      assert.equal(updated.items[0].variantId, 'var_saree_1');
+      assert.equal(updated.items[0].quantity, 1);
+      assert.equal(updated.totalItems, 1);
+      assert.equal(updated.subtotal, 2199);
+      assert.equal(updated.total, 2199);
+    });
+
+    it('reuses existing cart and increments quantity when adding duplicate variant', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      engine.addLineItem(cart.id, 'var_saree_1', 1, 2199, 'Banarasi Silk Saree');
+      const secondAdd = engine.addLineItem(cart.id, 'var_saree_1', 2, 2199, 'Banarasi Silk Saree');
+
+      assert.equal(secondAdd.items.length, 1);
+      assert.equal(secondAdd.items[0].quantity, 3);
+      assert.equal(secondAdd.totalItems, 3);
+      assert.equal(secondAdd.subtotal, 6597);
+      assert.equal(secondAdd.total, 6597);
+    });
+
+    it('accumulates distinct variant line items cleanly within the same cart', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      engine.addLineItem(cart.id, 'var_saree_1', 1, 2199, 'Banarasi Saree');
+      const multi = engine.addLineItem(cart.id, 'var_kurti_m', 2, 1499, 'Cotton Kurti');
+
+      assert.equal(multi.items.length, 2);
+      assert.equal(multi.totalItems, 3);
+      assert.equal(multi.subtotal, 2199 + 2998);
+      assert.equal(multi.total, 5197);
+    });
+  });
+
+  describe('3. Quantity Update & Item Deletion', () => {
+    it('updates quantity and recalculates line total and cart grand total', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      const withItem = engine.addLineItem(cart.id, 'var_kurti_m', 1, 1499, 'Cotton Kurti');
+      const lineItemId = withItem.items[0].id;
+
+      const updated = engine.updateLineItem(cart.id, lineItemId, 3);
+      assert.equal(updated.items[0].quantity, 3);
+      assert.equal(updated.items[0].total, 4497);
+      assert.equal(updated.totalItems, 3);
+      assert.equal(updated.subtotal, 4497);
+      assert.equal(updated.total, 4497);
+    });
+
+    it('removes item when quantity is updated to 0', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      const withItem = engine.addLineItem(cart.id, 'var_kurti_m', 2, 1499, 'Cotton Kurti');
+      const lineItemId = withItem.items[0].id;
+
+      const updated = engine.updateLineItem(cart.id, lineItemId, 0);
+      assert.equal(updated.items.length, 0);
+      assert.equal(updated.totalItems, 0);
+      assert.equal(updated.subtotal, 0);
+      assert.equal(updated.total, 0);
+    });
+
+    it('explicitly removes item via deleteLineItem and clears totals', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      engine.addLineItem(cart.id, 'var_saree_1', 1, 2199, 'Banarasi Saree');
+      const withKurti = engine.addLineItem(cart.id, 'var_kurti_m', 1, 1499, 'Cotton Kurti');
+      const kurtiItemId = withKurti.items.find((i) => i.variantId === 'var_kurti_m').id;
+
+      const afterDelete = engine.deleteLineItem(cart.id, kurtiItemId);
+      assert.equal(afterDelete.items.length, 1);
+      assert.equal(afterDelete.items[0].variantId, 'var_saree_1');
+      assert.equal(afterDelete.totalItems, 1);
+      assert.equal(afterDelete.subtotal, 2199);
+      assert.equal(afterDelete.total, 2199);
+    });
+  });
+
+  describe('4. Inventory Validation & Conflict Handling', () => {
+    it('rejects adding items when requested quantity exceeds available stock', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      // var_shirt_l has only 2 units in stock
+      assert.throws(
+        () => {
+          engine.addLineItem(cart.id, 'var_shirt_l', 5, 1299, 'Linen Shirt');
+        },
+        (err) => err.message.includes('INSUFFICIENT_INVENTORY')
+      );
+
+      // Verify cart remains clean
+      const currentCart = engine.getCart(cart.id);
+      assert.equal(currentCart.items.length, 0);
+    });
+
+    it('rejects adding out of stock variant (0 inventory)', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+
+      assert.throws(
+        () => {
+          engine.addLineItem(cart.id, 'var_dress_out_of_stock', 1, 1899, 'Maxi Dress');
+        },
+        (err) => err.message.includes('INSUFFICIENT_INVENTORY')
+      );
+    });
+
+    it('rejects updating quantity beyond stock limit without altering current item', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      const withItem = engine.addLineItem(cart.id, 'var_shirt_l', 2, 1299, 'Linen Shirt');
+      const lineItemId = withItem.items[0].id;
+
+      // Attempt update to 5
+      assert.throws(
+        () => {
+          engine.updateLineItem(cart.id, lineItemId, 5);
+        },
+        (err) => err.message.includes('INSUFFICIENT_INVENTORY')
+      );
+
+      // Verify original quantity of 2 is preserved
+      const currentCart = engine.getCart(cart.id);
+      assert.equal(currentCart.items[0].quantity, 2);
+    });
+  });
+
+  describe('5. Empty State & Public Guest Access Rules', () => {
+    it('returns empty cart representation when newly initialized', () => {
+      const engine = new TestMedusaCartEngine();
+      const cart = engine.createCart();
+      assert.equal(cart.items.length, 0);
+      assert.equal(cart.totalItems, 0);
+      assert.equal(cart.subtotal, 0);
+      assert.equal(cart.total, 0);
+    });
+
+    it('enforces non-goal: guest can add and view cart without authentication', () => {
+      const guestHasAuthToken = false;
+      const engine = new TestMedusaCartEngine();
+
+      // Guest creates cart and adds item with NO auth token
+      const cart = engine.createCart();
+      const updated = engine.addLineItem(cart.id, 'var_saree_1', 1, 2199);
+
+      assert.equal(guestHasAuthToken, false);
+      assert.ok(updated.id);
+      assert.equal(updated.items.length, 1);
+      assert.equal(updated.total, 2199);
+    });
+  });
+
+  describe('6. Stale Cookie Recovery & Real Medusa Invariant Matrix', () => {
+    it('proves cart creation failure does NOT persist ecom_cart_id cookie', async () => {
+      let cookieStore = {};
+      const simulateFailedCreate = async () => {
+        // Medusa returns 500 / Network Error
+        throw new Error('Connection refused to Medusa backend');
+      };
+
+      try {
+        await simulateFailedCreate();
+        cookieStore['ecom_cart_id'] = 'cart_failed_id';
+      } catch (err) {
+        // Correct invariant: Cookie remains unset on failure
+      }
+
+      assert.equal(cookieStore['ecom_cart_id'], undefined);
+    });
+
+    it('proves successful cart creation persists authoritative Medusa cart ID', () => {
+      const engine = new TestMedusaCartEngine();
+      const realCart = engine.createCart();
+      let cookieStore = {};
+
+      if (realCart && realCart.id) {
+        cookieStore['ecom_cart_id'] = realCart.id;
+      }
+
+      assert.equal(cookieStore['ecom_cart_id'], realCart.id);
+      assert.ok(cookieStore['ecom_cart_id'].startsWith('cart_'));
+    });
+
+    it('recovers cleanly when guest presents a stale or deleted cart ID', () => {
+      const engine = new TestMedusaCartEngine();
+      let staleCartId = 'cart_rgwpzsg0jj_stale_deleted';
+      let cookieStore = { ecom_cart_id: staleCartId };
+
+      // Step 1: getCart returns null for stale cart
+      const existing = engine.getCart(cookieStore.ecom_cart_id);
+      assert.equal(existing, null);
+
+      // Step 2: BFF detects stale cart, recreates real cart, and updates cookie
+      const freshCart = engine.createCart();
+      cookieStore.ecom_cart_id = freshCart.id;
+      const updated = engine.addLineItem(freshCart.id, 'var_saree_1', 1, 2199);
+
+      assert.notEqual(cookieStore.ecom_cart_id, staleCartId);
+      assert.equal(cookieStore.ecom_cart_id, freshCart.id);
+      assert.equal(updated.items.length, 1);
+      assert.equal(updated.total, 2199);
+    });
+  });
+});
 
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
+
+
+

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import type { ProductDetail, ProductVariant } from '../../lib/commerce';
 import { useToast } from '../ui/toast';
 import { useUi } from '../../providers/ui-provider';
+import { useCart } from '../../context/cart-context';
 
 export interface UsePdpLogicOptions {
   product: ProductDetail;
@@ -13,6 +14,8 @@ export interface UsePdpLogicOptions {
 export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions) {
   const { toast } = useToast();
   const { openCartDrawer } = useUi();
+  const { addToCart } = useCart();
+
 
   // 1. Selected Options State
   // Initialize default selections from the first variant if available
@@ -136,29 +139,31 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
       return;
     }
 
-    if (isAddingToCart) return; // Prevent duplicate clicks
+    if (isAddingToCart) return;
 
     setIsAddingToCart(true);
 
     try {
-      // Simulate/Persist cart operation with real variant data
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const variantId = selectedVariant?.id || product.variants?.[0]?.id || product.id;
+      const success = await addToCart(variantId, quantity);
 
-      const variantTitle = selectedVariant?.title && selectedVariant.title !== 'Default Variant'
-        ? ` (${selectedVariant.title})`
-        : '';
+      if (success) {
+        const variantTitle = selectedVariant?.title && selectedVariant.title !== 'Default Variant'
+          ? ` (${selectedVariant.title})`
+          : '';
 
-      toast.success(`${product.title}${variantTitle} added successfully.`, 'Added to Bag');
+        toast.success(`${product.title}${variantTitle} added successfully.`, 'Added to Bag');
 
-      if (onAddToCartSuccess) {
-        onAddToCartSuccess();
+        if (onAddToCartSuccess) {
+          onAddToCartSuccess();
+        }
       }
     } catch (err: any) {
       toast.error(err?.message || 'Could not add item to bag. Please try again.', 'Failed to Add');
     } finally {
       setIsAddingToCart(false);
     }
-  }, [product, selectedVariant, isAvailable, isAddingToCart, toast, onAddToCartSuccess]);
+  }, [product, selectedVariant, isAvailable, isAddingToCart, quantity, addToCart, toast, onAddToCartSuccess]);
 
   // 5. Buy Now Handler
   const handleBuyNow = useCallback(async () => {
@@ -177,15 +182,19 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
     setIsBuyingNow(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      toast.info(`Order initiated for ${product.title}.`, 'Proceeding to Checkout');
-      openCartDrawer();
+      const variantId = selectedVariant?.id || product.variants?.[0]?.id || product.id;
+      const success = await addToCart(variantId, quantity);
+      if (success) {
+        toast.info(`Proceeding with ${product.title}.`, 'Added to Bag');
+        openCartDrawer();
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Checkout could not be started.', 'Unable to Proceed');
     } finally {
       setIsBuyingNow(false);
     }
-  }, [product, selectedVariant, isAvailable, isBuyingNow, toast, openCartDrawer]);
+  }, [product, selectedVariant, isAvailable, isBuyingNow, quantity, addToCart, toast, openCartDrawer]);
+
 
   // 6. Wishlist Handler
   const handleToggleWishlist = useCallback(() => {
