@@ -11,6 +11,7 @@ import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { useAuth } from '../../context/auth-context';
 import { useCart } from '../../context/cart-context';
+import { useWishlist } from '../../context/wishlist-context';
 import { cn } from '../../lib/utils';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
@@ -27,7 +28,9 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   const { openCartDrawer } = useUi();
   const { customer, isAuthenticated, openLogin } = useAuth();
   const { itemCount } = useCart();
+  const { itemCount: wishlistCount } = useWishlist();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
+
   const [arrowOffset, setArrowOffset] = useState<number>(100);
   const navContainerRef = useRef<HTMLDivElement>(null);
 
@@ -135,12 +138,15 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
             >
               <div className="relative">
                 <Heart className="h-5 w-5 group-hover:scale-105 transition-transform" />
-                <span className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-brand-600 text-[10px] font-bold text-white flex items-center justify-center">
-                  0
-                </span>
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-brand-600 text-[10px] font-bold text-white flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
               </div>
               <span className="text-[11px] font-medium mt-0.5">Wishlist</span>
             </Link>
+
 
             {/* Cart / Bag Button */}
             <button

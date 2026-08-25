@@ -18,7 +18,13 @@ export default defineConfig({
         process.env.COOKIE_SECRET || 'super_secret_cookie_key_minimum_32_characters',
     },
   },
+  modules: [
+    {
+      resolve: './src/modules/wishlist',
+    },
+  ],
   admin: {
     disable: false,
   },
 });
+

@@ -16,6 +16,7 @@ export interface StorefrontProduct {
   variantsCount?: number;
   sizes?: string[];
   colors?: string[];
+  defaultVariantId?: string;
   createdAt?: string;
 }
 
@@ -285,6 +286,7 @@ function mapMedusaProductToStorefront(p: any): StorefrontProduct {
     variantsCount,
     sizes: Array.from(sizesSet),
     colors: Array.from(colorsSet),
+    defaultVariantId: firstVariant?.id || undefined,
     createdAt: p.created_at,
   };
 }

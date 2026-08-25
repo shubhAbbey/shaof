@@ -10,6 +10,7 @@ import { Text } from '../ui/typography';
 import { formatINR, cn } from '../../lib/utils';
 import type { StorefrontProduct } from '../../lib/commerce';
 import { useMiniPdp } from '../../context/mini-pdp-context';
+import { useWishlist } from '../../context/wishlist-context';
 import { useToast } from '../ui/toast';
 
 export interface ProductCardProps {
@@ -20,23 +21,35 @@ export interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, priority = false }) => {
   const { openMiniPdp } = useMiniPdp();
   const { toast } = useToast();
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { isWishlisted: checkIsWishlisted, toggleWishlist } = useWishlist();
+  const targetVariantId = product.defaultVariantId;
+  const isWishlisted = targetVariantId ? checkIsWishlisted(targetVariantId) : false;
 
   const isOutOfStock = product.inStock === false;
 
-  const handleWishlistClick = (e: React.MouseEvent) => {
+  const handleWishlistClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsWishlisted((prev) => {
-      const next = !prev;
-      if (next) {
-        toast.success(`${product.title} has been added to your wishlist.`, 'Saved to Wishlist');
-      } else {
-        toast.info('Item removed.', 'Removed from Wishlist');
-      }
-      return next;
+
+    if (!targetVariantId) {
+      openMiniPdp(product);
+      return;
+    }
+
+    await toggleWishlist({
+      productId: product.id,
+      variantId: targetVariantId,
+      title: product.title,
+      handle: product.handle,
+      thumbnail: product.thumbnail || undefined,
+      price: product.price,
+      originalPrice: product.originalPrice,
+      currencyCode: 'INR',
+      inStock: product.inStock !== false,
     });
   };
+
+
 
   const handleBagClick = (e: React.MouseEvent) => {
     e.preventDefault();

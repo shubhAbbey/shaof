@@ -6,6 +6,7 @@ import { Menu, Search, Heart, ShoppingBag, Sparkles } from 'lucide-react';
 import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { useCart } from '../../context/cart-context';
+import { useWishlist } from '../../context/wishlist-context';
 import { cn } from '../../lib/utils';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
@@ -21,7 +22,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 }) => {
   const { openMobileNav, openCartDrawer } = useUi();
   const { itemCount } = useCart();
+  const { itemCount: wishlistCount } = useWishlist();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number>(0);
+
 
 
   const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
@@ -75,10 +78,13 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             className="relative p-1.5 text-gray-700 hover:text-brand-600"
           >
             <Heart className="h-5 w-5" />
-            <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-brand-600 text-[9px] font-bold text-white flex items-center justify-center">
-              0
-            </span>
+            {wishlistCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-brand-600 text-[9px] font-bold text-white flex items-center justify-center">
+                {wishlistCount}
+              </span>
+            )}
           </Link>
+
 
           {/* Cart Bag */}
           <button

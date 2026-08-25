@@ -7,7 +7,9 @@ import {
   OrderEngine,
   ReturnEngine,
   BackendAuthGuard,
+  WishlistEngine,
 } from './index.js';
+
 
 import type {
   InitiatePaymentInput,
@@ -397,5 +399,144 @@ describe('Task 04: Commerce Core Domains', () => {
       assert.equal(BackendAuthGuard.sanitizeRedirect(undefined), '/account');
     });
   });
+
+  describe('Task 22: Wishlist Engine Domain & Customer Persistence', () => {
+    it('generates deterministic wishlist item ID for customer and variant', () => {
+      const id1 = WishlistEngine.generateItemId('cus_100', 'var_red');
+      const id2 = WishlistEngine.generateItemId('cus_100', 'var_red');
+      const id3 = WishlistEngine.generateItemId('cus_200', 'var_red');
+
+      assert.equal(id1, id2);
+      assert.notEqual(id1, id3);
+      assert.ok(id1.startsWith('wsh_'));
+    });
+
+    it('adds variant item to wishlist and formats WishlistDto properly', () => {
+      const result = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree (Red)',
+          price: 2999,
+          currencyCode: 'INR',
+        },
+        []
+      );
+
+      assert.equal(result.isNew, true);
+      assert.equal(result.item.productId, 'prod_saree_1');
+      assert.equal(result.item.variantId, 'var_red');
+      assert.equal(result.item.title, 'Silk Saree (Red)');
+      assert.equal(result.wishlist.itemCount, 1);
+      assert.equal(result.wishlist.items.length, 1);
+    });
+
+    it('enforces idempotency on duplicate variant add without creating duplicate items', () => {
+      const firstAdd = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree (Red)',
+          price: 2999,
+        },
+        []
+      );
+
+      const secondAdd = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree (Red)',
+          price: 2999,
+        },
+        firstAdd.wishlist.items
+      );
+
+      assert.equal(secondAdd.isNew, false);
+      assert.equal(secondAdd.wishlist.itemCount, 1);
+      assert.equal(secondAdd.wishlist.items.length, 1);
+      assert.equal(secondAdd.item.id, firstAdd.item.id);
+    });
+
+    it('allows same product with different variants as distinct wishlist items', () => {
+      const firstAdd = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree (Red)',
+        },
+        []
+      );
+
+      const secondAdd = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_blue',
+          title: 'Silk Saree (Blue)',
+        },
+        firstAdd.wishlist.items
+      );
+
+      assert.equal(secondAdd.isNew, true);
+      assert.equal(secondAdd.wishlist.itemCount, 2);
+      assert.equal(secondAdd.wishlist.items.length, 2);
+    });
+
+    it('removes item by ID or variant ID safely and preserves other variants', () => {
+      const added1 = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree (Red)',
+        },
+        []
+      );
+
+      const added2 = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_blue',
+          title: 'Silk Saree (Blue)',
+        },
+        added1.wishlist.items
+      );
+
+      // Remove by variant ID
+      const removed = WishlistEngine.removeWishlistItem('cus_100', 'var_red', added2.wishlist.items);
+      assert.equal(removed.removed, true);
+      assert.equal(removed.wishlist.itemCount, 1);
+      assert.equal(removed.wishlist.items[0].variantId, 'var_blue');
+
+      // Attempting to remove by product ID does not remove variant items
+      const removeByProd = WishlistEngine.removeWishlistItem('cus_100', 'prod_saree_1', removed.wishlist.items);
+      assert.equal(removeByProd.removed, false);
+      assert.equal(removeByProd.wishlist.itemCount, 1);
+    });
+
+    it('checks variant presence accurately', () => {
+      const added = WishlistEngine.addWishlistItem(
+        'cus_100',
+        {
+          productId: 'prod_saree_1',
+          variantId: 'var_red',
+          title: 'Silk Saree',
+        },
+        []
+      );
+
+      assert.equal(WishlistEngine.checkWishlistItem('cus_100', 'var_red', added.wishlist.items), true);
+      assert.equal(WishlistEngine.checkWishlistItem('cus_100', 'var_blue', added.wishlist.items), false);
+      assert.equal(WishlistEngine.checkWishlistItem('cus_100', 'prod_saree_1', added.wishlist.items), false); // Product ID returns false
+      assert.equal(WishlistEngine.checkWishlistItem('cus_200', 'var_red', []), false);
+    });
+  });
 });
+
 

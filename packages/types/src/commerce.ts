@@ -496,5 +496,41 @@ export interface CartMergeResult {
   message?: string;
 }
 
+// ========================================================
+// 10. Wishlist Data Models & Types (Phase 22)
+// ========================================================
+
+export interface WishlistItemDto {
+  id: string;
+  customerId: string;
+  productId: string;
+  variantId: string;
+  title: string;
+  handle?: string;
+  thumbnail?: string;
+  price?: number;
+  originalPrice?: number;
+  currencyCode?: string;
+  inStock?: boolean;
+  options?: Record<string, string>;
+  createdAt: string;
+}
+
+export interface WishlistDto {
+  customerId: string;
+  items: WishlistItemDto[];
+  itemCount: number;
+  updatedAt: string;
+}
+
+export interface WishlistOperationResult {
+  success: boolean;
+  item?: WishlistItemDto;
+  wishlist: WishlistDto;
+  message?: string;
+  error?: string;
+}
+
+
 
 

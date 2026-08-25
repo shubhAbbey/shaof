@@ -5,6 +5,7 @@ import type { ProductDetail, ProductVariant } from '../../lib/commerce';
 import { useToast } from '../ui/toast';
 import { useUi } from '../../providers/ui-provider';
 import { useCart } from '../../context/cart-context';
+import { useWishlist } from '../../context/wishlist-context';
 
 export interface UsePdpLogicOptions {
   product: ProductDetail;
@@ -15,6 +16,8 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
   const { toast } = useToast();
   const { openCartDrawer } = useUi();
   const { addToCart } = useCart();
+  const { isWishlisted: checkIsWishlisted, toggleWishlist } = useWishlist();
+
 
 
   // 1. Selected Options State
@@ -41,9 +44,9 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
   const [zoomLevel, setZoomLevel] = useState<number>(1.5);
   const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
   const [isBuyingNow, setIsBuyingNow] = useState<boolean>(false);
-  const [isWishlisted, setIsWishlisted] = useState<boolean>(false);
 
   // Pincode estimation state
+
   const [pincode, setPincode] = useState<string>('');
   const [pincodeStatus, setPincodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [pincodeMessage, setPincodeMessage] = useState<string>('');
@@ -80,6 +83,12 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
   const currentOriginalPrice = selectedVariant?.originalPrice ?? product.originalPrice;
   const currentDiscountPercentage = selectedVariant?.discountPercentage ?? product.discountPercentage;
   const currentSku = selectedVariant?.sku || product.id;
+
+  const isWishlisted = useMemo<boolean>(() => {
+    const targetVariantId = selectedVariant?.id || product.defaultVariantId || product.variants?.[0]?.id;
+    if (!targetVariantId) return false;
+    return checkIsWishlisted(targetVariantId);
+  }, [checkIsWishlisted, selectedVariant, product]);
 
   // Check if an option value combination is valid and available
   const isOptionValueAvailable = useCallback(
@@ -197,17 +206,28 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
 
 
   // 6. Wishlist Handler
-  const handleToggleWishlist = useCallback(() => {
-    setIsWishlisted((prev) => {
-      const next = !prev;
-      if (next) {
-        toast.success(`${product.title} has been added to your wishlist.`, 'Saved to Wishlist');
-      } else {
-        toast.info('Item removed.', 'Removed from Wishlist');
-      }
-      return next;
+  const handleToggleWishlist = useCallback(async () => {
+    const targetVariantId = selectedVariant?.id || product.defaultVariantId || product.variants?.[0]?.id;
+    if (!targetVariantId) {
+      toast.warning('Please select your preferred options before adding to wishlist.', 'Options Required');
+      return;
+    }
+
+    await toggleWishlist({
+      productId: product.id,
+      variantId: targetVariantId,
+      title: product.title,
+      handle: product.handle,
+      thumbnail: selectedVariant?.thumbnail || product.images?.[0] || product.thumbnail || undefined,
+      price: selectedVariant?.price ?? product.price,
+      originalPrice: selectedVariant?.originalPrice ?? product.originalPrice,
+      currencyCode: 'INR',
+      inStock: isAvailable,
+      options: selectedOptions,
     });
-  }, [product, toast]);
+  }, [product, selectedVariant, isAvailable, selectedOptions, toggleWishlist, toast]);
+
+
 
   // 7. Pincode Validation Handler
   const handleCheckPincode = useCallback((code: string) => {
