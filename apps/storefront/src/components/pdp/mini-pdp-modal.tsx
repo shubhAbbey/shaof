@@ -186,7 +186,7 @@ const MiniPdpContent: React.FC<{
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* Top: Mobile Main Image with Swipe */}
-            <div className="max-w-[280px] mx-auto">
+            <div className="w-full">
               <PdpImageGallery
                 images={product.images}
                 title={product.title}

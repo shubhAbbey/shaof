@@ -100,35 +100,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, priority = fa
           ) : null}
         </div>
 
-        {/* Floating Action Buttons (Top Right Cluster) */}
-        <div className="absolute right-2.5 top-2.5 z-10 flex flex-col gap-1.5">
+        {/* Floating Action Buttons */}
+        <div className="absolute inset-0 z-10 pointer-events-none">
           {/* Wishlist Button */}
           <button
             type="button"
             onClick={handleWishlistClick}
             aria-label={`Save ${product.title} to wishlist`}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-xs backdrop-blur-xs transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+              'pointer-events-auto absolute left-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-xs backdrop-blur-xs transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+              'md:left-auto md:right-2.5 md:bottom-auto md:top-2.5',
               isWishlisted ? 'text-brand-600 fill-brand-600' : 'text-gray-600'
             )}
           >
             <Heart className={cn('h-4 w-4', isWishlisted && 'fill-brand-600')} />
           </button>
 
-          {/* Bag / Quick-View Mini PDP Button */}
+          {/* Bag Button — mobile only */}
           <button
             type="button"
             data-testid="quick-bag-btn"
             onClick={handleBagClick}
             aria-label={`Quick view ${product.title} in bag`}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-xs backdrop-blur-xs transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="pointer-events-auto absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-xs backdrop-blur-xs transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:hidden"
           >
             <ShoppingBag className="h-4 w-4" />
           </button>
         </div>
 
         {/* Quick Action Overlay (Variant Safe) */}
-        <div className="absolute inset-x-2 bottom-2 z-10 hidden sm:flex opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute inset-x-2 bottom-2 z-10 hidden md:flex opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             type="button"
             onClick={handleBagClick}

@@ -15,9 +15,14 @@ import {
   RotateCcw,
   AlertCircle,
   Sparkles,
+  Tag,
+  MapPin,
+  CheckCircle2,
+  Heart,
 } from 'lucide-react';
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
 import { useCart } from '../../context/cart-context';
 import { formatINR } from '../../lib/utils';
 
@@ -40,8 +45,21 @@ export default function CartPage() {
     router.push('/checkout');
   };
 
+  const handleQuantityDecrease = (itemId: string, currentQuantity: number) => {
+    if (currentQuantity <= 1) {
+      removeItem(itemId);
+    } else {
+      updateQuantity(itemId, currentQuantity - 1);
+    }
+  };
+
+  const handleQuantityIncrease = (itemId: string, currentQuantity: number) => {
+    updateQuantity(itemId, currentQuantity + 1);
+  };
+
   const isEmpty = !cart || cart.items.length === 0;
 
+  // 1. Initial Loading Skeleton
   if (isLoading) {
     return (
       <div className="min-h-[70vh] py-12 bg-gray-50/30">
@@ -62,6 +80,7 @@ export default function CartPage() {
     );
   }
 
+  // 2. Empty Cart State
   if (isEmpty) {
     return (
       <div className="min-h-[75vh] py-16 flex items-center justify-center bg-gray-50/20">
@@ -76,7 +95,6 @@ export default function CartPage() {
               <p className="text-sm text-gray-500 max-w-sm mx-auto">
                 Looks like you haven&apos;t added anything to your bag yet. Discover our curated styles and find something you love.
               </p>
-
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -84,7 +102,7 @@ export default function CartPage() {
                 variant="primary"
                 size="lg"
                 onClick={() => router.push('/category/women')}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto font-bold"
                 leftIcon={<Sparkles className="h-4 w-4" />}
               >
                 Explore Women Edit
@@ -92,10 +110,11 @@ export default function CartPage() {
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => router.push('/sale')}
-                className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:border-red-200"
+                onClick={() => router.push('/wishlist')}
+                className="w-full sm:w-auto font-semibold"
+                leftIcon={<Heart className="h-4 w-4" />}
               >
-                View Flash Deals
+                View Wishlist
               </Button>
             </div>
           </div>
@@ -104,10 +123,11 @@ export default function CartPage() {
     );
   }
 
+  // 3. Active Cart Page
   return (
-    <div className="min-h-[75vh] py-10 bg-gray-50/30">
+    <div className="min-h-[75vh] py-8 sm:py-12 bg-gray-50/30">
       <Container size="xl">
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-5">
             <div>
@@ -125,6 +145,7 @@ export default function CartPage() {
             </Link>
           </div>
 
+          {/* Error Banner */}
           {error && (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 text-red-800 border border-red-100 text-sm">
               <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
@@ -139,10 +160,30 @@ export default function CartPage() {
             </div>
           )}
 
-          {/* Main Grid */}
+          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Items List (Left Column) */}
-            <div className="lg:col-span-8 space-y-4">
+            {/* Left Column: Cart Items & Future Extension Slots (8 Cols) */}
+            <div className="lg:col-span-8 space-y-5">
+              {/* Delivery Address Slot (Designated Extension Point for Phase 23) */}
+              <div
+                data-testid="cart-address-slot"
+                className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-gray-100 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-900">Deliver to Pincode / Address</p>
+                    <p className="text-[11px] text-gray-500">Express delivery available for select locations</p>
+                  </div>
+                </div>
+                <Badge variant="outline" size="sm" className="font-semibold text-brand-700 border-brand-200">
+                  Standard Delivery
+                </Badge>
+              </div>
+
+              {/* Items Card List */}
               <div className="bg-white rounded-2xl shadow-xs border border-gray-100 divide-y divide-gray-100 overflow-hidden">
                 {cart.items.map((item) => {
                   const hasOptions = item.options && Object.keys(item.options).length > 0;
@@ -153,9 +194,13 @@ export default function CartPage() {
                     : item.variantTitle || '';
 
                   return (
-                    <div key={item.id} className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+                    <div
+                      key={item.id}
+                      data-testid={`cart-item-${item.id}`}
+                      className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-5 items-start sm:items-center"
+                    >
                       {/* Product Thumbnail */}
-                      <div className="relative h-28 w-24 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
+                      <div className="relative h-28 w-24 rounded-xl bg-gray-50 overflow-hidden shrink-0 border border-gray-100">
                         {item.thumbnail ? (
                           <Image
                             src={item.thumbnail}
@@ -172,7 +217,7 @@ export default function CartPage() {
                       </div>
 
                       {/* Product Details */}
-                      <div className="flex-1 min-w-0 space-y-1.5 w-full">
+                      <div className="flex-1 min-w-0 space-y-2 w-full">
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             {item.productHandle ? (
@@ -186,47 +231,61 @@ export default function CartPage() {
                               <h3 className="text-base font-bold text-gray-900 line-clamp-1">{item.title}</h3>
                             )}
                             {optionsText && (
-                              <p className="text-xs text-gray-500 font-medium">{optionsText}</p>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">{optionsText}</p>
                             )}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                                In Stock
+                              </span>
+                            </div>
                           </div>
 
                           <button
                             type="button"
+                            data-testid={`cart-remove-btn-${item.id}`}
                             onClick={() => removeItem(item.id)}
                             disabled={isMutating}
                             aria-label={`Remove ${item.title} from bag`}
-                            className="text-gray-400 hover:text-red-600 p-1.5 transition-colors rounded-lg hover:bg-red-50 shrink-0"
+                            className="text-gray-400 hover:text-red-600 p-2 transition-colors rounded-lg hover:bg-red-50 shrink-0"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
 
-                        {/* Price & Quantity Bar */}
-                        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                        {/* Price & Quantity Controls */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 pt-1 border-t border-gray-50">
+                          {/* Quantity Selector */}
                           <div className="flex items-center border border-gray-200 rounded-xl bg-white shadow-2xs">
                             <button
                               type="button"
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              data-testid={`cart-qty-minus-${item.id}`}
+                              onClick={() => handleQuantityDecrease(item.id, item.quantity)}
                               disabled={isMutating}
                               aria-label="Decrease quantity"
-                              className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-40"
+                              className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-40 transition-colors"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
-                            <span className="px-3 text-sm font-bold text-gray-900 min-w-[28px] text-center">
+                            <span
+                              data-testid={`cart-qty-value-${item.id}`}
+                              className="px-3 text-sm font-bold text-gray-900 min-w-[28px] text-center"
+                            >
                               {item.quantity}
                             </span>
                             <button
                               type="button"
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              data-testid={`cart-qty-plus-${item.id}`}
+                              onClick={() => handleQuantityIncrease(item.id, item.quantity)}
                               disabled={isMutating}
                               aria-label="Increase quantity"
-                              className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-40"
+                              className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-40 transition-colors"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
                           </div>
 
+                          {/* Line Total & Unit Price */}
                           <div className="text-right">
                             <span className="text-base sm:text-lg font-black text-gray-900">
                               {formatINR(item.total)}
@@ -242,7 +301,7 @@ export default function CartPage() {
                 })}
               </div>
 
-              {/* Service Commitments */}
+              {/* Service & Trust Guarantees */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                 <div className="bg-white p-4 rounded-xl border border-gray-100 flex items-center gap-3">
                   <Truck className="h-5 w-5 text-brand-600 shrink-0" />
@@ -270,11 +329,30 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Order Summary (Right Column) */}
+            {/* Right Column: Coupon Slot & Authoritative Medusa Order Summary (4 Cols) */}
             <div className="lg:col-span-4 space-y-4">
+              {/* Promotion / Coupon Slot (Designated Extension Point) */}
+              <div
+                data-testid="cart-coupon-slot"
+                className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-gray-100 flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Tag className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-900">Promotions & Coupons</p>
+                    <p className="text-[11px] text-gray-500">Applicable discounts calculated at checkout</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-brand-600">Available</span>
+              </div>
+
+              {/* Authoritative Order Summary Card */}
               <div className="bg-white rounded-2xl p-6 shadow-xs border border-gray-100 space-y-5 sticky top-24">
                 <h2 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3">Order Summary</h2>
 
+                {/* Totals Breakdown */}
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between text-gray-600">
                     <span>Bag Total ({itemCount} items)</span>
@@ -305,23 +383,27 @@ export default function CartPage() {
                   <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline">
                     <span className="text-base font-bold text-gray-900">Total Payable</span>
                     <div className="text-right">
-                      <span className="text-xl font-black text-brand-600">{formatINR(total)}</span>
+                      <span data-testid="cart-total-amount" className="text-xl font-black text-brand-600">
+                        {formatINR(total)}
+                      </span>
                       <p className="text-[10px] text-gray-400">Inclusive of all taxes</p>
                     </div>
                   </div>
                 </div>
 
+                {/* Checkout CTA */}
                 <Button
                   variant="primary"
                   size="lg"
                   onClick={handleCheckout}
                   disabled={isMutating}
                   rightIcon={<ArrowRight className="h-5 w-5" />}
-                  className="w-full shadow-md text-base py-3.5"
+                  className="w-full shadow-md text-base py-3.5 font-bold"
                 >
                   Proceed to Checkout
                 </Button>
 
+                {/* Security Verification */}
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-1">
                   <ShieldCheck className="h-4 w-4 text-gray-400" />
                   <span>256-Bit SSL Encrypted Checkout</span>

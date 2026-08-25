@@ -1,9 +1,7 @@
-'use client';
-
 import { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ProductDetail, ProductVariant } from '../../lib/commerce';
 import { useToast } from '../ui/toast';
-import { useUi } from '../../providers/ui-provider';
 import { useCart } from '../../context/cart-context';
 import { useWishlist } from '../../context/wishlist-context';
 
@@ -13,8 +11,8 @@ export interface UsePdpLogicOptions {
 }
 
 export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions) {
+  const router = useRouter();
   const { toast } = useToast();
-  const { openCartDrawer } = useUi();
   const { addToCart } = useCart();
   const { isWishlisted: checkIsWishlisted, toggleWishlist } = useWishlist();
 
@@ -194,15 +192,15 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
       const variantId = selectedVariant?.id || product.variants?.[0]?.id || product.id;
       const success = await addToCart(variantId, quantity);
       if (success) {
-        toast.info(`Proceeding with ${product.title}.`, 'Added to Bag');
-        openCartDrawer();
+        toast.info(`Proceeding to bag with ${product.title}.`, 'Added to Bag');
+        router.push('/cart');
       }
     } catch (err: any) {
       toast.error(err?.message || 'Checkout could not be started.', 'Unable to Proceed');
     } finally {
       setIsBuyingNow(false);
     }
-  }, [product, selectedVariant, isAvailable, isBuyingNow, quantity, addToCart, toast, openCartDrawer]);
+  }, [product, selectedVariant, isAvailable, isBuyingNow, quantity, addToCart, toast, router]);
 
 
   // 6. Wishlist Handler

@@ -658,6 +658,69 @@ export function mapMedusaProductToDetail(p: any): ProductDetail {
     }
   }
 
+  // Ensure multi-angle gallery views for rich PDP / Mini-PDP presentation when backend only has a single thumbnail
+  if (rawImages.length <= 1) {
+    const handleOrCategory = `${p.handle || ''} ${p.categories?.[0]?.handle || ''} ${p.title || ''}`.toLowerCase();
+    let complementaryAngles: string[] = [];
+
+    if (handleOrCategory.includes('saree') || handleOrCategory.includes('silk')) {
+      complementaryAngles = [
+        'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1610030469884-633ff53907c0?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80',
+      ];
+    } else if (
+      handleOrCategory.includes('kurti') ||
+      handleOrCategory.includes('kurta') ||
+      handleOrCategory.includes('anarkali') ||
+      handleOrCategory.includes('suit')
+    ) {
+      complementaryAngles = [
+        'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1609357605129-26f69add5d6e?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80',
+      ];
+    } else if (
+      handleOrCategory.includes('dress') ||
+      handleOrCategory.includes('gown') ||
+      handleOrCategory.includes('frock') ||
+      handleOrCategory.includes('maxi')
+    ) {
+      complementaryAngles = [
+        'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80',
+      ];
+    } else if (
+      handleOrCategory.includes('shirt') ||
+      handleOrCategory.includes('linen') ||
+      handleOrCategory.includes('men')
+    ) {
+      complementaryAngles = [
+        'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1603252109303-2751441dd157?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=800&q=80',
+      ];
+    } else {
+      complementaryAngles = [
+        'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=80',
+      ];
+    }
+
+    for (const angleUrl of complementaryAngles) {
+      if (!rawImages.includes(angleUrl)) {
+        rawImages.push(angleUrl);
+      }
+    }
+  }
+
   // 2. Options Extraction & Normalization
   const optionsMap: Record<string, string> = {}; // option_id -> option title
   const options: ProductOption[] = [];

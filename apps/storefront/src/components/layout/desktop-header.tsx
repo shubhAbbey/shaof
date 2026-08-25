@@ -25,7 +25,6 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   navigation,
   globalSettings,
 }) => {
-  const { openCartDrawer } = useUi();
   const { customer, isAuthenticated, openLogin } = useAuth();
   const { itemCount } = useCart();
   const { itemCount: wishlistCount } = useWishlist();
@@ -149,21 +148,21 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
 
 
             {/* Cart / Bag Button */}
-            <button
-              type="button"
-              onClick={openCartDrawer}
-              aria-label="Open Shopping Bag"
+            <Link
+              href="/cart"
+              aria-label="View Shopping Bag"
               className="flex flex-col items-center text-gray-700 hover:text-brand-600 transition-colors group relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded p-0.5"
             >
               <div className="relative">
                 <ShoppingBag className="h-5 w-5 group-hover:scale-105 transition-transform" />
-                <span className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-gray-900 text-[10px] font-bold text-white flex items-center justify-center">
-                  {itemCount}
-                </span>
-
+                {itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 h-4 w-4 rounded-full bg-gray-900 text-[10px] font-bold text-white flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
               </div>
               <span className="text-[11px] font-medium mt-0.5">Bag</span>
-            </button>
+            </Link>
           </div>
         </Container>
       </div>

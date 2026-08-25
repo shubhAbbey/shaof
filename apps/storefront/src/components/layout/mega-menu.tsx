@@ -30,14 +30,14 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({
       onMouseLeave={onClose}
     >
       {/* Visual Arrow Indicator */}
-      <div
+      {/* <div
         className="absolute -top-2 h-4 w-4 rotate-45 border-l border-t border-gray-200 bg-white transition-all"
         style={{ left: `${arrowOffset}px` }}
         aria-hidden="true"
-      />
+      /> */}
 
       {/* Main Mega Menu Card */}
-      <div className="border-b border-gray-200 bg-white/98 backdrop-blur-md">
+      <div className="border-b border-gray-200 bg-white backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-6 py-8">
           <div className="grid grid-cols-12 gap-8">
             {/* Subcategory Columns (Cols 1-8 / 9) */}

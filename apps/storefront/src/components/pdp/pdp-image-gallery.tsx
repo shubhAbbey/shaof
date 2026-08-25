@@ -272,163 +272,40 @@ export const PdpImageGallery: React.FC<PdpImageGalleryProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full">
-      {/* 1. Main Image Container (Desktop: Hover Zoom | Mobile: Tap opens full viewer) */}
-      <div
-        ref={mainImageRef}
-        data-testid="pdp-main-image"
-        role="button"
-        tabIndex={0}
-        aria-label="Enlarge product image"
-        onClick={handleMainImageClick}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleMainImageClick();
-          }
-        }}
-        onMouseMove={isDesktopZoomed ? handleMouseMove : undefined}
-        onMouseEnter={() => {
-          if (typeof window !== 'undefined' && window.innerWidth >= 768 && !isCompact) {
-            setIsDesktopZoomed(true);
-          }
-        }}
-        onMouseLeave={() => setIsDesktopZoomed(false)}
-        className={cn(
-          'relative w-full overflow-hidden rounded-2xl bg-gray-50 border border-gray-100 select-none group cursor-pointer md:cursor-default focus-visible:ring-2 focus-visible:ring-brand-500',
-          isCompact ? 'aspect-[4/5] sm:aspect-[3/4]' : 'aspect-[3/4]'
-        )}
-      >
-        {/* Base Image */}
+    <div
+      className={cn(
+        'w-full select-none',
+        isCompact
+          ? 'flex flex-col gap-2.5'
+          : 'flex flex-col md:flex-row md:items-start gap-3.5'
+      )}
+    >
+      {/* 1. Desktop Vertical Thumbnails / Tiles (Full PDP Only) */}
+      {!isCompact && safeImages.length > 1 && (
         <div
-          className={cn(
-            'relative h-full w-full transition-transform duration-200 ease-out',
-            isDesktopZoomed && 'md:cursor-crosshair'
-          )}
-          style={
-            isDesktopZoomed
-              ? {
-                  transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
-                  transform: `scale(${desktopZoomScale})`,
-                }
-              : undefined
-          }
+          data-testid="pdp-desktop-thumbnails-column"
+          className="hidden md:flex md:flex-col gap-2.5 shrink-0 max-h-[580px] overflow-y-auto no-scrollbar w-20 sm:w-22"
         >
-          {currentImage ? (
-            <Image
-              src={currentImage}
-              alt={`${title} - View ${activeImageIndex + 1}`}
-              fill
-              priority
-              sizes={isCompact ? '(max-width: 768px) 100vw, 400px' : '(max-width: 1024px) 100vw, 600px'}
-              className="object-cover object-center"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-gray-300">
-              <ShoppingBag className="h-16 w-16" />
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Tap-to-Zoom Indicator Pill */}
-        <div className="md:hidden absolute bottom-3 left-3 z-10 flex items-center gap-1 px-2 py-1 rounded-md bg-black/60 text-white backdrop-blur-xs text-[10px] font-medium pointer-events-none">
-          <Maximize2 className="h-3 w-3" />
-          <span>Tap to zoom</span>
-        </div>
-
-        {/* Desktop Zoom Controls Overlay */}
-        {!isCompact && (
-          <div className="hidden md:flex absolute right-3 top-3 z-10 items-center gap-1.5 rounded-lg bg-white/90 p-1 shadow-sm backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDesktopZoomScale((s) => Math.min(3, s + 0.5));
-                setIsDesktopZoomed(true);
-              }}
-              aria-label="Zoom in"
-              className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDesktopZoomScale((s) => Math.max(1.2, s - 0.5));
-                setIsDesktopZoomed(true);
-              }}
-              aria-label="Zoom out"
-              className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsDesktopZoomed(false);
-                setDesktopZoomScale(2);
-              }}
-              aria-label="Reset zoom"
-              className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Navigation Arrows & Counter */}
-        {safeImages.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={handlePrevImage}
-              aria-label="Previous image"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-md backdrop-blur-xs transition-opacity hover:bg-white focus-visible:outline-none"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNextImage}
-              aria-label="Next image"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-md backdrop-blur-xs transition-opacity hover:bg-white focus-visible:outline-none"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-
-            {/* Counter Badge */}
-            <div className="absolute bottom-3 right-3 z-10 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs">
-              {activeImageIndex + 1} / {safeImages.length}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 2. Thumbnails Row (Desktop / Normal PDP) */}
-      {safeImages.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {safeImages.map((imgUrl, idx) => {
             const isSelected = idx === activeImageIndex;
             return (
               <button
-                key={imgUrl + idx}
+                key={`desktop-thumb-${imgUrl}-${idx}`}
                 type="button"
                 data-testid={`pdp-thumbnail-${idx}`}
                 onClick={() => onSelectImage(idx)}
-                aria-label={`Select thumbnail ${idx + 1}`}
+                aria-label={`Select product image ${idx + 1}`}
+                aria-pressed={isSelected}
                 className={cn(
-                  'relative flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all',
-                  isCompact ? 'h-14 w-14' : 'h-16 w-16 sm:h-20 sm:w-20',
+                  'relative h-20 w-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer bg-gray-50',
                   isSelected
-                    ? 'border-brand-600 ring-2 ring-brand-500/20 opacity-100 shadow-xs'
-                    : 'border-transparent opacity-60 hover:opacity-100 hover:border-gray-200'
+                    ? 'border-brand-600 ring-2 ring-brand-500/30 opacity-100 shadow-sm scale-[1.02]'
+                    : 'border-gray-200/80 opacity-70 hover:opacity-100 hover:border-gray-400'
                 )}
               >
                 <Image
                   src={imgUrl}
-                  alt={`${title} thumb ${idx + 1}`}
+                  alt={`${title} view ${idx + 1}`}
                   fill
                   sizes="80px"
                   className="object-cover object-center"
@@ -438,6 +315,183 @@ export const PdpImageGallery: React.FC<PdpImageGalleryProps> = ({
           })}
         </div>
       )}
+
+      {/* 2. Main Displayed Image Container (Desktop: Hover Zoom | Mobile: Swipe & Tap opens full viewer) */}
+      <div className="flex-1 min-w-0 flex flex-col gap-2.5">
+        <div
+          ref={mainImageRef}
+          data-testid="pdp-main-image"
+          role="button"
+          tabIndex={0}
+          aria-label="Enlarge product image"
+          onClick={handleMainImageClick}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleMainImageClick();
+            }
+          }}
+          onMouseMove={isDesktopZoomed ? handleMouseMove : undefined}
+          onMouseEnter={() => {
+            if (typeof window !== 'undefined' && window.innerWidth >= 768 && !isCompact) {
+              setIsDesktopZoomed(true);
+            }
+          }}
+          onMouseLeave={() => setIsDesktopZoomed(false)}
+          className={cn(
+            'relative w-full overflow-hidden bg-gray-50 border border-gray-100 select-none group cursor-pointer md:cursor-default focus-visible:ring-2 focus-visible:ring-brand-500',
+            isCompact ? 'aspect-[4/5] sm:aspect-[3/4] rounded-xl' : 'aspect-[3/4] rounded-2xl'
+          )}
+        >
+          {/* Base Image with Desktop Zoom */}
+          <div
+            className={cn(
+              'relative h-full w-full transition-transform duration-200 ease-out',
+              isDesktopZoomed && 'md:cursor-crosshair'
+            )}
+            style={
+              isDesktopZoomed
+                ? {
+                    transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
+                    transform: `scale(${desktopZoomScale})`,
+                  }
+                : undefined
+            }
+          >
+            {currentImage ? (
+              <Image
+                src={currentImage}
+                alt={`${title} - View ${activeImageIndex + 1}`}
+                fill
+                priority
+                sizes={isCompact ? '(max-width: 768px) 100vw, 450px' : '(max-width: 1024px) 100vw, 650px'}
+                className="object-cover object-center"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-gray-300">
+                <ShoppingBag className="h-16 w-16" />
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Tap-to-Zoom Indicator Pill */}
+          <div className="md:hidden absolute bottom-3 left-3 z-10 flex items-center gap-1 px-2 py-1 rounded-md bg-black/60 text-white backdrop-blur-xs text-[10px] font-medium pointer-events-none">
+            <Maximize2 className="h-3 w-3" />
+            <span>Tap to zoom</span>
+          </div>
+
+          {/* Desktop Zoom Controls Overlay (Full PDP only) */}
+          {!isCompact && (
+            <div className="hidden md:flex absolute right-3 top-3 z-10 items-center gap-1.5 rounded-lg bg-white/90 p-1 shadow-sm backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDesktopZoomScale((s) => Math.min(3, s + 0.5));
+                  setIsDesktopZoomed(true);
+                }}
+                aria-label="Zoom in"
+                className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDesktopZoomScale((s) => Math.max(1.2, s - 0.5));
+                  setIsDesktopZoomed(true);
+                }}
+                aria-label="Zoom out"
+                className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDesktopZoomed(false);
+                  setDesktopZoomScale(2);
+                }}
+                aria-label="Reset zoom"
+                className="p-1.5 text-gray-600 hover:text-brand-600 rounded hover:bg-gray-100 focus-visible:outline-none"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Navigation Arrows & Counter (For both Full PDP and Mini-PDP Multi-Image) */}
+          {safeImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevImage}
+                aria-label="Previous image"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-md backdrop-blur-xs transition-opacity hover:bg-white focus-visible:outline-none"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextImage}
+                aria-label="Next image"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-md backdrop-blur-xs transition-opacity hover:bg-white focus-visible:outline-none"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+
+              {/* Counter Badge */}
+              <div className="absolute bottom-3 right-3 z-10 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-xs">
+                {activeImageIndex + 1} / {safeImages.length}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 3. Mobile / Mini-PDP Thumbnails Row */}
+        {safeImages.length > 1 && (
+          <div
+            data-testid="pdp-horizontal-thumbnails"
+            className={cn(
+              'items-center gap-2 overflow-x-auto pb-1 scrollbar-none',
+              isCompact ? 'flex' : 'flex md:hidden'
+            )}
+          >
+            {safeImages.map((imgUrl, idx) => {
+              const isSelected = idx === activeImageIndex;
+              return (
+                <button
+                  key={`thumb-${imgUrl}-${idx}`}
+                  type="button"
+                  data-testid={isCompact ? `mini-pdp-thumbnail-${idx}` : `pdp-thumbnail-${idx}`}
+                  onClick={() => onSelectImage(idx)}
+                  aria-label={`Select thumbnail ${idx + 1}`}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'relative flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all cursor-pointer bg-gray-50',
+                    isCompact ? 'h-12 w-12 sm:h-14 sm:w-14' : 'h-16 w-16 sm:h-20 sm:w-20',
+                    isSelected
+                      ? 'border-brand-600 ring-2 ring-brand-500/20 opacity-100 shadow-xs'
+                      : 'border-gray-200/70 opacity-60 hover:opacity-100 hover:border-gray-300'
+                  )}
+                >
+                  <Image
+                    src={imgUrl}
+                    alt={`${title} thumb ${idx + 1}`}
+                    fill
+                    sizes="80px"
+                    className="object-cover object-center"
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* 3. DEDICATED FULL-IMAGE VIEWER (MOBILE ONLY) */}
       {isMobileViewerOpen && (
