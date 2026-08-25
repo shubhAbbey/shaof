@@ -51,7 +51,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshCart();
+
+    const handleAuthChange = () => {
+      refreshCart();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('ecom:auth_change', handleAuthChange);
+      return () => {
+        window.removeEventListener('ecom:auth_change', handleAuthChange);
+      };
+    }
   }, [refreshCart]);
+
 
   const addToCart = useCallback(
     async (variantId: string, quantity: number = 1, metadata?: Record<string, any>): Promise<boolean> => {

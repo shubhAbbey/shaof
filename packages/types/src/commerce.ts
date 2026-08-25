@@ -480,4 +480,21 @@ export interface CartOperationResult {
   message?: string;
 }
 
+export interface CartMergeConflictItem {
+  variantId: string;
+  title?: string;
+  requestedQuantity: number;
+  reason: 'INSUFFICIENT_INVENTORY' | 'ERROR';
+  message?: string;
+}
+
+export interface CartMergeResult {
+  success: boolean;
+  cart: CartDto | null;
+  status: 'merged' | 'transferred' | 'restored' | 'none' | 'conflict';
+  conflictItems?: CartMergeConflictItem[];
+  message?: string;
+}
+
+
 

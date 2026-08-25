@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
+import { useCart } from '../../context/cart-context';
 import { normalizeIndianMobile } from '../../lib/auth/phone-utils';
 import { cn } from '../../lib/utils';
 import type { GenderType } from '@ecom/types';
@@ -24,6 +25,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   initialMobile,
 }) => {
   const { login } = useAuth();
+  const { refreshCart } = useCart();
+
 
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [firstName, setFirstName] = useState('');
@@ -147,12 +150,18 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       }
 
       login(data.customer, data.token, redirectUrl);
+      try {
+        await refreshCart();
+      } catch {
+        // Non-blocking
+      }
       if (onSuccess) onSuccess();
     } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
+
   };
 
   const handleResendOtp = async () => {

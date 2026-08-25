@@ -89,6 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCustomer(newCustomer);
       setIsAuthModalOpen(false);
       setAuthMobile(undefined);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ecom:auth_change'));
+      }
       const target = safeDestination(destination || intendedDestination);
       if (typeof window !== 'undefined' && target && target !== window.location.pathname) {
         window.location.href = target;
@@ -103,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await fetch('/api/auth/logout', { method: 'POST' });
       setCustomer(null);
       if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ecom:auth_change'));
         window.location.href = '/';
       }
     } catch (e) {
@@ -112,6 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, []);
+
 
   return (
     <AuthContext.Provider

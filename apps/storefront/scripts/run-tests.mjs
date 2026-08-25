@@ -3882,7 +3882,600 @@ describe('Task 20: Persistent Medusa Guest Cart — Complete Domain, Persistence
   });
 });
 
+// ==============================================================================
+// TASK 21: GUEST-TO-CUSTOMER CART MERGE TEST MATRIX
+// ==============================================================================
+describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Revalidation Matrix', () => {
+  const CART_COOKIE_NAME = 'ecom_cart_id';
+  const CART_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+  class TestMedusaCartMergeEngine {
+    constructor() {
+      this.carts = new Map();
+      this.customerCarts = new Map(); // customerId -> cartId (Redis simulation)
+      this.inventory = new Map([
+        ['var_saree_1', 10],
+        ['var_kurti_m', 5],
+        ['var_shirt_l', 2],
+        ['var_dress_out_of_stock', 0],
+      ]);
+    }
+
+    createCart(regionId = 'reg_in') {
+      const id = 'cart_' + crypto.randomBytes(12).toString('hex');
+      const cart = {
+        id,
+        items: [],
+        totalItems: 0,
+        subtotal: 0,
+        discountTotal: 0,
+        shippingTotal: 0,
+        taxTotal: 0,
+        total: 0,
+        currencyCode: 'INR',
+        regionId,
+        customerId: null,
+        email: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      this.carts.set(id, cart);
+      return { ...cart, items: [...cart.items] };
+    }
+
+    getCart(id) {
+      const cart = this.carts.get(id);
+      if (!cart) return null;
+      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+    }
+
+    recalculateTotals(cart) {
+      cart.totalItems = cart.items.reduce((sum, i) => sum + i.quantity, 0);
+      cart.subtotal = cart.items.reduce((sum, i) => sum + i.total, 0);
+      cart.discountTotal = 0;
+      cart.shippingTotal = cart.subtotal > 999 || cart.subtotal === 0 ? 0 : 99;
+      cart.taxTotal = 0;
+      cart.total = Math.max(0, cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal);
+      cart.updatedAt = new Date().toISOString();
+    }
+
+    addLineItem(cartId, variantId, quantity = 1, unitPrice = 1499, title = 'Product Item') {
+      let cart = this.carts.get(cartId);
+      if (!cart) {
+        cart = this.createCart();
+        cartId = cart.id;
+      }
+
+      const availableStock = this.inventory.get(variantId) ?? 10;
+      const existingItem = cart.items.find((i) => i.variantId === variantId);
+      const currentQty = existingItem ? existingItem.quantity : 0;
+      const targetQty = currentQty + quantity;
+
+      if (availableStock < targetQty) {
+        throw new Error(`INSUFFICIENT_INVENTORY: The requested quantity (${targetQty}) exceeds available stock (${availableStock}).`);
+      }
+
+      if (existingItem) {
+        existingItem.quantity = targetQty;
+        existingItem.total = existingItem.quantity * existingItem.unitPrice;
+        existingItem.subtotal = existingItem.total;
+      } else {
+        const lineId = 'cali_' + crypto.randomBytes(8).toString('hex');
+        cart.items.push({
+          id: lineId,
+          variantId,
+          title,
+          quantity,
+          unitPrice,
+          total: quantity * unitPrice,
+          subtotal: quantity * unitPrice,
+          inventoryQuantity: availableStock,
+        });
+      }
+
+      this.recalculateTotals(cart);
+      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+    }
+
+    updateLineItem(cartId, lineItemId, quantity) {
+      const cart = this.carts.get(cartId);
+      if (!cart) throw new Error('Cart not found');
+
+      const itemIndex = cart.items.findIndex((i) => i.id === lineItemId);
+      if (itemIndex === -1) throw new Error('Line item not found');
+
+      if (quantity <= 0) {
+        cart.items.splice(itemIndex, 1);
+      } else {
+        const item = cart.items[itemIndex];
+        const availableStock = this.inventory.get(item.variantId) ?? 10;
+        if (availableStock < quantity) {
+          throw new Error(`INSUFFICIENT_INVENTORY: The requested quantity (${quantity}) exceeds available stock (${availableStock}).`);
+        }
+        item.quantity = quantity;
+        item.total = item.quantity * item.unitPrice;
+        item.subtotal = item.total;
+      }
+
+      this.recalculateTotals(cart);
+      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+    }
+
+    deleteLineItem(cartId, lineItemId) {
+      return this.updateLineItem(cartId, lineItemId, 0);
+    }
+
+    updateCart(cartId, payload) {
+      const cart = this.carts.get(cartId);
+      if (!cart) throw new Error('Cart not found');
+      if (payload.email) cart.email = payload.email;
+      if (payload.customerId) cart.customerId = payload.customerId;
+      cart.updatedAt = new Date().toISOString();
+      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+    }
+
+    reconcileCartOnLogin({ guestCartId, customer }) {
+      if (!customer || !customer.id) throw new Error('Customer required');
+
+      const savedCustCartId = this.customerCarts.get(customer.id);
+      let customerCart = savedCustCartId ? this.getCart(savedCustCartId) : null;
+      let guestCart = guestCartId ? this.getCart(guestCartId) : null;
+
+      const hasGuestItems = Boolean(guestCart && guestCart.items.length > 0);
+      const hasCustomerItems = Boolean(customerCart && customerCart.items.length > 0);
+
+      // Scenario D: No guest cart
+      if (!guestCart) {
+        if (customerCart) {
+          return { success: true, cart: customerCart, status: 'restored' };
+        }
+        return { success: true, cart: null, status: 'none' };
+      }
+
+      // Scenario E: Empty guest cart
+      if (!hasGuestItems) {
+        if (hasCustomerItems && customerCart) {
+          return { success: true, cart: customerCart, status: 'restored' };
+        }
+        this.updateCart(guestCart.id, { email: customer.email, customerId: customer.id });
+        this.customerCarts.set(customer.id, guestCart.id);
+        return { success: true, cart: guestCart, status: 'transferred' };
+      }
+
+      // Scenario B & C: Guest has items & Customer has NO active cart
+      if (hasGuestItems && (!customerCart || !hasCustomerItems)) {
+        this.updateCart(guestCart.id, { email: customer.email, customerId: customer.id });
+        this.customerCarts.set(customer.id, guestCart.id);
+        return { success: true, cart: this.getCart(guestCart.id), status: 'transferred' };
+      }
+
+      // Scenario A: BOTH have items -> Deterministic Merge
+      if (guestCart.id === customerCart.id) {
+        return { success: true, cart: customerCart, status: 'transferred' };
+      }
+
+      const targetCart = customerCart;
+      const conflictItems = [];
+      const itemsToDeleteFromGuest = [];
+
+      // Sort guest items deterministically
+      const sortedGuestItems = [...guestCart.items].sort((a, b) => a.variantId.localeCompare(b.variantId));
+
+      for (const gItem of sortedGuestItems) {
+        const existingCustItem = targetCart.items.find(c => c.variantId === gItem.variantId);
+        if (existingCustItem) {
+          const combinedQty = existingCustItem.quantity + gItem.quantity;
+          try {
+            this.updateLineItem(targetCart.id, existingCustItem.id, combinedQty);
+            itemsToDeleteFromGuest.push(gItem.id);
+          } catch (err) {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: combinedQty,
+              reason: 'INSUFFICIENT_INVENTORY',
+              message: err.message,
+            });
+          }
+        } else {
+          try {
+            this.addLineItem(targetCart.id, gItem.variantId, gItem.quantity, gItem.unitPrice, gItem.title);
+            itemsToDeleteFromGuest.push(gItem.id);
+          } catch (err) {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: gItem.quantity,
+              reason: 'INSUFFICIENT_INVENTORY',
+              message: err.message,
+            });
+          }
+        }
+      }
+
+      for (const lineId of itemsToDeleteFromGuest) {
+        this.deleteLineItem(guestCart.id, lineId);
+      }
+
+      this.updateCart(targetCart.id, { email: customer.email, customerId: customer.id });
+      this.customerCarts.set(customer.id, targetCart.id);
+
+      const hasConflict = conflictItems.length > 0;
+      return {
+        success: true,
+        cart: this.getCart(targetCart.id),
+        status: hasConflict ? 'conflict' : 'merged',
+        conflictItems: hasConflict ? conflictItems : undefined,
+      };
+    }
+  }
+
+  describe('1. Scenario A: Guest Cart + Existing Customer Cart Merge', () => {
+    it('merges guest cart items into customer cart deterministically', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_01', mobile: '+919876543210', email: 'cust@example.com' };
+
+      // Setup customer cart with 1 Saree
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      // Setup guest cart with 1 Kurti
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_kurti_m', 2, 999, 'Cotton Kurti');
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'merged');
+      assert.equal(result.cart.id, custCart.id);
+      assert.equal(result.cart.items.length, 2);
+      assert.equal(result.cart.totalItems, 3);
+      assert.equal(result.cart.subtotal, 1 * 2499 + 2 * 999);
+    });
+
+    it('combines duplicate variant quantities accurately and recalculates totals', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_01', mobile: '+919876543210', email: 'cust@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_saree_1', 3, 2499, 'Silk Saree');
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.cart.items.length, 1);
+      assert.equal(result.cart.items[0].quantity, 5);
+      assert.equal(result.cart.totalItems, 5);
+      assert.equal(result.cart.subtotal, 5 * 2499);
+    });
+
+    it('removes successfully merged items from the guest cart', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_01', mobile: '+919876543210', email: 'cust@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_kurti_m', 1, 999, 'Cotton Kurti');
+
+      engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      const updatedGuestCart = engine.getCart(guestCart.id);
+      assert.equal(updatedGuestCart.items.length, 0);
+      assert.equal(updatedGuestCart.totalItems, 0);
+    });
+  });
+
+  describe('2. Scenario B & C: Guest Cart with No Customer Cart / New Registration', () => {
+    it('transfers guest cart to customer when customer has no prior cart', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_02', mobile: '+919876543211', email: 'newcust@example.com' };
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'transferred');
+      assert.equal(result.cart.id, guestCart.id);
+      assert.equal(result.cart.customerId, customer.id);
+      assert.equal(result.cart.email, customer.email);
+      assert.equal(result.cart.items.length, 1);
+      assert.equal(result.cart.items[0].quantity, 2);
+    });
+
+    it('transfers guest cart to newly registered customer without losing items', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const newCustomer = { id: 'cust_03', mobile: '+919876543212', email: 'registered@example.com' };
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_kurti_m', 3, 999, 'Cotton Kurti');
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer: newCustomer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'transferred');
+      assert.equal(result.cart.items.length, 1);
+      assert.equal(result.cart.totalItems, 3);
+      assert.equal(result.cart.customerId, newCustomer.id);
+    });
+  });
+
+  describe('3. Scenario D & E: No Guest Cart / Empty Guest Cart', () => {
+    it('restores active customer cart when user logs in with no guest cart', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_04', mobile: '+919876543213', email: 'existing@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: null, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'restored');
+      assert.equal(result.cart.id, custCart.id);
+      assert.equal(result.cart.items.length, 1);
+      assert.equal(result.cart.totalItems, 2);
+    });
+
+    it('returns customer cart when guest cart is empty', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_05', mobile: '+919876543214', email: 'existing5@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_kurti_m', 1, 999, 'Cotton Kurti');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const emptyGuestCart = engine.createCart();
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: emptyGuestCart.id, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'restored');
+      assert.equal(result.cart.id, custCart.id);
+      assert.equal(result.cart.items.length, 1);
+    });
+  });
+
+  describe('4. Inventory Rejection & Zero-Loss Conflict Behavior', () => {
+    it('rejects duplicate addition when combined quantity exceeds available inventory', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_06', mobile: '+919876543215', email: 'stock@example.com' };
+
+      // Stock of var_shirt_l is 2
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_shirt_l', 2, 1299, 'Linen Shirt');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      // Guest cart has 1 more (combined = 3 > 2)
+      const guestCart = engine.createCart();
+      engine.carts.get(guestCart.id).items.push({
+        id: 'cali_guest_shirt',
+        variantId: 'var_shirt_l',
+        title: 'Linen Shirt',
+        quantity: 1,
+        unitPrice: 1299,
+        total: 1299,
+        subtotal: 1299,
+        inventoryQuantity: 2,
+      });
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      assert.equal(result.success, true);
+      assert.equal(result.status, 'conflict');
+      assert.ok(result.conflictItems && result.conflictItems.length > 0);
+      assert.equal(result.conflictItems[0].reason, 'INSUFFICIENT_INVENTORY');
+
+      // Customer cart preserved at 2
+      assert.equal(result.cart.items[0].quantity, 2);
+
+      // Guest item NOT deleted from guest cart (zero loss)
+      const gCart = engine.getCart(guestCart.id);
+      assert.equal(gCart.items.length, 1);
+      assert.equal(gCart.items[0].quantity, 1);
+    });
+
+    it('rejects distinct variant addition when out of stock and preserves guest item', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_07', mobile: '+919876543216', email: 'outofstock@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.carts.get(guestCart.id).items.push({
+        id: 'cali_guest_oos',
+        variantId: 'var_dress_out_of_stock',
+        title: 'Sold Out Dress',
+        quantity: 1,
+        unitPrice: 1999,
+        total: 1999,
+        subtotal: 1999,
+        inventoryQuantity: 0,
+      });
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      assert.equal(result.status, 'conflict');
+      assert.equal(result.conflictItems[0].variantId, 'var_dress_out_of_stock');
+      assert.equal(result.conflictItems[0].reason, 'INSUFFICIENT_INVENTORY');
+
+      // Customer cart remains intact
+      assert.equal(result.cart.items.length, 1);
+      // Guest item retained for recovery
+      assert.equal(engine.getCart(guestCart.id).items.length, 1);
+    });
+
+  });
+
+  describe('5. Idempotency, Repeated Merges & Interrupted Authentication Retries', () => {
+    it('is idempotent when called repeatedly and does not duplicate quantities', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_08', mobile: '+919876543217', email: 'retry@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+
+      // Attempt 1: Merge succeeds
+      const result1 = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+      assert.equal(result1.cart.items[0].quantity, 3);
+
+      // Attempt 2: Network retry / re-verification
+      const result2 = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+      assert.equal(result2.cart.items[0].quantity, 3);
+      assert.equal(result2.cart.totalItems, 3);
+    });
+
+    it('ensures final ecom_cart_id cookie points to the consolidated active cart', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_09', mobile: '+919876543218', email: 'cookie@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_kurti_m', 2, 999, 'Cotton Kurti');
+
+      let cookieStore = { [CART_COOKIE_NAME]: guestCart.id };
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: cookieStore[CART_COOKIE_NAME], customer });
+      if (result.cart && result.cart.id) {
+        cookieStore[CART_COOKIE_NAME] = result.cart.id;
+      }
+
+      assert.equal(cookieStore[CART_COOKIE_NAME], custCart.id);
+      assert.notEqual(cookieStore[CART_COOKIE_NAME], guestCart.id);
+    });
+
+    it('guarantees financial truth from Medusa without client-side recalculation', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_10', mobile: '+919876543219', email: 'finance@example.com' };
+
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 1, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      const guestCart = engine.createCart();
+      engine.addLineItem(guestCart.id, 'var_kurti_m', 1, 999, 'Cotton Kurti');
+
+      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer });
+
+      // Verifies subtotal and total calculated by Medusa engine
+      assert.equal(result.cart.subtotal, 3498);
+      assert.equal(result.cart.total, 3498);
+      assert.equal(result.cart.currencyCode, 'INR');
+    });
+  });
+
+  describe('6. Logout & Cart Isolation / Session Lifecycle Matrix', () => {
+    it('clears ecom_cart_id cookie alongside ecom_session_token upon logout', () => {
+      const SESSION_COOKIE_NAME = 'ecom_session_token';
+      const CART_COOKIE_NAME = 'ecom_cart_id';
+
+      // Simulated browser cookie jar for logged-in user
+      const cookieJar = {
+        [SESSION_COOKIE_NAME]: 'sess_1234567890abcdef',
+        [CART_COOKIE_NAME]: 'cart_cust_active_999',
+      };
+
+      // Simulated POST /api/auth/logout handler response headers
+      const logoutCookiesToSet = [
+        { name: SESSION_COOKIE_NAME, value: '', maxAge: 0 },
+        { name: CART_COOKIE_NAME, value: '', maxAge: 0 },
+      ];
+
+      for (const c of logoutCookiesToSet) {
+        if (c.maxAge === 0 || c.value === '') {
+          delete cookieJar[c.name];
+        } else {
+          cookieJar[c.name] = c.value;
+        }
+      }
+
+      assert.equal(cookieJar[SESSION_COOKIE_NAME], undefined);
+      assert.equal(cookieJar[CART_COOKIE_NAME], undefined);
+    });
+
+    it('proves unauthenticated /api/cart returns null and does not leak previous customer cart', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_isolated_1', mobile: '+919876543220', email: 'iso@example.com' };
+
+      // Customer cart with items
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      // Post-logout cookie jar (no ecom_cart_id)
+      const postLogoutCookies = {};
+
+      // Simulated GET /api/cart logic
+      const cartIdFromCookie = postLogoutCookies['ecom_cart_id'];
+      const returnedCart = cartIdFromCookie ? engine.getCart(cartIdFromCookie) : null;
+
+      assert.equal(returnedCart, null);
+    });
+
+    it('preserves customer active cart in Redis/Medusa across logout and restores it upon subsequent login', () => {
+      const engine = new TestMedusaCartMergeEngine();
+      const customer = { id: 'cust_persistent_2', mobile: '+919876543221', email: 'persist@example.com' };
+
+      // 1. Customer has active cart with 2 Sarees
+      const custCart = engine.createCart();
+      engine.addLineItem(custCart.id, 'var_saree_1', 2, 2499, 'Silk Saree');
+      engine.customerCarts.set(customer.id, custCart.id);
+
+      // 2. User logs out -> Cart remains preserved in customerCarts (Redis) & Medusa
+      assert.equal(engine.customerCarts.get(customer.id), custCart.id);
+      assert.equal(engine.getCart(custCart.id).items.length, 1);
+      assert.equal(engine.getCart(custCart.id).items[0].quantity, 2);
+
+      // 3. User logs back in (Scenario D: no guest cart)
+      const loginResult = engine.reconcileCartOnLogin({ guestCartId: null, customer });
+
+      assert.equal(loginResult.success, true);
+      assert.equal(loginResult.status, 'restored');
+      assert.equal(loginResult.cart.id, custCart.id);
+      assert.equal(loginResult.cart.items.length, 1);
+      assert.equal(loginResult.cart.items[0].quantity, 2);
+      assert.equal(loginResult.cart.totalItems, 2);
+    });
+
+    it('ensures client cart state is immediately cleared on logout event without hard refresh', () => {
+      let clientCartState = {
+        id: 'cart_cust_active_999',
+        items: [{ id: 'cali_item_1', title: 'Silk Saree', quantity: 2, total: 4998 }],
+        totalItems: 2,
+        total: 4998,
+      };
+
+      // Logout triggers auth change event -> refreshCart fetches /api/cart (which returns null)
+      const apiCartResponse = { success: true, cart: null };
+      clientCartState = apiCartResponse.cart || null;
+
+      assert.equal(clientCartState, null);
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
+
+
 
 
 

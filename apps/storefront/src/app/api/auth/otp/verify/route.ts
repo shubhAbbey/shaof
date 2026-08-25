@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OtpService } from '../../../../../lib/auth/otp-service';
 import { SessionService, SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from '../../../../../lib/auth/session-service';
+import { MedusaCartService } from '../../../../../lib/cart/medusa-cart-service';
+import { CART_COOKIE_NAME, CART_COOKIE_MAX_AGE } from '@ecom/types';
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,12 +38,33 @@ export async function POST(req: NextRequest) {
 
     const session = await SessionService.createSession(savedCustomer, SESSION_TTL_SECONDS);
 
+    // Phase 21: Deterministic guest-to-customer cart merge
+    const guestCartId = req.cookies.get(CART_COOKIE_NAME)?.value;
+    let mergeResult;
+    try {
+      mergeResult = await MedusaCartService.reconcileCartOnLogin({
+        guestCartId,
+        customer: savedCustomer,
+      });
+    } catch (cartErr: any) {
+      console.warn('[POST /api/auth/otp/verify] Non-fatal cart reconciliation error:', cartErr.message);
+    }
+
+    const activeCart = mergeResult?.cart || null;
+
     const response = NextResponse.json(
       {
         success: true,
         message: 'Authentication successful',
         customer: savedCustomer,
         token: session.token,
+        cart: activeCart,
+        cartMerge: mergeResult
+          ? {
+              status: mergeResult.status,
+              conflictItems: mergeResult.conflictItems,
+            }
+          : undefined,
       },
       { status: 200 }
     );
@@ -55,6 +78,19 @@ export async function POST(req: NextRequest) {
       path: '/',
       maxAge: SESSION_TTL_SECONDS,
     });
+
+    if (activeCart && activeCart.id) {
+      response.cookies.set({
+        name: CART_COOKIE_NAME,
+        value: activeCart.id,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: CART_COOKIE_MAX_AGE,
+      });
+    }
+
 
     return response;
   } catch (error: any) {

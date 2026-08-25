@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionService, SESSION_COOKIE_NAME } from '../../../../lib/auth/session-service';
+import { CART_COOKIE_NAME } from '@ecom/types';
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +28,18 @@ export async function POST(req: NextRequest) {
       maxAge: 0,
     });
 
+    response.cookies.set({
+      name: CART_COOKIE_NAME,
+      value: '',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+    });
+
     return response;
+
   } catch (error: any) {
     return NextResponse.json(
       {

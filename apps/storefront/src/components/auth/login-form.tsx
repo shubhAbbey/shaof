@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
+import { useCart } from '../../context/cart-context';
 import { normalizeIndianMobile } from '../../lib/auth/phone-utils';
 import { cn } from '../../lib/utils';
 
@@ -20,6 +21,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   redirectUrl,
 }) => {
   const { login, openRegister } = useAuth();
+  const { refreshCart } = useCart();
+
 
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
   const [mobile, setMobile] = useState('');
@@ -128,12 +131,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       }
 
       login(data.customer, data.token, redirectUrl);
+      try {
+        await refreshCart();
+      } catch {
+        // Non-blocking
+      }
       if (onSuccess) onSuccess();
     } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }
+
   };
 
   const handleResendOtp = async () => {

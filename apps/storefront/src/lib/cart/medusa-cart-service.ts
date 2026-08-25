@@ -1,6 +1,14 @@
 import { sdk } from '../medusa-client';
 import { config } from '../../config';
-import type { CartDto, CartLineItemDto } from '@ecom/types';
+import { SessionService } from '../auth/session-service';
+import type {
+  CartDto,
+  CartLineItemDto,
+  CartMergeResult,
+  CartMergeConflictItem,
+  CustomerSession,
+} from '@ecom/types';
+
 
 /**
  * Mapper: Transforms Medusa v2 Store Cart to canonical CartDto
@@ -278,5 +286,264 @@ export class MedusaCartService {
     }
     return freshCart;
   }
+
+  /**
+   * Update cart email, region, or metadata in Medusa
+   */
+  static async updateCart(
+    cartId: string,
+    payload: {
+      email?: string | null;
+      region_id?: string;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<CartDto> {
+    if (!cartId) throw new Error('Cart ID is required');
+
+    const body: Record<string, any> = {};
+    if (payload.email) body.email = payload.email;
+    if (payload.region_id) body.region_id = payload.region_id;
+    if (payload.metadata) body.metadata = payload.metadata;
+
+    const response = await fetch(
+      `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-publishable-api-key': config.medusa.publishableKey,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to update cart (${response.status})`);
+    }
+
+    const data = await response.json();
+    return mapMedusaCartToDto(data.cart);
+  }
+
+  /**
+   * Deterministically reconcile guest cart with customer active cart upon login/registration
+   */
+  static async reconcileCartOnLogin(params: {
+    guestCartId?: string | null;
+    customer: CustomerSession;
+  }): Promise<CartMergeResult> {
+    const { guestCartId, customer } = params;
+    if (!customer || !customer.id) {
+      throw new Error('Customer is required for cart reconciliation');
+    }
+
+    // Step 1: Resolve existing customer active cart from Redis
+    const savedCustomerCartId = await SessionService.getCustomerActiveCartId(customer.id);
+    let customerCart: CartDto | null = null;
+    if (savedCustomerCartId) {
+      customerCart = await this.getCart(savedCustomerCartId);
+      // If the saved customer cart was completed or deleted, clear the stale ID
+      if (!customerCart) {
+        await SessionService.clearCustomerActiveCartId(customer.id);
+      }
+    }
+
+    // Step 2: Resolve guest cart
+    let guestCart: CartDto | null = null;
+    if (guestCartId) {
+      guestCart = await this.getCart(guestCartId);
+    }
+
+    const hasGuestItems = Boolean(guestCart && guestCart.items && guestCart.items.length > 0);
+    const hasCustomerItems = Boolean(customerCart && customerCart.items && customerCart.items.length > 0);
+
+    // Scenario D: No guest cart
+    if (!guestCart) {
+      if (customerCart) {
+        return {
+          success: true,
+          cart: customerCart,
+          status: 'restored',
+          message: 'Customer cart restored successfully',
+        };
+      }
+      return {
+        success: true,
+        cart: null,
+        status: 'none',
+        message: 'No active cart found',
+      };
+    }
+
+    // Scenario E: Empty guest cart
+    if (!hasGuestItems) {
+      if (hasCustomerItems && customerCart) {
+        return {
+          success: true,
+          cart: customerCart,
+          status: 'restored',
+          message: 'Customer cart restored successfully',
+        };
+      }
+      // If customer has no cart or customer cart is also empty, associate email with guest cart
+      if (customer.email) {
+        try {
+          await this.updateCart(guestCart.id, { email: customer.email });
+        } catch {
+          // Non-blocking
+        }
+      }
+      await SessionService.setCustomerActiveCartId(customer.id, guestCart.id);
+      return {
+        success: true,
+        cart: guestCart,
+        status: 'transferred',
+        message: 'Guest cart transferred to customer',
+      };
+    }
+
+    // Scenario B & C: Guest has items & Customer has NO existing active cart (or customer cart is empty)
+    if (hasGuestItems && (!customerCart || !hasCustomerItems)) {
+      // Guest cart survives login and becomes the customer active cart
+      if (customer.email) {
+        try {
+          guestCart = await this.updateCart(guestCart.id, { email: customer.email });
+        } catch {
+          // Non-blocking
+        }
+      }
+      await SessionService.setCustomerActiveCartId(customer.id, guestCart.id);
+      return {
+        success: true,
+        cart: guestCart,
+        status: 'transferred',
+        message: 'Guest cart transferred to customer successfully',
+      };
+    }
+
+    // Scenario A: BOTH Guest Cart and Customer Cart have items -> Deterministic Merge
+    // If they point to the exact same cart ID, return immediately
+    if (guestCart.id === customerCart!.id) {
+      if (customer.email) {
+        try {
+          customerCart = await this.updateCart(customerCart!.id, { email: customer.email });
+        } catch {
+          // Non-blocking
+        }
+      }
+      return {
+        success: true,
+        cart: customerCart,
+        status: 'transferred',
+      };
+    }
+
+    const targetCart = customerCart!;
+    const conflictItems: CartMergeConflictItem[] = [];
+    const itemsToDeleteFromGuest: string[] = [];
+
+    // Deterministic item iteration by variantId
+    const sortedGuestItems = [...guestCart.items].sort((a, b) => a.variantId.localeCompare(b.variantId));
+
+    for (const gItem of sortedGuestItems) {
+      const existingCustomerItem = targetCart.items.find(
+        (cItem) => cItem.variantId === gItem.variantId
+      );
+
+      if (existingCustomerItem) {
+        // Duplicate variant: intended combined quantity
+        const combinedQuantity = existingCustomerItem.quantity + gItem.quantity;
+        try {
+          // Authoritative Medusa inventory validation on update
+          await this.updateLineItem(targetCart.id, existingCustomerItem.id, combinedQuantity);
+          itemsToDeleteFromGuest.push(gItem.id);
+        } catch (err: any) {
+          const isInventory =
+            err?.message?.includes('INSUFFICIENT_INVENTORY') ||
+            err?.message?.toLowerCase().includes('stock');
+          if (isInventory) {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: combinedQuantity,
+              reason: 'INSUFFICIENT_INVENTORY',
+              message: `Requested quantity (${combinedQuantity}) exceeds available inventory. Guest quantity preserved.`,
+            });
+            // Do NOT delete from guest cart; preserve guest quantity for user recovery
+          } else {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: combinedQuantity,
+              reason: 'ERROR',
+              message: err?.message || 'Failed to update item in customer cart',
+            });
+          }
+        }
+      } else {
+        // Distinct variant: add to customer cart
+        try {
+          await this.addLineItem(targetCart.id, gItem.variantId, gItem.quantity, gItem.options);
+          itemsToDeleteFromGuest.push(gItem.id);
+        } catch (err: any) {
+          const isInventory =
+            err?.message?.includes('INSUFFICIENT_INVENTORY') ||
+            err?.message?.toLowerCase().includes('stock');
+          if (isInventory) {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: gItem.quantity,
+              reason: 'INSUFFICIENT_INVENTORY',
+              message: `Cannot add variant (${gItem.title || gItem.variantId}): insufficient inventory. Guest quantity preserved.`,
+            });
+          } else {
+            conflictItems.push({
+              variantId: gItem.variantId,
+              title: gItem.title,
+              requestedQuantity: gItem.quantity,
+              reason: 'ERROR',
+              message: err?.message || 'Failed to add item to customer cart',
+            });
+          }
+        }
+      }
+    }
+
+    // Only delete items from guest cart that successfully merged
+    for (const lineId of itemsToDeleteFromGuest) {
+      try {
+        await this.deleteLineItem(guestCart.id, lineId);
+      } catch {
+        // Non-blocking cleanup
+      }
+    }
+
+    // Associate customer email with target customer cart
+    if (customer.email) {
+      try {
+        await this.updateCart(targetCart.id, { email: customer.email });
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    // Refresh final authoritative cart from Medusa (recalculated totals, promotions, and taxes)
+    const finalCart = await this.getCart(targetCart.id);
+    await SessionService.setCustomerActiveCartId(customer.id, targetCart.id);
+
+    const hasConflict = conflictItems.length > 0;
+    return {
+      success: true,
+      cart: finalCart,
+      status: hasConflict ? 'conflict' : 'merged',
+      conflictItems: hasConflict ? conflictItems : undefined,
+      message: hasConflict
+        ? `Cart merged with ${conflictItems.length} inventory conflict(s).`
+        : 'Guest cart merged into customer cart successfully.',
+    };
+  }
 }
+
 

@@ -78,4 +78,46 @@ export class SessionService {
     const deleted = await redis.del(sessionKey);
     return deleted > 0;
   }
+
+  /**
+   * Retrieve active cart ID associated with a customer in Redis cache
+   */
+  static async getCustomerActiveCartId(
+    customerId: string,
+    customRedis?: IRedisAdapter
+  ): Promise<string | null> {
+    if (!customerId) return null;
+    const redis = customRedis || getRedisClient();
+    const cartKey = 'cart:customer:' + customerId;
+    return redis.get(cartKey);
+  }
+
+  /**
+   * Associate active cart ID with a customer in Redis cache
+   */
+  static async setCustomerActiveCartId(
+    customerId: string,
+    cartId: string,
+    ttlSeconds: number = SESSION_TTL_SECONDS,
+    customRedis?: IRedisAdapter
+  ): Promise<void> {
+    if (!customerId || !cartId) return;
+    const redis = customRedis || getRedisClient();
+    const cartKey = 'cart:customer:' + customerId;
+    await redis.set(cartKey, cartId, 'EX', ttlSeconds);
+  }
+
+  /**
+   * Clear active cart ID associated with a customer in Redis cache
+   */
+  static async clearCustomerActiveCartId(
+    customerId: string,
+    customRedis?: IRedisAdapter
+  ): Promise<void> {
+    if (!customerId) return;
+    const redis = customRedis || getRedisClient();
+    const cartKey = 'cart:customer:' + customerId;
+    await redis.del(cartKey);
+  }
 }
+
