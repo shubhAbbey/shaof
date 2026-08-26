@@ -218,6 +218,7 @@ export interface OrderLineItemDto {
   subtitle?: string;
   thumbnail?: string;
   variantId: string;
+  variantTitle?: string;
   productId: string;
   quantity: number;
   unitPrice: number;
@@ -268,6 +269,7 @@ export interface OrderDto {
   fulfillments?: FulfillmentDto[];
   returns?: ReturnDto[];
   paymentCollections?: PaymentCollectionDto[];
+  paymentSessions?: any[];
   createdAt: string;
   updatedAt: string;
 }
@@ -630,6 +632,48 @@ export interface CompleteCheckoutResult {
   order?: OrderDto;
   orderId?: string;
   status?: string;
+  message?: string;
+  error?: string;
+}
+
+// ========================================================
+// 12. Order Management, Return & Refund Contracts (Phases 28-31)
+// ========================================================
+
+export interface OrderRetryPaymentResult {
+  success: boolean;
+  orderId: string;
+  razorpayOrder?: RazorpayOrderDto;
+  message?: string;
+  error?: string;
+}
+
+export interface OrderReturnResult {
+  success: boolean;
+  orderId: string;
+  return?: ReturnDto;
+  refundableAmount?: number;
+  message?: string;
+  error?: string;
+}
+
+export interface PrepaidRefundResult {
+  success: boolean;
+  orderId: string;
+  refund?: RefundDto;
+  providerReference?: string;
+  amount: number;
+  message?: string;
+  error?: string;
+}
+
+export interface CodRefundResult {
+  success: boolean;
+  orderId: string;
+  payout?: CodRefundPayoutDto;
+  providerReference?: string;
+  amount: number;
+  status: RefundStatus;
   message?: string;
   error?: string;
 }

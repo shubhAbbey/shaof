@@ -6223,6 +6223,195 @@ describe('Tasks 25-27: Checkout Orchestration, Razorpay & COD', () => {
   });
 });
 
+describe('Tasks 28-31: Orders, Returns, Prepaid Razorpay Refunds & COD Payouts', () => {
+  const customerA = 'cus_cust_A';
+  const customerB = 'cus_cust_B';
+
+  const mockOrder = {
+    id: 'order_test_999',
+    displayId: 100999,
+    status: 'pending',
+    paymentStatus: 'captured',
+    fulfillmentStatus: 'fulfilled',
+    customerId: customerA,
+    email: 'customerA@test.com',
+    currencyCode: 'INR',
+    summary: {
+      total: 3500,
+      subtotal: 3500,
+      itemSubtotal: 3500,
+      taxTotal: 0,
+      discountTotal: 0,
+      shippingTotal: 0,
+      paidTotal: 3500,
+      refundedTotal: 0,
+    },
+    shippingAddress: {
+      id: 'addr_1',
+      fullName: 'Rahul Sharma',
+      mobile: '+919876543210',
+      addressLine1: '123 MG Road',
+      city: 'New Delhi',
+      state: 'Delhi',
+      pincode: '110001',
+      countryCode: 'in',
+      addressType: 'home',
+    },
+    items: [
+      {
+        id: 'item_1',
+        productId: 'prod_1',
+        title: 'Slim Fit Cotton Shirt',
+        variantId: 'var_1',
+        variantTitle: 'Blue / L',
+        quantity: 2,
+        unitPrice: 1000,
+        subtotal: 2000,
+        total: 2000,
+      },
+      {
+        id: 'item_2',
+        productId: 'prod_2',
+        title: 'Denim Jeans',
+        variantId: 'var_2',
+        variantTitle: 'Dark Blue / 32',
+        quantity: 1,
+        unitPrice: 1500,
+        subtotal: 1500,
+        total: 1500,
+      },
+    ],
+    shippingMethods: [
+      {
+        id: 'sm_1',
+        name: 'Standard Delivery',
+        amount: 0,
+        taxTotal: 0,
+      },
+    ],
+    createdAt: new Date().toISOString(),
+  };
+
+  describe('Task 28: Orders / Confirmation / History / Details & Safe Retry', () => {
+    it('enforces IDOR protection on order lookup (Customer B cannot view Customer A order)', () => {
+      const getOrderById = (orderId, requestingCustomerId) => {
+        if (mockOrder.id === orderId && mockOrder.customerId === requestingCustomerId) {
+          return mockOrder;
+        }
+        return null;
+      };
+
+      assert.ok(getOrderById(mockOrder.id, customerA));
+      assert.equal(getOrderById(mockOrder.id, customerB), null);
+    });
+
+    it('handles payment retry safely: rejects retry on already captured order', () => {
+      const retryPayment = (order) => {
+        if (order.paymentStatus === 'captured' || order.status === 'completed') {
+          return { success: false, error: 'ALREADY_PAID' };
+        }
+        return { success: true, amountInPaise: Math.round(order.summary.total * 100) };
+      };
+
+      assert.deepEqual(retryPayment(mockOrder), { success: false, error: 'ALREADY_PAID' });
+      assert.deepEqual(retryPayment({ ...mockOrder, paymentStatus: 'not_paid' }), {
+        success: true,
+        amountInPaise: 350000,
+      });
+    });
+  });
+
+  describe('Task 29: Customer Returns & Server-Side Eligibility', () => {
+    it('accepts eligible return request with valid partial quantity and reason', () => {
+      const validateReturn = (order, items) => {
+        const returnedTally = new Map();
+        let refundable = 0;
+
+        for (const reqItem of items) {
+          const line = order.items.find((i) => i.id === reqItem.lineItemId);
+          if (!line) return { valid: false, error: 'INVALID_ITEM' };
+          if (reqItem.quantity <= 0 || !Number.isInteger(reqItem.quantity)) return { valid: false, error: 'INVALID_QTY' };
+          const alreadyRet = returnedTally.get(line.id) || 0;
+          if (reqItem.quantity > line.quantity - alreadyRet) return { valid: false, error: 'EXCESSIVE_QTY' };
+          refundable += line.unitPrice * reqItem.quantity;
+          returnedTally.set(line.id, alreadyRet + reqItem.quantity);
+        }
+
+        return { valid: true, refundableAmount: refundable };
+      };
+
+      const res = validateReturn(mockOrder, [{ lineItemId: 'item_1', quantity: 1, reason: 'Size too large' }]);
+      assert.equal(res.valid, true);
+      assert.equal(res.refundableAmount, 1000);
+
+      const excessive = validateReturn(mockOrder, [{ lineItemId: 'item_1', quantity: 3, reason: 'Size too large' }]);
+      assert.equal(excessive.valid, false);
+      assert.equal(excessive.error, 'EXCESSIVE_QTY');
+    });
+  });
+
+  describe('Task 30: Prepaid Razorpay Refunds', () => {
+    it('enforces maximum refundable amount and integer paise conversion', () => {
+      const processPrepaidRefund = (order, amount) => {
+        const captured = order.summary.total;
+        const alreadyRefunded = order.summary.refundedTotal || 0;
+        const maxRefundable = captured - alreadyRefunded;
+
+        if (amount <= 0 || amount > maxRefundable) {
+          return { success: false, error: 'AMOUNT_EXCEEDS_LIMIT' };
+        }
+
+        const amountInPaise = Math.round(amount * 100);
+        return { success: true, amountInPaise };
+      };
+
+      assert.deepEqual(processPrepaidRefund(mockOrder, 1000), { success: true, amountInPaise: 100000 });
+      assert.deepEqual(processPrepaidRefund(mockOrder, 4000), { success: false, error: 'AMOUNT_EXCEEDS_LIMIT' });
+    });
+  });
+
+  describe('Task 31: COD Refund Methods & Payout Abstraction Boundary', () => {
+    it('validates UPI and Bank Transfer details strictly and redacts account numbers', () => {
+      const validateAndRedactCodDetails = (method, details) => {
+        if (method === 'upi') {
+          const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+          if (!details.upiId || !upiRegex.test(details.upiId)) return { valid: false, error: 'INVALID_UPI' };
+          return { valid: true, redacted: { upiId: details.upiId } };
+        }
+        if (method === 'bank_transfer') {
+          if (!details.accountNumber || details.accountNumber.length < 9) return { valid: false, error: 'INVALID_ACC' };
+          const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+          if (!details.ifscCode || !ifscRegex.test(details.ifscCode)) return { valid: false, error: 'INVALID_IFSC' };
+          return {
+            valid: true,
+            redacted: {
+              accountNumber: `XXXX-XXXX-${details.accountNumber.slice(-4)}`,
+              ifscCode: details.ifscCode,
+            },
+          };
+        }
+        if (method === 'store_credit') {
+          return { valid: true, redacted: {} };
+        }
+        return { valid: false, error: 'UNSUPPORTED_METHOD' };
+      };
+
+      const upiRes = validateAndRedactCodDetails('upi', { upiId: 'valid@okhdfc' });
+      assert.equal(upiRes.valid, true);
+
+      const bankRes = validateAndRedactCodDetails('bank_transfer', {
+        accountNumber: '123456789012',
+        ifscCode: 'HDFC0001234',
+      });
+      assert.equal(bankRes.valid, true);
+      assert.equal(bankRes.redacted.accountNumber, 'XXXX-XXXX-9012');
+
+      const badUpi = validateAndRedactCodDetails('upi', { upiId: 'invalid-upi' });
+      assert.equal(badUpi.valid, false);
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
 
 

@@ -119,6 +119,15 @@ export default function AccountPage() {
               <div className="space-y-3">
                 <button
                   type="button"
+                  onClick={() => router.push('/account/orders')}
+                  className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-brand-200 hover:bg-brand-50/20 transition-all flex items-center justify-between text-sm"
+                >
+                  <span className="font-semibold text-gray-900">My Orders & Returns</span>
+                  <span className="text-brand-600 font-bold">&rarr;</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => router.push('/search')}
                   className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-brand-200 hover:bg-brand-50/20 transition-all flex items-center justify-between text-sm"
                 >

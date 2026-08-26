@@ -587,8 +587,14 @@ export class CheckoutService {
         updatedAt: new Date().toISOString(),
       };
 
-      // 7. Persist completed order in durable store for idempotency
+      // 7. Persist completed order in durable store for idempotency and customer order index
       await this.saveCompletedOrder(cartId, orderDto);
+      try {
+        const { OrderService } = await import('../orders/order-service');
+        await OrderService.saveOrder(orderDto);
+      } catch {
+        // non-blocking
+      }
 
       // 8. Clear active customer cart pointer in Redis upon order completion
       if (customerId) {
