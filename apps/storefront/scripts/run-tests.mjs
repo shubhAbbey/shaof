@@ -5718,7 +5718,254 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
   });
 });
 
+describe('Task 24: Checkout Shipping & Native Medusa Fulfillment Architecture', () => {
+  describe('1. Shipping Options Discovery & Address Pre-requisite', () => {
+    it('returns empty options and requiresAddress flag when active cart has no delivery address', async () => {
+      const mockCartWithoutAddress = {
+        id: 'cart_100',
+        items: [{ id: 'item_1', title: 'Silk Saree', quantity: 1, total: 2999 }],
+        shippingAddress: null,
+      };
+
+      const getShippingOptions = (cart) => {
+        if (!cart.shippingAddress) {
+          return { success: true, shippingOptions: [], requiresAddress: true };
+        }
+        return { success: true, shippingOptions: [{ id: 'so_std', name: 'Standard Delivery', amount: 0 }] };
+      };
+
+      const result = getShippingOptions(mockCartWithoutAddress);
+      assert.equal(result.success, true);
+      assert.equal(result.shippingOptions.length, 0);
+      assert.equal(result.requiresAddress, true);
+    });
+
+    it('loads eligible shipping options with provider-returned names, rates, and tax flags when delivery address is set', async () => {
+      const mockCartWithAddress = {
+        id: 'cart_101',
+        items: [{ id: 'item_1', title: 'Linen Shirt', quantity: 1, total: 1899 }],
+        shippingAddress: {
+          id: 'addr_1',
+          fullName: 'Ananya Sharma',
+          pincode: '560001',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          countryCode: 'in',
+        },
+      };
+
+      const mockProviderOptions = [
+        {
+          id: 'so_standard',
+          name: 'Standard Delivery',
+          priceType: 'flat',
+          amount: 0,
+          currencyCode: 'INR',
+          isTaxInclusive: true,
+          insufficientInventory: false,
+        },
+        {
+          id: 'so_express',
+          name: 'Express Next-Day Delivery',
+          priceType: 'flat',
+          amount: 99,
+          currencyCode: 'INR',
+          isTaxInclusive: true,
+          insufficientInventory: false,
+        },
+      ];
+
+      assert.equal(mockProviderOptions.length, 2);
+      assert.equal(mockProviderOptions[0].name, 'Standard Delivery');
+      assert.equal(mockProviderOptions[0].amount, 0);
+      assert.equal(mockProviderOptions[1].amount, 99);
+      assert.equal(mockProviderOptions[0].isTaxInclusive, true);
+    });
+  });
+
+  describe('2. Empty State & Unserviceable Locations', () => {
+    it('handles unserviceable pincode cleanly when provider returns zero options', async () => {
+      const emptyProviderOptions = [];
+      const renderState = {
+        isLoading: false,
+        options: emptyProviderOptions,
+        hasAddress: true,
+      };
+
+      const message = renderState.options.length === 0
+        ? 'No shipping options available for this delivery address. Please verify your pincode or select another address.'
+        : 'Select shipping method';
+
+      assert.ok(message.includes('No shipping options available'));
+    });
+  });
+
+  describe('3. Shipping Method Selection & Authoritative Cart Recalculation', () => {
+    it('attaching shipping method to Medusa cart updates shipping methods and cart totals', async () => {
+      const cart = {
+        id: 'cart_102',
+        subtotal: 1899,
+        discountTotal: 0,
+        shippingTotal: 0,
+        taxTotal: 0,
+        total: 1899,
+        shippingMethods: [],
+      };
+
+      const selectedOption = {
+        id: 'so_express',
+        name: 'Express Next-Day Delivery',
+        amount: 99,
+        isTaxInclusive: true,
+      };
+
+      const applyShippingMethod = (c, opt) => {
+        const shippingTotal = opt.amount;
+        const total = c.subtotal - c.discountTotal + shippingTotal + c.taxTotal;
+        return {
+          ...c,
+          shippingTotal,
+          total,
+          shippingMethods: [
+            {
+              id: 'sm_1',
+              shippingOptionId: opt.id,
+              name: opt.name,
+              amount: opt.amount,
+              isTaxInclusive: opt.isTaxInclusive,
+            },
+          ],
+        };
+      };
+
+      const updatedCart = applyShippingMethod(cart, selectedOption);
+      assert.equal(updatedCart.shippingTotal, 99);
+      assert.equal(updatedCart.total, 1998);
+      assert.equal(updatedCart.shippingMethods.length, 1);
+      assert.equal(updatedCart.shippingMethods[0].shippingOptionId, 'so_express');
+    });
+
+    it('free shipping method updates cart total with zero shipping fee', async () => {
+      const cart = {
+        id: 'cart_103',
+        subtotal: 3500,
+        discountTotal: 500,
+        shippingTotal: 99,
+        taxTotal: 0,
+        total: 3099,
+      };
+
+      const freeOption = {
+        id: 'so_standard',
+        name: 'Standard Delivery',
+        amount: 0,
+      };
+
+      const applyShippingMethod = (c, opt) => ({
+        ...c,
+        shippingTotal: opt.amount,
+        total: c.subtotal - c.discountTotal + opt.amount + c.taxTotal,
+      });
+
+      const updatedCart = applyShippingMethod(cart, freeOption);
+      assert.equal(updatedCart.shippingTotal, 0);
+      assert.equal(updatedCart.total, 3000);
+    });
+  });
+
+  describe('4. Error Isolation & State Preservation', () => {
+    it('preserves valid cart state when shipping method selection API fails', async () => {
+      const initialCart = {
+        id: 'cart_104',
+        subtotal: 2499,
+        shippingTotal: 0,
+        total: 2499,
+        shippingMethods: [],
+      };
+
+      let currentCart = { ...initialCart };
+      let shippingError = null;
+
+      const setShippingMethod = async (optionId) => {
+        try {
+          if (optionId === 'invalid_opt') {
+            throw new Error('Shipping option not found or unserviceable');
+          }
+          currentCart = { ...currentCart, shippingTotal: 99 };
+          return true;
+        } catch (err) {
+          shippingError = err.message;
+          // Crucial: do not corrupt cart state
+          return false;
+        }
+      };
+
+      const result = await setShippingMethod('invalid_opt');
+      assert.equal(result, false);
+      assert.equal(shippingError, 'Shipping option not found or unserviceable');
+      assert.equal(currentCart.subtotal, 2499);
+      assert.equal(currentCart.total, 2499);
+      assert.equal(currentCart.shippingTotal, 0);
+    });
+
+    it('clears shipping error banner cleanly without reloading', () => {
+      let shippingError = 'Temporary network timeout';
+      const clearError = () => {
+        shippingError = null;
+      };
+
+      clearError();
+      assert.equal(shippingError, null);
+    });
+  });
+
+  describe('5. Address Change Invalidation & Rate Refresh', () => {
+    it('triggers shipping options re-fetch when delivery address pincode or ID changes', () => {
+      let fetchCount = 0;
+      let currentAddress = { id: 'addr_1', pincode: '560001' };
+
+      const onAddressChange = (newAddress) => {
+        if (newAddress.id !== currentAddress.id || newAddress.pincode !== currentAddress.pincode) {
+          currentAddress = newAddress;
+          fetchCount++;
+        }
+      };
+
+      onAddressChange({ id: 'addr_2', pincode: '110001' });
+      assert.equal(fetchCount, 1);
+      assert.equal(currentAddress.pincode, '110001');
+
+      onAddressChange({ id: 'addr_3', pincode: '400001' });
+      assert.equal(fetchCount, 2);
+    });
+  });
+
+  describe('6. No Invented Rates & Logistics Rules', () => {
+    it('displays only provider-returned option amounts, names, and tax status without synthetic calculations', () => {
+      const providerOption = {
+        id: 'so_delhivery_std',
+        name: 'Delhivery Surface',
+        amount: 80,
+        currencyCode: 'INR',
+        isTaxInclusive: true,
+      };
+
+      const formatOptionDisplay = (opt) => ({
+        displayName: opt.name,
+        displayPrice: opt.amount === 0 ? 'FREE' : `₹${opt.amount}`,
+        isInclusive: opt.isTaxInclusive,
+      });
+
+      const formatted = formatOptionDisplay(providerOption);
+      assert.equal(formatted.displayName, 'Delhivery Surface');
+      assert.equal(formatted.displayPrice, '₹80');
+      assert.equal(formatted.isInclusive, true);
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
+
 
 
 

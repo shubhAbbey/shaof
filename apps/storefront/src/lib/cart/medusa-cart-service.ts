@@ -7,6 +7,8 @@ import type {
   CartMergeResult,
   CartMergeConflictItem,
   CustomerSession,
+  ShippingOptionDto,
+  CartShippingMethodDto,
 } from '@ecom/types';
 
 
@@ -101,6 +103,15 @@ export function mapMedusaCartToDto(cart: any): CartDto {
     };
   }
 
+  const shippingMethods: CartShippingMethodDto[] = (cart.shipping_methods || []).map((sm: any) => ({
+    id: sm.id,
+    shippingOptionId: sm.shipping_option_id || sm.shipping_option?.id,
+    name: sm.name || sm.shipping_option?.name || 'Standard Shipping',
+    amount: typeof sm.amount === 'number' ? sm.amount : 0,
+    isTaxInclusive: Boolean(sm.is_tax_inclusive),
+    data: sm.data,
+  }));
+
   return {
     id: cart.id,
     items,
@@ -114,6 +125,7 @@ export function mapMedusaCartToDto(cart: any): CartDto {
     regionId: cart.region_id,
     shippingAddress,
     billingAddress,
+    shippingMethods: shippingMethods.length > 0 ? shippingMethods : undefined,
     createdAt: cart.created_at,
     updatedAt: cart.updated_at,
   };
@@ -157,7 +169,7 @@ export class MedusaCartService {
 
     try {
       const response = await fetch(
-        `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}?fields=*items,*items.variant,*items.variant.product,*shipping_address,*billing_address`,
+        `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}?fields=*items,*items.variant,*items.variant.product,*shipping_address,*billing_address,*shipping_methods`,
         {
           method: 'GET',
           headers: {
@@ -246,6 +258,111 @@ export class MedusaCartService {
     const freshCart = await this.getCart(cartId);
     if (!freshCart) {
       throw new Error('Failed to retrieve cart after setting shipping address');
+    }
+    return freshCart;
+  }
+
+  /**
+   * Get eligible shipping options for active cart from Medusa
+   */
+  static async getShippingOptions(cartId: string): Promise<ShippingOptionDto[]> {
+    if (!cartId || !cartId.startsWith('cart_')) return [];
+
+    try {
+      const response = await fetch(
+        `${config.medusa.baseUrl}/store/shipping-options?cart_id=${encodeURIComponent(cartId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-publishable-api-key': config.medusa.publishableKey,
+          },
+          cache: 'no-store',
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        console.warn('[MedusaCartService] Failed to fetch shipping options:', errData.message || response.status);
+        return [];
+      }
+
+      const data = await response.json();
+      const rawOptions = data.shipping_options || [];
+
+      return rawOptions.map((so: any): ShippingOptionDto => {
+        const calculatedAmount =
+          typeof so.amount === 'number'
+            ? so.amount
+            : typeof so.calculated_price?.calculated_amount === 'number'
+            ? so.calculated_price.calculated_amount
+            : 0;
+
+        return {
+          id: so.id,
+          name: so.name || 'Standard Delivery',
+          priceType: (so.price_type || 'flat') as any,
+          amount: calculatedAmount,
+          currencyCode: (so.calculated_price?.currency_code || 'inr').toUpperCase(),
+          serviceZoneId: so.service_zone_id,
+          shippingProfileId: so.shipping_profile_id,
+          providerId: so.provider_id,
+          isTaxInclusive: Boolean(so.is_tax_inclusive || so.calculated_price?.is_calculated_price_tax_inclusive),
+          insufficientInventory: Boolean(so.insufficient_inventory),
+          data: so.data,
+        };
+      });
+    } catch (err: any) {
+      console.warn('[MedusaCartService] Error fetching shipping options from Medusa:', err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Attach selected shipping method to Medusa cart
+   */
+  static async setShippingMethod(
+    cartId: string,
+    optionId: string,
+    additionalData?: Record<string, any>
+  ): Promise<CartDto> {
+    if (!cartId || !cartId.startsWith('cart_')) {
+      throw new Error('Valid cart ID is required');
+    }
+    if (!optionId || typeof optionId !== 'string') {
+      throw new Error('Valid shipping option ID is required');
+    }
+
+    const payload = {
+      option_id: optionId.trim(),
+      data: additionalData || {},
+    };
+
+    const response = await fetch(
+      `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}/shipping-methods`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-publishable-api-key': config.medusa.publishableKey,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to set shipping method (${response.status})`);
+    }
+
+    const resData = await response.json();
+    if (resData.cart) {
+      return mapMedusaCartToDto(resData.cart);
+    }
+
+    const freshCart = await this.getCart(cartId);
+    if (!freshCart) {
+      throw new Error('Failed to retrieve cart after selecting shipping method');
     }
     return freshCart;
   }

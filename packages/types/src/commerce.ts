@@ -137,11 +137,27 @@ export interface ShippingOptionDto {
   name: string;
   priceType: ShippingOptionPriceType;
   amount: number;
-  currencyCode: string;
+  currencyCode?: string;
   serviceZoneId?: string;
   shippingProfileId?: string;
-  providerId: string;
+  providerId?: string;
+  isTaxInclusive?: boolean;
+  insufficientInventory?: boolean;
   data?: Record<string, unknown>;
+}
+
+export interface CartShippingMethodDto {
+  id: string;
+  shippingOptionId?: string;
+  name: string;
+  amount: number;
+  isTaxInclusive?: boolean;
+  data?: Record<string, any>;
+}
+
+export interface SetShippingMethodPayload {
+  optionId: string;
+  data?: Record<string, any>;
 }
 
 export interface ShippingProfileDto {
@@ -500,6 +516,7 @@ export interface CartDto {
   regionId?: string;
   shippingAddress?: AddressDto | null;
   billingAddress?: AddressDto | null;
+  shippingMethods?: CartShippingMethodDto[];
   createdAt?: string;
   updatedAt?: string;
 }

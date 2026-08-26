@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { CartDto } from '@ecom/types';
+import type { CartDto, ShippingOptionDto } from '@ecom/types';
 
 export interface CartContextType {
   cart: CartDto | null;
@@ -11,11 +11,18 @@ export interface CartContextType {
   isLoading: boolean;
   isMutating: boolean;
   error: string | null;
+  shippingOptions: ShippingOptionDto[];
+  selectedShippingOptionId: string | null;
+  isLoadingShipping: boolean;
+  shippingError: string | null;
   addToCart: (variantId: string, quantity?: number, metadata?: Record<string, any>) => Promise<boolean>;
   updateQuantity: (lineItemId: string, quantity: number) => Promise<boolean>;
   removeItem: (lineItemId: string) => Promise<boolean>;
+  fetchShippingOptions: () => Promise<ShippingOptionDto[]>;
+  setShippingMethod: (optionId: string) => Promise<boolean>;
   refreshCart: () => Promise<void>;
   clearError: () => void;
+  clearShippingError: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -25,8 +32,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMutating, setIsMutating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [shippingOptions, setShippingOptions] = useState<ShippingOptionDto[]>([]);
+  const [isLoadingShipping, setIsLoadingShipping] = useState<boolean>(false);
+  const [shippingError, setShippingError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
+  const clearShippingError = useCallback(() => setShippingError(null), []);
 
   const refreshCart = useCallback(async () => {
     try {
@@ -49,6 +60,63 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const fetchShippingOptions = useCallback(async (): Promise<ShippingOptionDto[]> => {
+    try {
+      setIsLoadingShipping(true);
+      setShippingError(null);
+
+      const res = await fetch('/api/cart/shipping-options', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const options = data.shippingOptions || [];
+        setShippingOptions(options);
+        return options;
+      } else {
+        setShippingOptions([]);
+        return [];
+      }
+    } catch (err: any) {
+      console.warn('[CartContext] Failed to fetch shipping options:', err);
+      setShippingOptions([]);
+      return [];
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  }, []);
+
+  const setShippingMethod = useCallback(async (optionId: string): Promise<boolean> => {
+    try {
+      setIsMutating(true);
+      setShippingError(null);
+
+      const res = await fetch('/api/cart/shipping-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success || !data.cart) {
+        const errMsg = data.message || data.error || 'Failed to select shipping method';
+        setShippingError(errMsg);
+        return false;
+      }
+
+      setCart(data.cart);
+      return true;
+    } catch (err: any) {
+      setShippingError(err?.message || 'Network error while selecting shipping method');
+      return false;
+    } finally {
+      setIsMutating(false);
+    }
+  }, []);
+
   useEffect(() => {
     refreshCart();
 
@@ -64,6 +132,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [refreshCart]);
 
+  useEffect(() => {
+    if (cart?.shippingAddress) {
+      fetchShippingOptions();
+    } else {
+      setShippingOptions([]);
+    }
+  }, [cart?.shippingAddress, fetchShippingOptions]);
 
   const addToCart = useCallback(
     async (variantId: string, quantity: number = 1, metadata?: Record<string, any>): Promise<boolean> => {
@@ -156,6 +231,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const selectedShippingOptionId =
+    cart?.shippingMethods && cart.shippingMethods.length > 0
+      ? cart.shippingMethods[0].shippingOptionId || cart.shippingMethods[0].id
+      : null;
+
   const itemCount = cart?.totalItems ?? 0;
   const subtotal = cart?.subtotal ?? 0;
   const total = cart?.total ?? 0;
@@ -170,11 +250,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isMutating,
         error,
+        shippingOptions,
+        selectedShippingOptionId,
+        isLoadingShipping,
+        shippingError,
         addToCart,
         updateQuantity,
         removeItem,
+        fetchShippingOptions,
+        setShippingMethod,
         refreshCart,
         clearError,
+        clearShippingError,
       }}
     >
       {children}

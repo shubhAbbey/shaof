@@ -26,6 +26,7 @@ import { Badge } from '../../components/ui/badge';
 import { useCart } from '../../context/cart-context';
 import { useAuth } from '../../context/auth-context';
 import { useAddress } from '../../context/address-context';
+import { ShippingSelector } from '../../components/cart';
 import { formatINR } from '../../lib/utils';
 
 export default function CartPage() {
@@ -266,6 +267,9 @@ export default function CartPage() {
                   </div>
                 )}
               </div>
+
+              {/* Shipping Method Selector */}
+              <ShippingSelector className="mb-6" />
 
               {/* Items Card List */}
               <div className="bg-white rounded-2xl shadow-xs border border-gray-100 divide-y divide-gray-100 overflow-hidden">
