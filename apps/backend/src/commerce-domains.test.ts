@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BasePaymentProvider,
+  RazorpayPaymentProvider,
+  CodPaymentProvider,
   PromotionEngine,
   FulfillmentEngine,
   OrderEngine,
@@ -115,6 +117,128 @@ describe('Task 04: Commerce Core Domains', () => {
         data: initRes.data,
       });
       assert.equal(cancelRes.data?.canceled, true);
+    });
+
+    it('RazorpayPaymentProvider: initiates order with authoritative amount in paise and verifies signature', async () => {
+      const provider = new RazorpayPaymentProvider(
+        {},
+        {
+          keyId: 'rzp_test_mock123',
+          keySecret: 'mock_secret_key_for_test',
+          webhookSecret: 'mock_webhook_secret_for_test',
+        }
+      );
+
+      assert.equal(provider.identifier, 'razorpay');
+
+      // 1. Initiate
+      const initRes = await provider.initiatePayment({
+        amount: 1899,
+        currency_code: 'INR',
+        context: { cart_id: 'cart_test_123' } as any,
+      });
+
+      assert.equal(initRes.status, 'pending');
+      assert.equal(initRes.data?.amount, 1899);
+      assert.equal(initRes.data?.amount_in_paise, 189900);
+      assert.equal(initRes.data?.currency_code, 'INR');
+      assert.ok(initRes.id);
+
+      const orderId = initRes.id as string;
+      const paymentId = 'pay_test_999';
+
+      // 2. Generate valid HMAC-SHA256 signature
+      const crypto = await import('node:crypto');
+      const validSignature = crypto
+        .createHmac('sha256', 'mock_secret_key_for_test')
+        .update(`${orderId}|${paymentId}`)
+        .digest('hex');
+
+      // 3. Verify valid signature
+      const isValid = provider.verifyPaymentSignature(orderId, paymentId, validSignature);
+      assert.equal(isValid, true);
+
+      // 4. Verify invalid/tampered signature rejection
+      const isInvalid = provider.verifyPaymentSignature(orderId, paymentId, 'tampered_signature_string');
+      assert.equal(isInvalid, false);
+
+      // 5. Authorize with valid signature
+      const authRes = await provider.authorizePayment({
+        data: {
+          ...initRes.data,
+          order_id: orderId,
+          razorpay_payment_id: paymentId,
+          razorpay_signature: validSignature,
+        },
+      });
+      assert.equal(authRes.status, 'authorized');
+      assert.equal(authRes.data?.razorpay_payment_id, paymentId);
+
+      // 6. Authorize with invalid signature fails safely
+      const failedAuth = await provider.authorizePayment({
+        data: {
+          ...initRes.data,
+          order_id: orderId,
+          razorpay_payment_id: paymentId,
+          razorpay_signature: 'fake_forged_sig',
+        },
+      });
+      assert.equal(failedAuth.status, 'error');
+      assert.equal(failedAuth.data?.error, 'INVALID_SIGNATURE');
+
+      // 7. Webhook signature verification over raw body
+      const rawWebhookBody = JSON.stringify({ event: 'payment.captured', payload: { payment: { entity: { id: paymentId, amount: 189900 } } } });
+      const validWebhookSig = crypto
+        .createHmac('sha256', 'mock_webhook_secret_for_test')
+        .update(rawWebhookBody)
+        .digest('hex');
+
+      assert.equal(provider.verifyWebhookSignature(rawWebhookBody, validWebhookSig), true);
+      assert.equal(provider.verifyWebhookSignature(rawWebhookBody, 'forged_webhook_sig'), false);
+
+      // 8. Webhook normalization
+      const webhookAction = await provider.getWebhookActionAndData({
+        data: {
+          event: 'payment.captured',
+          payload: {
+            payment: { entity: { id: paymentId, order_id: orderId, amount: 189900 } },
+          },
+        },
+        rawData: rawWebhookBody,
+        headers: {},
+      });
+      assert.equal(webhookAction.action, 'captured');
+      assert.equal((webhookAction.data as any)?.amount, 1899);
+    });
+
+    it('CodPaymentProvider: handles genuine manual COD payment semantics without online simulation', async () => {
+      const provider = new CodPaymentProvider({}, { enabled: true });
+      assert.equal(provider.identifier, 'system_manual');
+      assert.equal(provider.isCodEnabled(), true);
+
+      // 1. Initiate
+      const initRes = await provider.initiatePayment({
+        amount: 2500,
+        currency_code: 'INR',
+        context: { cart_id: 'cart_cod_123' } as any,
+      });
+      assert.equal(initRes.status, 'pending');
+      assert.equal(initRes.data?.is_cod, true);
+      assert.equal(initRes.data?.payment_method, 'cod');
+      assert.equal(initRes.data?.amount, 2500);
+
+      // 2. Authorize
+      const authRes = await provider.authorizePayment({
+        data: initRes.data,
+      });
+      assert.equal(authRes.status, 'authorized');
+
+      // 3. Capture on delivery
+      const capRes = await provider.capturePayment({
+        data: authRes.data,
+      });
+      assert.equal(capRes.data?.status, 'captured');
+      assert.ok(capRes.data?.collected_at);
     });
   });
 

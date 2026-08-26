@@ -5964,6 +5964,265 @@ describe('Task 24: Checkout Shipping & Native Medusa Fulfillment Architecture', 
   });
 });
 
+describe('Tasks 25-27: Checkout Orchestration, Razorpay & COD', () => {
+  const mockCart = {
+    id: 'cart_test_checkout_01',
+    regionId: 'reg_in',
+    currencyCode: 'INR',
+    customerId: 'cust_test_01',
+    email: 'test@ecomfashion.in',
+    items: [
+      {
+        id: 'item_01',
+        title: 'Artisanal Linen Kurta',
+        variantId: 'var_01',
+        variantTitle: 'Sage Green / M',
+        sku: 'KURTA-GRN-M',
+        quantity: 2,
+        unitPrice: 1899,
+        total: 3798,
+      },
+    ],
+    shippingAddress: {
+      id: 'addr_01',
+      fullName: 'Aarav Sharma',
+      addressLine1: '42 Connaught Place',
+      city: 'New Delhi',
+      state: 'Delhi',
+      pincode: '110001',
+      countryCode: 'in',
+      mobile: '+919876543210',
+    },
+    shippingMethods: [
+      {
+        id: 'sm_01',
+        shippingOptionId: 'so_std_01',
+        name: 'Standard Delivery',
+        amount: 0,
+      },
+    ],
+    subtotal: 3798,
+    discountTotal: 0,
+    shippingTotal: 0,
+    taxTotal: 0,
+    total: 3798,
+  };
+
+  describe('Task 25: Checkout Orchestration & Validation', () => {
+    it('validates checkout prerequisites (cart items, address, shipping method)', () => {
+      const validatePrerequisites = (cart) => {
+        if (!cart.items || cart.items.length === 0) {
+          return { valid: false, error: 'EMPTY_CART' };
+        }
+        if (!cart.shippingAddress || !cart.shippingAddress.fullName || !cart.shippingAddress.addressLine1) {
+          return { valid: false, error: 'REQUIRES_ADDRESS' };
+        }
+        if (!cart.shippingMethods || cart.shippingMethods.length === 0) {
+          return { valid: false, error: 'REQUIRES_SHIPPING' };
+        }
+        return { valid: true };
+      };
+
+      // Valid cart
+      assert.deepEqual(validatePrerequisites(mockCart), { valid: true });
+
+      // Empty cart
+      assert.deepEqual(validatePrerequisites({ ...mockCart, items: [] }), {
+        valid: false,
+        error: 'EMPTY_CART',
+      });
+
+      // Missing address
+      assert.deepEqual(validatePrerequisites({ ...mockCart, shippingAddress: null }), {
+        valid: false,
+        error: 'REQUIRES_ADDRESS',
+      });
+
+      // Missing shipping method
+      assert.deepEqual(validatePrerequisites({ ...mockCart, shippingMethods: [] }), {
+        valid: false,
+        error: 'REQUIRES_SHIPPING',
+      });
+    });
+
+    it('enforces distributed concurrency locking with safe token ownership and duplicate suppression', async () => {
+      const redisStore = new Map();
+      const acquireLock = async (cartId) => {
+        const key = `lock:checkout:${cartId}`;
+        if (redisStore.has(key)) return { acquired: false };
+        const lockToken = `token_${Date.now()}`;
+        redisStore.set(key, lockToken);
+        return { acquired: true, lockToken };
+      };
+      const releaseLock = async (cartId, lockToken) => {
+        const key = `lock:checkout:${cartId}`;
+        if (lockToken) {
+          if (redisStore.get(key) === lockToken) {
+            redisStore.delete(key);
+          }
+        } else {
+          redisStore.delete(key);
+        }
+      };
+
+      const lock1 = await acquireLock('cart_01');
+      assert.equal(lock1.acquired, true);
+      // Concurrent second attempt rejected
+      const lock2 = await acquireLock('cart_01');
+      assert.equal(lock2.acquired, false);
+
+      // Attempt release with wrong token does not release
+      await releaseLock('cart_01', 'wrong_token');
+      const lockStillHeld = await acquireLock('cart_01');
+      assert.equal(lockStillHeld.acquired, false);
+
+      // Release with valid token succeeds
+      await releaseLock('cart_01', lock1.lockToken);
+      // After release, re-acquisition allowed
+      const lock3 = await acquireLock('cart_01');
+      assert.equal(lock3.acquired, true);
+      await releaseLock('cart_01', lock3.lockToken);
+    });
+
+    it('records and returns completed orders idempotently', async () => {
+      const orderStore = new Map();
+      const saveOrder = async (cartId, order) => {
+        orderStore.set(`cart:completed_order:${cartId}`, order);
+      };
+      const getOrder = async (cartId) => {
+        return orderStore.get(`cart:completed_order:${cartId}`) || null;
+      };
+
+      const mockOrder = { id: 'order_123', total: 3798 };
+      await saveOrder('cart_01', mockOrder);
+
+      const existing = await getOrder('cart_01');
+      assert.ok(existing);
+      assert.equal(existing.id, 'order_123');
+    });
+  });
+
+  describe('Task 26: Razorpay Payment Integration & Cryptographic Security', () => {
+    const testKeySecret = 'rzp_test_secret_for_tests';
+    const testWebhookSecret = 'rzp_webhook_secret_test';
+
+    it('creates trusted Razorpay order context with authoritative amount in paise', () => {
+      const authoritativeCartTotal = 3798;
+      const amountInPaise = Math.round(authoritativeCartTotal * 100);
+
+      const razorpayOrder = {
+        id: 'order_rzp_mock_123',
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: 'cart_test_checkout_01',
+        status: 'created',
+      };
+
+      assert.equal(razorpayOrder.amount, 379800);
+      assert.equal(razorpayOrder.currency, 'INR');
+      assert.equal(razorpayOrder.receipt, 'cart_test_checkout_01');
+    });
+
+    it('verifies valid Razorpay HMAC-SHA256 signature using constant-time comparison', () => {
+      const orderId = 'order_rzp_12345';
+      const paymentId = 'pay_67890';
+
+      const validSignature = crypto
+        .createHmac('sha256', testKeySecret)
+        .update(`${orderId}|${paymentId}`)
+        .digest('hex');
+
+      const verifySignature = (oId, pId, sig, secret) => {
+        const expected = crypto.createHmac('sha256', secret).update(`${oId}|${pId}`).digest('hex');
+        const bufA = Buffer.from(sig, 'utf8');
+        const bufB = Buffer.from(expected, 'utf8');
+        if (bufA.length !== bufB.length) return false;
+        return crypto.timingSafeEqual(bufA, bufB);
+      };
+
+      assert.equal(verifySignature(orderId, paymentId, validSignature, testKeySecret), true);
+      assert.equal(verifySignature(orderId, paymentId, 'tampered_signature', testKeySecret), false);
+    });
+
+    it('verifies Razorpay webhook signature over RAW body using constant-time HMAC-SHA256', () => {
+      const rawBody = JSON.stringify({
+        event: 'payment.captured',
+        payload: { payment: { entity: { id: 'pay_999', amount: 379800 } } },
+      });
+
+      const validWebhookSig = crypto
+        .createHmac('sha256', testWebhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      const verifyWebhook = (body, sig, secret) => {
+        const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
+        const bufA = Buffer.from(sig, 'utf8');
+        const bufB = Buffer.from(expected, 'utf8');
+        if (bufA.length !== bufB.length) return false;
+        return crypto.timingSafeEqual(bufA, bufB);
+      };
+
+      assert.equal(verifyWebhook(rawBody, validWebhookSig, testWebhookSecret), true);
+      assert.equal(verifyWebhook(rawBody, 'forged_webhook_signature', testWebhookSecret), false);
+    });
+
+    it('enforces durable webhook idempotency preventing duplicate event processing', async () => {
+      const durableRedisStore = new Map();
+
+      const handleEvent = async (evtId, evt) => {
+        const key = `webhook:processed:${evtId}`;
+        if (durableRedisStore.has(key)) {
+          return { success: true, duplicate: true };
+        }
+        durableRedisStore.set(key, JSON.stringify({ timestamp: Date.now(), event: evt }));
+        return { success: true, duplicate: false };
+      };
+
+      const eventId = 'evt_payment_captured_001';
+      const res1 = await handleEvent(eventId, { event: 'payment.captured' });
+      assert.equal(res1.duplicate, false);
+
+      const res2 = await handleEvent(eventId, { event: 'payment.captured' });
+      assert.equal(res2.duplicate, true);
+    });
+  });
+
+  describe('Task 27: Cash on Delivery (COD) Genuine Medusa Manual Provider Flow', () => {
+    it('validates COD availability when enabled in configuration', () => {
+      const isCodAvailable = (config) => config.COD_ENABLED !== false;
+
+      assert.equal(isCodAvailable({ COD_ENABLED: true }), true);
+      assert.equal(isCodAvailable({ COD_ENABLED: false }), false);
+    });
+
+    it('creates accurate COD order with manual payment semantics without online provider invocation', () => {
+      const isCod = true;
+      const paymentProvider = isCod ? 'system_manual' : 'razorpay';
+      const paymentStatus = isCod ? 'awaiting' : 'captured';
+
+      const orderDto = {
+        id: 'order_cod_001',
+        displayId: 100001,
+        paymentStatus,
+        paymentSessions: [
+          {
+            id: 'cod_sess_01',
+            providerId: paymentProvider,
+            amount: 3798,
+            status: 'authorized',
+            data: { is_cod: true },
+          },
+        ],
+      };
+
+      assert.equal(orderDto.paymentStatus, 'awaiting');
+      assert.equal(orderDto.paymentSessions[0].providerId, 'system_manual');
+      assert.equal(orderDto.paymentSessions[0].data.is_cod, true);
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
 
 

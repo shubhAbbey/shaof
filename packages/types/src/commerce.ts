@@ -589,6 +589,47 @@ export interface WishlistOperationResult {
   error?: string;
 }
 
+// ========================================================
+// 11. Checkout, Razorpay & COD Domain Contracts (Phases 25-27)
+// ========================================================
 
+export type CheckoutPaymentMethodType = 'razorpay' | 'cod';
 
+export interface RazorpayOrderDto {
+  id: string;
+  amount: number; // in paise (e.g. 589800 for ₹5898)
+  currency: string; // 'INR'
+  receipt: string;
+  status: string;
+  keyId: string;
+}
 
+export interface InitiateCheckoutPayload {
+  paymentMethod: CheckoutPaymentMethodType;
+}
+
+export interface InitiateCheckoutResult {
+  success: boolean;
+  paymentMethod: CheckoutPaymentMethodType;
+  cart: CartDto;
+  razorpayOrder?: RazorpayOrderDto;
+  requiresAddress?: boolean;
+  requiresShipping?: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface VerifyRazorpayPaymentPayload {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export interface CompleteCheckoutResult {
+  success: boolean;
+  order?: OrderDto;
+  orderId?: string;
+  status?: string;
+  message?: string;
+  error?: string;
+}
