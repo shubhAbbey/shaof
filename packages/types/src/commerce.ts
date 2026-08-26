@@ -6,6 +6,7 @@ export type AddressType = 'home' | 'office' | 'other';
 
 export interface AddressDto {
   id?: string;
+  customerId?: string;
   fullName: string;
   mobile: string;
   addressLine1: string;
@@ -17,6 +18,44 @@ export interface AddressDto {
   countryCode: string; // 'in' default
   addressType: AddressType;
   isDefault?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateAddressPayload {
+  fullName: string;
+  mobile: string;
+  addressLine1: string;
+  addressLine2?: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  countryCode?: string;
+  addressType?: AddressType;
+  isDefault?: boolean;
+}
+
+export interface UpdateAddressPayload {
+  fullName?: string;
+  mobile?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  countryCode?: string;
+  addressType?: AddressType;
+  isDefault?: boolean;
+}
+
+export interface AddressOperationResult {
+  success: boolean;
+  address?: AddressDto;
+  addresses?: AddressDto[];
+  message?: string;
+  error?: string;
 }
 
 export interface CustomerProfileDto {
@@ -459,6 +498,8 @@ export interface CartDto {
   total: number;
   currencyCode: string;
   regionId?: string;
+  shippingAddress?: AddressDto | null;
+  billingAddress?: AddressDto | null;
   createdAt?: string;
   updatedAt?: string;
 }

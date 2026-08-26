@@ -61,6 +61,46 @@ export function mapMedusaCartToDto(cart: any): CartDto {
   const taxTotal = typeof cart.tax_total === 'number' ? cart.tax_total : 0;
   const total = typeof cart.total === 'number' ? cart.total : Math.max(0, subtotal - discountTotal + shippingTotal + taxTotal);
 
+  let shippingAddress: any = undefined;
+  if (cart.shipping_address) {
+    const sa = cart.shipping_address;
+    const fullName = [sa.first_name, sa.last_name].filter(Boolean).join(' ') || sa.metadata?.fullName || 'Customer';
+    shippingAddress = {
+      id: sa.id,
+      fullName,
+      mobile: sa.phone || '',
+      addressLine1: sa.address_1 || '',
+      addressLine2: sa.address_2 || undefined,
+      landmark: sa.metadata?.landmark || undefined,
+      city: sa.city || '',
+      state: sa.province || '',
+      pincode: sa.postal_code || '',
+      countryCode: (sa.country_code || 'in').toLowerCase(),
+      addressType: (sa.metadata?.addressType || sa.company || 'home') as any,
+      isDefault: Boolean(sa.is_default_shipping),
+    };
+  }
+
+  let billingAddress: any = undefined;
+  if (cart.billing_address) {
+    const ba = cart.billing_address;
+    const fullName = [ba.first_name, ba.last_name].filter(Boolean).join(' ') || ba.metadata?.fullName || 'Customer';
+    billingAddress = {
+      id: ba.id,
+      fullName,
+      mobile: ba.phone || '',
+      addressLine1: ba.address_1 || '',
+      addressLine2: ba.address_2 || undefined,
+      landmark: ba.metadata?.landmark || undefined,
+      city: ba.city || '',
+      state: ba.province || '',
+      pincode: ba.postal_code || '',
+      countryCode: (ba.country_code || 'in').toLowerCase(),
+      addressType: (ba.metadata?.addressType || ba.company || 'home') as any,
+      isDefault: Boolean(ba.is_default_billing),
+    };
+  }
+
   return {
     id: cart.id,
     items,
@@ -72,6 +112,8 @@ export function mapMedusaCartToDto(cart: any): CartDto {
     total,
     currencyCode: (cart.currency_code || 'inr').toUpperCase(),
     regionId: cart.region_id,
+    shippingAddress,
+    billingAddress,
     createdAt: cart.created_at,
     updatedAt: cart.updated_at,
   };
@@ -115,7 +157,7 @@ export class MedusaCartService {
 
     try {
       const response = await fetch(
-        `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}?fields=*items,*items.variant,*items.variant.product`,
+        `${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}?fields=*items,*items.variant,*items.variant.product,*shipping_address,*billing_address`,
         {
           method: 'GET',
           headers: {
@@ -138,6 +180,74 @@ export class MedusaCartService {
       console.warn('[MedusaCartService] Error fetching cart from Medusa:', error.message);
       return null;
     }
+  }
+
+  /**
+   * Update shipping address on the Medusa cart
+   */
+  static async setShippingAddress(
+    cartId: string,
+    address: {
+      fullName: string;
+      mobile: string;
+      addressLine1: string;
+      addressLine2?: string;
+      landmark?: string;
+      city: string;
+      state: string;
+      pincode: string;
+      countryCode?: string;
+      addressType?: string;
+    }
+  ): Promise<CartDto> {
+    if (!cartId) {
+      throw new Error('Cart ID is required');
+    }
+
+    const payload = {
+      shipping_address: {
+        first_name: address.fullName.trim(),
+        last_name: '',
+        phone: address.mobile.trim(),
+        address_1: address.addressLine1.trim(),
+        address_2: address.addressLine2 ? address.addressLine2.trim() : '',
+        city: address.city.trim(),
+        province: address.state.trim(),
+        postal_code: address.pincode.trim(),
+        country_code: (address.countryCode || 'in').toLowerCase().trim(),
+        company: address.addressType || 'home',
+        metadata: {
+          landmark: address.landmark ? address.landmark.trim() : undefined,
+          addressType: address.addressType || 'home',
+          fullName: address.fullName.trim(),
+        },
+      },
+    };
+
+    const response = await fetch(`${config.medusa.baseUrl}/store/carts/${encodeURIComponent(cartId)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': config.medusa.publishableKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to update cart shipping address (${response.status})`);
+    }
+
+    const data = await response.json();
+    if (data.cart) {
+      return mapMedusaCartToDto(data.cart);
+    }
+
+    const freshCart = await this.getCart(cartId);
+    if (!freshCart) {
+      throw new Error('Failed to retrieve cart after setting shipping address');
+    }
+    return freshCart;
   }
 
   /**

@@ -16,6 +16,8 @@ import { AuthModal } from '../components/auth/auth-modal';
 import { CartProvider } from '../context/cart-context';
 import { CartDrawer } from '../components/cart/cart-drawer';
 import { WishlistProvider } from '../context/wishlist-context';
+import { AddressProvider } from '../context/address-context';
+import { AddressDrawer } from '../components/address/address-drawer';
 
 export const metadata: Metadata = constructMetadata();
 
@@ -38,16 +40,19 @@ export default async function RootLayout({
             <AuthProvider>
               <CartProvider>
                 <WishlistProvider>
-                  <MiniPdpProvider>
-                    <SearchProvider>
-                      <Header navigation={headerNav?.items} globalSettings={globalSettings} />
-                      <div className="flex-1">{children}</div>
-                      <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
-                      <MiniPdpModal />
-                      <AuthModal />
-                      <CartDrawer />
-                    </SearchProvider>
-                  </MiniPdpProvider>
+                  <AddressProvider>
+                    <MiniPdpProvider>
+                      <SearchProvider>
+                        <Header navigation={headerNav?.items} globalSettings={globalSettings} />
+                        <div className="flex-1">{children}</div>
+                        <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
+                        <MiniPdpModal />
+                        <AuthModal />
+                        <CartDrawer />
+                        <AddressDrawer />
+                      </SearchProvider>
+                    </MiniPdpProvider>
+                  </AddressProvider>
                 </WishlistProvider>
               </CartProvider>
             </AuthProvider>

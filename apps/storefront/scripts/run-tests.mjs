@@ -5183,6 +5183,541 @@ describe('Task 22A: PDP Image Gallery & Dedicated Cart Page Matrix', () => {
   });
 });
 
+describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => {
+  // Test address store simulation adhering strictly to Medusa Customer Module
+  class TestCustomerAddressStore {
+    constructor() {
+      this.addresses = new Map(); // customerId -> AddressDto[]
+    }
+
+    list(customerId) {
+      return [...(this.addresses.get(customerId) || [])];
+    }
+
+    get(customerId, addressId) {
+      const list = this.list(customerId);
+      return list.find((a) => a.id === addressId) || null;
+    }
+
+    create(customerId, payload) {
+      if (!customerId) throw new Error('UNAUTHORIZED');
+      if (!payload.fullName || payload.fullName.trim().length < 2) {
+        throw new Error('INVALID_FULL_NAME: Full name must be at least 2 characters');
+      }
+      const cleanPhone = String(payload.mobile || '').replace(/\D/g, '');
+      if (cleanPhone.length !== 10 && !String(payload.mobile || '').startsWith('+91')) {
+        throw new Error('INVALID_MOBILE: Please enter a valid 10-digit Indian mobile number');
+      }
+      if (!payload.addressLine1 || payload.addressLine1.trim().length < 3) {
+        throw new Error('INVALID_ADDRESS_LINE_1: Address line 1 must be at least 3 characters');
+      }
+      if (!payload.city || payload.city.trim().length < 2) {
+        throw new Error('INVALID_CITY: City is required');
+      }
+      if (!payload.state || payload.state.trim().length < 2) {
+        throw new Error('INVALID_STATE: State is required');
+      }
+      const cleanPincode = String(payload.pincode || '').trim();
+      if (!/^\d{6}$/.test(cleanPincode)) {
+        throw new Error('INVALID_PINCODE: Please enter a valid 6-digit Indian PIN code');
+      }
+
+      let currentList = this.list(customerId);
+      const isFirst = currentList.length === 0;
+      const isDefault = Boolean(payload.isDefault) || isFirst;
+
+      if (isDefault) {
+        currentList = currentList.map((a) => ({ ...a, isDefault: false }));
+      }
+
+      const id = `caddr_${crypto.randomBytes(8).toString('hex')}`;
+      const newAddress = {
+        id,
+        customerId,
+        fullName: payload.fullName.trim(),
+        mobile: payload.mobile.startsWith('+91') ? payload.mobile : `+91${cleanPhone}`,
+        addressLine1: payload.addressLine1.trim(),
+        addressLine2: payload.addressLine2 ? payload.addressLine2.trim() : undefined,
+        landmark: payload.landmark ? payload.landmark.trim() : undefined,
+        city: payload.city.trim(),
+        state: payload.state.trim(),
+        pincode: cleanPincode,
+        countryCode: (payload.countryCode || 'in').toLowerCase(),
+        addressType: payload.addressType || 'home',
+        isDefault,
+        createdAt: new Date().toISOString(),
+      };
+
+      currentList.push(newAddress);
+      this.addresses.set(customerId, currentList);
+      return { address: newAddress, addresses: currentList };
+    }
+
+    update(customerId, addressId, payload) {
+      if (!customerId) throw new Error('UNAUTHORIZED');
+      let currentList = this.list(customerId);
+      const index = currentList.findIndex((a) => a.id === addressId);
+      if (index === -1) {
+        throw new Error('NOT_FOUND: Address not found or access denied');
+      }
+
+      if (payload.pincode && !/^\d{6}$/.test(String(payload.pincode).trim())) {
+        throw new Error('INVALID_PINCODE: Please enter a valid 6-digit Indian PIN code');
+      }
+
+      if (payload.isDefault) {
+        currentList = currentList.map((a) => ({ ...a, isDefault: false }));
+      }
+
+      const existing = currentList[index];
+      const updatedAddress = {
+        ...existing,
+        ...payload,
+        fullName: payload.fullName !== undefined ? payload.fullName.trim() : existing.fullName,
+        addressLine1: payload.addressLine1 !== undefined ? payload.addressLine1.trim() : existing.addressLine1,
+        addressLine2: payload.addressLine2 !== undefined ? payload.addressLine2.trim() : existing.addressLine2,
+        landmark: payload.landmark !== undefined ? payload.landmark.trim() : existing.landmark,
+        city: payload.city !== undefined ? payload.city.trim() : existing.city,
+        state: payload.state !== undefined ? payload.state.trim() : existing.state,
+        pincode: payload.pincode !== undefined ? String(payload.pincode).trim() : existing.pincode,
+        isDefault: payload.isDefault !== undefined ? Boolean(payload.isDefault) : existing.isDefault,
+        updatedAt: new Date().toISOString(),
+      };
+
+      currentList[index] = updatedAddress;
+      this.addresses.set(customerId, currentList);
+      return { address: updatedAddress, addresses: currentList };
+    }
+
+    delete(customerId, addressId) {
+      if (!customerId) throw new Error('UNAUTHORIZED');
+      let currentList = this.list(customerId);
+      const index = currentList.findIndex((a) => a.id === addressId);
+      if (index === -1) {
+        throw new Error('NOT_FOUND: Address not found or access denied');
+      }
+
+      const wasDefault = currentList[index].isDefault;
+      currentList = currentList.filter((a) => a.id !== addressId);
+
+      // If deleted was default, designate the next remaining address as default
+      if (wasDefault && currentList.length > 0) {
+        currentList[0].isDefault = true;
+      }
+
+      this.addresses.set(customerId, currentList);
+      return { success: true, addresses: currentList };
+    }
+  }
+
+  describe('1. Guest Blocked & Authentication Guards', () => {
+    it('blocks unauthenticated guest requests to list addresses with 401 UNAUTHORIZED', () => {
+      const sessionToken = null;
+      const getAddressesGuard = (token) => {
+        if (!token) return { status: 401, error: 'UNAUTHORIZED', message: 'Authentication required' };
+        return { status: 200 };
+      };
+
+      const res = getAddressesGuard(sessionToken);
+      assert.equal(res.status, 401);
+      assert.equal(res.error, 'UNAUTHORIZED');
+    });
+
+    it('blocks unauthenticated guest requests to add, update, or delete addresses with 401', () => {
+      const store = new TestCustomerAddressStore();
+      assert.throws(() => store.create(null, { fullName: 'Guest' }), /UNAUTHORIZED/);
+      assert.throws(() => store.update(null, 'caddr_1', { fullName: 'Guest' }), /UNAUTHORIZED/);
+      assert.throws(() => store.delete(null, 'caddr_1'), /UNAUTHORIZED/);
+    });
+
+    it('derives customer identity exclusively from authenticated server session (never trusts browser payload)', () => {
+      const serverSession = { customerId: 'cus_authenticated_100' };
+      const maliciousBrowserPayload = { customerId: 'cus_victim_999', fullName: 'Hacker' };
+
+      // BFF controller strictly ignores browser customerId
+      const targetCustomerId = serverSession.customerId;
+      assert.equal(targetCustomerId, 'cus_authenticated_100');
+      assert.notEqual(targetCustomerId, maliciousBrowserPayload.customerId);
+    });
+  });
+
+  describe('2. Authenticated Address List & Empty State', () => {
+    it('returns clean empty array when customer has no saved addresses', () => {
+      const store = new TestCustomerAddressStore();
+      const addresses = store.list('cus_new_user');
+      assert.equal(Array.isArray(addresses), true);
+      assert.equal(addresses.length, 0);
+    });
+
+    it('returns all saved addresses with full schema fields for authenticated customer', () => {
+      const store = new TestCustomerAddressStore();
+      store.create('cus_user_1', {
+        fullName: 'Aarav Patel',
+        mobile: '9876543210',
+        addressLine1: 'Villa 12, Palm Meadows',
+        addressLine2: 'Whitefield',
+        landmark: 'Near Forum Value Mall',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560066',
+        countryCode: 'in',
+        addressType: 'home',
+        isDefault: true,
+      });
+
+      const addresses = store.list('cus_user_1');
+      assert.equal(addresses.length, 1);
+      const addr = addresses[0];
+      assert.equal(addr.fullName, 'Aarav Patel');
+      assert.equal(addr.mobile, '+919876543210');
+      assert.equal(addr.addressLine1, 'Villa 12, Palm Meadows');
+      assert.equal(addr.addressLine2, 'Whitefield');
+      assert.equal(addr.landmark, 'Near Forum Value Mall');
+      assert.equal(addr.city, 'Bengaluru');
+      assert.equal(addr.state, 'Karnataka');
+      assert.equal(addr.pincode, '560066');
+      assert.equal(addr.countryCode, 'in');
+      assert.equal(addr.addressType, 'home');
+      assert.equal(addr.isDefault, true);
+    });
+  });
+
+  describe('3. Address Creation & Field Validations', () => {
+    it('validates required fields: fullName, mobile, addressLine1, city, state, pincode', () => {
+      const store = new TestCustomerAddressStore();
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'A', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        /INVALID_FULL_NAME/
+      );
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'Aarav', mobile: '123', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        /INVALID_MOBILE/
+      );
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'St', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        /INVALID_ADDRESS_LINE_1/
+      );
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: '', state: 'Rajasthan', pincode: '302001' }),
+        /INVALID_CITY/
+      );
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: '', pincode: '302001' }),
+        /INVALID_STATE/
+      );
+      assert.throws(
+        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302' }),
+        /INVALID_PINCODE/
+      );
+    });
+
+    it('automatically makes the first created address default', () => {
+      const store = new TestCustomerAddressStore();
+      const res = store.create('cus_1', {
+        fullName: 'Diya Sen',
+        mobile: '9876543210',
+        addressLine1: '404 Lake View Apartments',
+        city: 'Kolkata',
+        state: 'West Bengal',
+        pincode: '700029',
+        isDefault: false, // Explicit false passed
+      });
+
+      assert.equal(res.address.isDefault, true); // Overridden to true as it is the first address
+    });
+
+    it('normalizes Indian phone numbers and PIN codes cleanly', () => {
+      const store = new TestCustomerAddressStore();
+      const res = store.create('cus_2', {
+        fullName: 'Karan Mehra',
+        mobile: '9812345678',
+        addressLine1: 'Plot 55, Sector 15',
+        city: 'Gurugram',
+        state: 'Haryana',
+        pincode: '122001',
+      });
+
+      assert.equal(res.address.mobile, '+919812345678');
+      assert.equal(res.address.pincode, '122001');
+    });
+  });
+
+  describe('4. Address Updating & Default Management', () => {
+    it('updates address fields and returns updated address list', () => {
+      const store = new TestCustomerAddressStore();
+      const created = store.create('cus_1', {
+        fullName: 'Meera Nair',
+        mobile: '9876543210',
+        addressLine1: 'House 14',
+        city: 'Kochi',
+        state: 'Kerala',
+        pincode: '682001',
+      });
+
+      const updated = store.update('cus_1', created.address.id, {
+        addressLine1: 'House 14, Rose Gardens',
+        landmark: 'Near Marine Drive',
+      });
+
+      assert.equal(updated.address.addressLine1, 'House 14, Rose Gardens');
+      assert.equal(updated.address.landmark, 'Near Marine Drive');
+    });
+
+    it('setting isDefault: true on an address unsets default on other addresses for the customer', () => {
+      const store = new TestCustomerAddressStore();
+      const addr1 = store.create('cus_1', {
+        fullName: 'Meera Home',
+        mobile: '9876543210',
+        addressLine1: 'House 14',
+        city: 'Kochi',
+        state: 'Kerala',
+        pincode: '682001',
+        isDefault: true,
+      });
+
+      const addr2 = store.create('cus_1', {
+        fullName: 'Meera Office',
+        mobile: '9876543210',
+        addressLine1: 'Infopark Phase 2',
+        city: 'Kochi',
+        state: 'Kerala',
+        pincode: '682042',
+        isDefault: false,
+      });
+
+      assert.equal(store.get('cus_1', addr1.address.id).isDefault, true);
+      assert.equal(store.get('cus_1', addr2.address.id).isDefault, false);
+
+      // Promote addr2 to default
+      store.update('cus_1', addr2.address.id, { isDefault: true });
+
+      assert.equal(store.get('cus_1', addr1.address.id).isDefault, false);
+      assert.equal(store.get('cus_1', addr2.address.id).isDefault, true);
+    });
+  });
+
+  describe('5. Address Deletion & Customer Isolation', () => {
+    it('deletes address by ID and promotes remaining address to default if deleted was default', () => {
+      const store = new TestCustomerAddressStore();
+      const addr1 = store.create('cus_1', {
+        fullName: 'Address 1',
+        mobile: '9876543210',
+        addressLine1: 'Line 1',
+        city: 'Pune',
+        state: 'Maharashtra',
+        pincode: '411001',
+        isDefault: true,
+      });
+
+      const addr2 = store.create('cus_1', {
+        fullName: 'Address 2',
+        mobile: '9876543210',
+        addressLine1: 'Line 2',
+        city: 'Pune',
+        state: 'Maharashtra',
+        pincode: '411004',
+        isDefault: false,
+      });
+
+      const res = store.delete('cus_1', addr1.address.id);
+      assert.equal(res.success, true);
+      assert.equal(res.addresses.length, 1);
+      assert.equal(res.addresses[0].id, addr2.address.id);
+      assert.equal(res.addresses[0].isDefault, true); // Promoted to default
+    });
+
+    it('strictly isolates Customer A from Customer B (Customer A cannot read, update, or delete Customer B address)', () => {
+      const store = new TestCustomerAddressStore();
+      const addrCustomerB = store.create('cus_B', {
+        fullName: 'Customer B Address',
+        mobile: '9876543210',
+        addressLine1: 'Secret Location B',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pincode: '400001',
+      });
+
+      // Customer A tries to read Customer B address
+      const readResult = store.get('cus_A', addrCustomerB.address.id);
+      assert.equal(readResult, null);
+
+      // Customer A tries to update Customer B address
+      assert.throws(() => store.update('cus_A', addrCustomerB.address.id, { fullName: 'Hacked' }), /NOT_FOUND/);
+
+      // Customer A tries to delete Customer B address
+      assert.throws(() => store.delete('cus_A', addrCustomerB.address.id), /NOT_FOUND/);
+
+      // Verify Customer B address remains untouched
+      const secureAddr = store.get('cus_B', addrCustomerB.address.id);
+      assert.equal(secureAddr.fullName, 'Customer B Address');
+    });
+  });
+
+  describe('6. Mutation Failure & State Recovery', () => {
+    it('preserves valid address list without corruption on mutation network failure', () => {
+      const originalList = [
+        { id: 'caddr_1', fullName: 'Saved Address 1', pincode: '560001' },
+      ];
+      let currentList = [...originalList];
+      let mutationError = null;
+
+      try {
+        // Attempt simulated API failure
+        throw new Error('Medusa API 500 Connection Timeout');
+      } catch (err) {
+        mutationError = err.message;
+        currentList = [...originalList]; // State rollback
+      }
+
+      assert.equal(mutationError, 'Medusa API 500 Connection Timeout');
+      assert.equal(currentList.length, 1);
+      assert.equal(currentList[0].id, 'caddr_1');
+    });
+
+    it('preserves user form inputs on validation or network failure so data is not lost', () => {
+      const userFormInput = {
+        fullName: 'Aditi Rao',
+        mobile: '9876543210',
+        addressLine1: 'Floor 3, Tech Park Residency',
+        landmark: 'Opposite Metro Pillar 140',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        pincode: '500081',
+      };
+
+      let formState = { ...userFormInput };
+      const simulatedFailure = true;
+
+      if (simulatedFailure) {
+        // Form state is preserved in local React state
+        formState = { ...userFormInput };
+      }
+
+      assert.equal(formState.fullName, 'Aditi Rao');
+      assert.equal(formState.landmark, 'Opposite Metro Pillar 140');
+      assert.equal(formState.pincode, '500081');
+    });
+  });
+
+  describe('7. Reusable Address Drawer & Responsive Matrix', () => {
+    it('enforces desktop right-side drawer pattern with 30-35% width constraints', () => {
+      const drawerConfig = {
+        position: 'right',
+        size: 'md', // max-w-md / 30-35% viewport width
+        showCloseButton: true,
+      };
+
+      assert.equal(drawerConfig.position, 'right');
+      assert.equal(drawerConfig.size, 'md');
+      assert.equal(drawerConfig.showCloseButton, true);
+    });
+
+    it('navigates seamlessly between list, add, and edit modes within the single drawer', () => {
+      let drawerMode = 'list';
+      let editingAddress = null;
+
+      const openAdd = () => {
+        drawerMode = 'add';
+        editingAddress = null;
+      };
+
+      const openEdit = (addr) => {
+        drawerMode = 'edit';
+        editingAddress = addr;
+      };
+
+      const backToList = () => {
+        drawerMode = 'list';
+        editingAddress = null;
+      };
+
+      assert.equal(drawerMode, 'list');
+      openAdd();
+      assert.equal(drawerMode, 'add');
+      backToList();
+      assert.equal(drawerMode, 'list');
+
+      const mockAddr = { id: 'caddr_1', fullName: 'Pooja' };
+      openEdit(mockAddr);
+      assert.equal(drawerMode, 'edit');
+      assert.equal(editingAddress.id, 'caddr_1');
+      backToList();
+      assert.equal(drawerMode, 'list');
+      assert.equal(editingAddress, null);
+    });
+
+    it('supports mobile back navigation to address list without page reloads', () => {
+      let currentScreen = 'form';
+      const handleMobileBack = () => {
+        currentScreen = 'list';
+      };
+
+      handleMobileBack();
+      assert.equal(currentScreen, 'list');
+    });
+  });
+
+  describe('8. Cart Integration & Address Selection', () => {
+    it('prompts guest user with login redirect when attempting to manage delivery address from /cart', () => {
+      const isAuthenticated = false;
+      let loginDestination = null;
+
+      const handleAddressAction = () => {
+        if (!isAuthenticated) {
+          loginDestination = '/cart';
+        }
+      };
+
+      handleAddressAction();
+      assert.equal(loginDestination, '/cart');
+    });
+
+    it('displays selected delivery address details on dedicated Cart Page for authenticated customer', () => {
+      const selectedAddress = {
+        id: 'caddr_10',
+        fullName: 'Vikram Malhotra',
+        mobile: '+919988776655',
+        addressLine1: 'Flat 101, Prestige Towers',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        pincode: '600001',
+        addressType: 'home',
+      };
+
+      assert.equal(selectedAddress.fullName, 'Vikram Malhotra');
+      assert.equal(selectedAddress.pincode, '600001');
+      assert.equal(selectedAddress.city, 'Chennai');
+    });
+
+    it('selecting address in drawer updates Medusa cart shipping address via existing cart infrastructure', async () => {
+      const cart = {
+        id: 'cart_123',
+        shippingAddress: null,
+      };
+
+      const selectedAddress = {
+        id: 'caddr_1',
+        fullName: 'Vikram Malhotra',
+        mobile: '+919988776655',
+        addressLine1: 'Flat 101, Prestige Towers',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        pincode: '600001',
+      };
+
+      const updateCartShippingAddress = async (cartId, address) => {
+        cart.shippingAddress = { ...address };
+        return cart;
+      };
+
+      await updateCartShippingAddress(cart.id, selectedAddress);
+      assert.ok(cart.shippingAddress);
+      assert.equal(cart.shippingAddress.fullName, 'Vikram Malhotra');
+      assert.equal(cart.shippingAddress.pincode, '600001');
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
 
 

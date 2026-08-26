@@ -24,10 +24,14 @@ import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { useCart } from '../../context/cart-context';
+import { useAuth } from '../../context/auth-context';
+import { useAddress } from '../../context/address-context';
 import { formatINR } from '../../lib/utils';
 
 export default function CartPage() {
   const router = useRouter();
+  const { isAuthenticated, openLogin } = useAuth();
+  const { selectedAddress, addresses, openAddressDrawer } = useAddress();
   const {
     cart,
     itemCount,
@@ -164,23 +168,103 @@ export default function CartPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left Column: Cart Items & Future Extension Slots (8 Cols) */}
             <div className="lg:col-span-8 space-y-5">
-              {/* Delivery Address Slot (Designated Extension Point for Phase 23) */}
+              {/* Delivery Address Slot (Phase 23 Customer Address Book Integration) */}
               <div
                 data-testid="cart-address-slot"
-                className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-gray-100 flex items-center justify-between gap-4"
+                className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-gray-100"
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
-                    <MapPin className="h-5 w-5" />
+                {!isAuthenticated ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900">Deliver to Your Address</p>
+                        <p className="text-[11px] text-gray-500">Sign in to choose a saved delivery address</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="cart-address-login-btn"
+                      onClick={() => openLogin('/cart')}
+                      className="font-bold text-brand-600 border-brand-200 hover:bg-brand-50"
+                    >
+                      Sign In to Select
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-900">Deliver to Pincode / Address</p>
-                    <p className="text-[11px] text-gray-500">Express delivery available for select locations</p>
+                ) : selectedAddress || cart.shippingAddress ? (
+                  (() => {
+                    const addr = selectedAddress || cart.shippingAddress!;
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0 mt-0.5">
+                            <MapPin className="h-5 w-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-bold text-gray-900">
+                                Deliver to: <span className="text-brand-700">{addr.fullName}</span>, {addr.pincode}
+                              </p>
+                              {addr.addressType && (
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="capitalize text-[10px] font-bold text-gray-600 bg-gray-100 py-0"
+                                >
+                                  {addr.addressType}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-1">
+                              {addr.addressLine1}
+                              {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}, {addr.city}
+                            </p>
+                            <p className="text-[11px] text-gray-400">Mobile: {addr.mobile}</p>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid="cart-change-address-btn"
+                          onClick={() => openAddressDrawer('list')}
+                          className="font-bold text-brand-600 border-gray-200 hover:border-brand-500 hover:bg-brand-50 shrink-0 self-end sm:self-center"
+                        >
+                          Change Address
+                        </Button>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900">No Delivery Address Selected</p>
+                        <p className="text-[11px] text-gray-500">
+                          {addresses.length > 0
+                            ? 'Choose from your saved addresses for delivery'
+                            : 'Add a delivery address to complete your order'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      data-testid="cart-select-address-btn"
+                      onClick={() => openAddressDrawer(addresses.length > 0 ? 'list' : 'add')}
+                      leftIcon={<Plus className="h-3.5 w-3.5" />}
+                      className="font-bold shrink-0"
+                    >
+                      {addresses.length > 0 ? 'Select Address' : 'Add Address'}
+                    </Button>
                   </div>
-                </div>
-                <Badge variant="outline" size="sm" className="font-semibold text-brand-700 border-brand-200">
-                  Standard Delivery
-                </Badge>
+                )}
               </div>
 
               {/* Items Card List */}

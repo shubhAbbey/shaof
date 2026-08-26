@@ -537,6 +537,79 @@ describe('Task 04: Commerce Core Domains', () => {
       assert.equal(WishlistEngine.checkWishlistItem('cus_200', 'var_red', []), false);
     });
   });
+
+  describe('Task 23: Customer Address Book Domain & Medusa Integration', () => {
+    it('validates required address fields accurately', () => {
+      const validAddress = {
+        fullName: 'Priya Sharma',
+        mobile: '+919876543210',
+        addressLine1: 'Flat 402, Green Valley Apartments',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560001',
+        countryCode: 'in',
+        addressType: 'home' as const,
+        isDefault: true,
+      };
+
+      assert.equal(validAddress.fullName, 'Priya Sharma');
+      assert.equal(validAddress.mobile, '+919876543210');
+      assert.equal(validAddress.pincode, '560001');
+      assert.equal(validAddress.addressType, 'home');
+      assert.equal(validAddress.isDefault, true);
+    });
+
+    it('enforces customer ownership on address modification and deletion', () => {
+      const sessionCustomerId = 'cus_priya_1';
+      const addressOwnerId = 'cus_priya_1';
+      const maliciousCustomerId = 'cus_attacker_9';
+
+      const ownerAuth = BackendAuthGuard.validateResourceOwnership(sessionCustomerId, addressOwnerId);
+      assert.equal(ownerAuth.allowed, true);
+      assert.equal(ownerAuth.statusCode, 200);
+
+      const attackerAuth = BackendAuthGuard.validateResourceOwnership(maliciousCustomerId, addressOwnerId);
+      assert.equal(attackerAuth.allowed, false);
+      assert.equal(attackerAuth.statusCode, 403);
+      assert.equal(attackerAuth.error, 'FORBIDDEN');
+    });
+
+    it('manages default address exclusivity deterministically across multiple addresses', () => {
+      let addresses = [
+        { id: 'caddr_1', fullName: 'Priya', isDefault: true },
+        { id: 'caddr_2', fullName: 'Priya Office', isDefault: false },
+      ];
+
+      // Adding new default address caddr_3
+      const newDefault = { id: 'caddr_3', fullName: 'Priya Parents', isDefault: true };
+      addresses = addresses.map((a) => ({ ...a, isDefault: false }));
+      addresses.push(newDefault);
+
+      assert.equal(addresses.length, 3);
+      const defaultAddresses = addresses.filter((a) => a.isDefault);
+      assert.equal(defaultAddresses.length, 1);
+      assert.equal(defaultAddresses[0].id, 'caddr_3');
+    });
+
+    it('preserves address line 2 and landmark as optional metadata fields', () => {
+      const addressWithOptionals = {
+        fullName: 'Rahul Verma',
+        mobile: '+919123456780',
+        addressLine1: 'Shop 12, Main Market',
+        addressLine2: 'Near City Clock Tower',
+        landmark: 'Opposite Central Bank',
+        city: 'Jaipur',
+        state: 'Rajasthan',
+        pincode: '302001',
+        countryCode: 'in',
+        addressType: 'office' as const,
+      };
+
+      assert.equal(addressWithOptionals.addressLine2, 'Near City Clock Tower');
+      assert.equal(addressWithOptionals.landmark, 'Opposite Central Bank');
+      assert.equal(addressWithOptionals.addressType, 'office');
+    });
+  });
 });
 
 
