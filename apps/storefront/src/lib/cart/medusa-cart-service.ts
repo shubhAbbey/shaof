@@ -66,41 +66,47 @@ export function mapMedusaCartToDto(cart: any): CartDto {
   let shippingAddress: any = undefined;
   if (cart.shipping_address) {
     const sa = cart.shipping_address;
-    const fullName = [sa.first_name, sa.last_name].filter(Boolean).join(' ') || sa.metadata?.fullName || 'Customer';
-    shippingAddress = {
-      id: sa.id,
-      fullName,
-      mobile: sa.phone || '',
-      addressLine1: sa.address_1 || '',
-      addressLine2: sa.address_2 || undefined,
-      landmark: sa.metadata?.landmark || undefined,
-      city: sa.city || '',
-      state: sa.province || '',
-      pincode: sa.postal_code || '',
-      countryCode: (sa.country_code || 'in').toLowerCase(),
-      addressType: (sa.metadata?.addressType || sa.company || 'home') as any,
-      isDefault: Boolean(sa.is_default_shipping),
-    };
+    const hasValidAddress = Boolean(sa.address_1 && sa.city && sa.postal_code);
+    if (hasValidAddress) {
+      const fullName = [sa.first_name, sa.last_name].filter(Boolean).join(' ') || sa.metadata?.fullName || 'Customer';
+      shippingAddress = {
+        id: sa.id,
+        fullName,
+        mobile: sa.phone || '',
+        addressLine1: sa.address_1 || '',
+        addressLine2: sa.address_2 || undefined,
+        landmark: sa.metadata?.landmark || undefined,
+        city: sa.city || '',
+        state: sa.province || '',
+        pincode: sa.postal_code || '',
+        countryCode: (sa.country_code || 'in').toLowerCase(),
+        addressType: (sa.metadata?.addressType || sa.company || 'home') as any,
+        isDefault: Boolean(sa.is_default_shipping),
+      };
+    }
   }
 
   let billingAddress: any = undefined;
   if (cart.billing_address) {
     const ba = cart.billing_address;
-    const fullName = [ba.first_name, ba.last_name].filter(Boolean).join(' ') || ba.metadata?.fullName || 'Customer';
-    billingAddress = {
-      id: ba.id,
-      fullName,
-      mobile: ba.phone || '',
-      addressLine1: ba.address_1 || '',
-      addressLine2: ba.address_2 || undefined,
-      landmark: ba.metadata?.landmark || undefined,
-      city: ba.city || '',
-      state: ba.province || '',
-      pincode: ba.postal_code || '',
-      countryCode: (ba.country_code || 'in').toLowerCase(),
-      addressType: (ba.metadata?.addressType || ba.company || 'home') as any,
-      isDefault: Boolean(ba.is_default_billing),
-    };
+    const hasValidBilling = Boolean(ba.address_1 && ba.city && ba.postal_code);
+    if (hasValidBilling) {
+      const fullName = [ba.first_name, ba.last_name].filter(Boolean).join(' ') || ba.metadata?.fullName || 'Customer';
+      billingAddress = {
+        id: ba.id,
+        fullName,
+        mobile: ba.phone || '',
+        addressLine1: ba.address_1 || '',
+        addressLine2: ba.address_2 || undefined,
+        landmark: ba.metadata?.landmark || undefined,
+        city: ba.city || '',
+        state: ba.province || '',
+        pincode: ba.postal_code || '',
+        countryCode: (ba.country_code || 'in').toLowerCase(),
+        addressType: (ba.metadata?.addressType || ba.company || 'home') as any,
+        isDefault: Boolean(ba.is_default_billing),
+      };
+    }
   }
 
   const shippingMethods: CartShippingMethodDto[] = (cart.shipping_methods || []).map((sm: any) => ({

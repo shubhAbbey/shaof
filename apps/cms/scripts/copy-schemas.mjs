@@ -27,3 +27,45 @@ const distSrcDir = path.join(cmsDir, 'dist', 'src');
 
 copyDirRecursive(srcDir, distSrcDir);
 console.log('✓ All schema and component JSON files copied to dist/src.');
+
+/**
+ * Ensures Strapi scoped packages are synchronized between workspace and root node_modules.
+ * Resolves Strapi v5 monorepo module resolution where @strapi/core expects @strapi/strapi/package.json.
+ */
+export function syncStrapiModules() {
+  const rootDir = fs.existsSync(path.join(process.cwd(), 'node_modules'))
+    ? process.cwd()
+    : path.resolve(cmsDir, '../..');
+  const cmsStrapiDir = path.join(cmsDir, 'node_modules', '@strapi');
+  const rootStrapiDir = path.join(rootDir, 'node_modules', '@strapi');
+
+  if (fs.existsSync(cmsStrapiDir) && fs.existsSync(rootStrapiDir)) {
+    // Link packages from apps/cms to root node_modules/@strapi
+    for (const dir of fs.readdirSync(cmsStrapiDir)) {
+      const target = path.join(cmsStrapiDir, dir);
+      const link = path.join(rootStrapiDir, dir);
+      if (!fs.existsSync(link)) {
+        try {
+          fs.symlinkSync(target, link, 'junction');
+        } catch {
+          // ignore if already linked
+        }
+      }
+    }
+    // Link packages from root to apps/cms node_modules/@strapi
+    for (const dir of fs.readdirSync(rootStrapiDir)) {
+      const target = path.join(rootStrapiDir, dir);
+      const link = path.join(cmsStrapiDir, dir);
+      if (!fs.existsSync(link)) {
+        try {
+          fs.symlinkSync(target, link, 'junction');
+        } catch {
+          // ignore if already linked
+        }
+      }
+    }
+    console.log('✓ Strapi monorepo module resolution synchronized.');
+  }
+}
+
+syncStrapiModules();

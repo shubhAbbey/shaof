@@ -236,4 +236,46 @@ describe('Payment Security Audit — Tasks 25–27 (Checkout, Razorpay & COD)', 
       assert.equal(paymentStatus, 'awaiting');
     });
   });
+
+  describe('6. Delivery Address Validation & Auto-Attachment', () => {
+    it('rejects incomplete placeholder addresses missing address line, city, or pincode', () => {
+      const emptyPlaceholderAddr: any = {
+        id: 'caaddr_placeholder',
+        fullName: 'Customer',
+        mobile: '',
+        addressLine1: '',
+        city: '',
+        state: '',
+        pincode: '',
+        countryCode: 'in',
+      };
+
+      const isAddressValid = Boolean(
+        emptyPlaceholderAddr &&
+          emptyPlaceholderAddr.fullName &&
+          emptyPlaceholderAddr.addressLine1 &&
+          emptyPlaceholderAddr.city &&
+          emptyPlaceholderAddr.state &&
+          emptyPlaceholderAddr.pincode &&
+          emptyPlaceholderAddr.mobile
+      );
+
+      assert.equal(isAddressValid, false);
+    });
+
+    it('accepts complete delivery address with all required Indian commerce fields', () => {
+      const validAddr = mockCart.shippingAddress!;
+      const isAddressValid = Boolean(
+        validAddr &&
+          validAddr.fullName &&
+          validAddr.addressLine1 &&
+          validAddr.city &&
+          validAddr.state &&
+          validAddr.pincode &&
+          validAddr.mobile
+      );
+
+      assert.equal(isAddressValid, true);
+    });
+  });
 });

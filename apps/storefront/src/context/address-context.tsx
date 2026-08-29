@@ -70,8 +70,11 @@ export const AddressProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (prevId && loaded.some((a) => a.id === prevId)) {
             return prevId;
           }
-          const defaultAddr = loaded.find((a) => a.isDefault);
-          return defaultAddr?.id || (loaded.length > 0 ? loaded[0].id || null : null);
+          const defaultAddr = loaded.find((a) => a.isDefault) || (loaded.length > 0 ? loaded[0] : null);
+          if (defaultAddr) {
+            syncAddressToCart(defaultAddr).catch(() => {});
+          }
+          return defaultAddr?.id || null;
         });
       } else {
         setAddresses([]);

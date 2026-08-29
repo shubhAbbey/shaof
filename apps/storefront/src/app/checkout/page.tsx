@@ -18,6 +18,9 @@ import {
   Loader2,
   RefreshCw,
   Plus,
+  Smartphone,
+  Landmark,
+  Zap,
 } from 'lucide-react';
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
@@ -36,6 +39,8 @@ declare global {
   }
 }
 
+export type OnlinePaymentSubMethod = 'upi' | 'card' | 'netbanking';
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { isAuthenticated, customer, openLogin } = useAuth();
@@ -43,6 +48,7 @@ export default function CheckoutPage() {
   const { cart, itemCount, subtotal, total, isLoading, refreshCart } = useCart();
 
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethodType>('razorpay');
+  const [selectedSubMethod, setSelectedSubMethod] = useState<OnlinePaymentSubMethod | null>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sdkReady, setSdkReady] = useState(false);
@@ -156,7 +162,23 @@ export default function CheckoutPage() {
     );
   }
 
-  const deliveryAddress = selectedAddress || cart.shippingAddress;
+  const isAddressValid = (addr: any) =>
+    Boolean(
+      addr &&
+        addr.fullName &&
+        addr.addressLine1 &&
+        addr.city &&
+        addr.state &&
+        addr.pincode &&
+        addr.mobile
+    );
+
+  const deliveryAddress =
+    selectedAddress && isAddressValid(selectedAddress)
+      ? selectedAddress
+      : cart.shippingAddress && isAddressValid(cart.shippingAddress)
+      ? cart.shippingAddress
+      : null;
   const hasShippingMethod = cart.shippingMethods && cart.shippingMethods.length > 0;
 
   // 5. Checkout Submission Handlers
@@ -164,10 +186,28 @@ export default function CheckoutPage() {
     setErrorMessage(null);
 
     // Prerequisite 1: Address check
-    if (!deliveryAddress) {
+    if (!deliveryAddress || !isAddressValid(deliveryAddress)) {
       setErrorMessage('Please select or add a delivery address to continue.');
       openAddressDrawer(addresses.length > 0 ? 'list' : 'add');
       return;
+    }
+
+    // Ensure delivery address is attached to cart before initiating payment
+    if (
+      deliveryAddress &&
+      (!cart.shippingAddress ||
+        !isAddressValid(cart.shippingAddress) ||
+        cart.shippingAddress.id !== deliveryAddress.id)
+    ) {
+      try {
+        await fetch('/api/cart/address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(deliveryAddress),
+        });
+      } catch {
+        // Non-blocking; initiate API also auto-attaches customer address
+      }
     }
 
     // Prerequisite 2: Shipping Method check
@@ -214,9 +254,13 @@ export default function CheckoutPage() {
       // Step B2: Handle Razorpay Online Payment
       if (paymentMethod === 'razorpay' && initData.razorpayOrder) {
         const rzpOrder = initData.razorpayOrder;
+        const isPlaceholderKey =
+          !rzpOrder.keyId ||
+          rzpOrder.keyId === 'rzp_test_placeholder' ||
+          rzpOrder.keyId.includes('placeholder');
 
-        // If standard Razorpay modal is loaded
-        if (typeof window !== 'undefined' && window.Razorpay) {
+        // If standard Razorpay modal is loaded AND real credentials configured
+        if (typeof window !== 'undefined' && window.Razorpay && !isPlaceholderKey) {
           const options = {
             key: rzpOrder.keyId,
             amount: rzpOrder.amount,
@@ -225,9 +269,10 @@ export default function CheckoutPage() {
             description: `Order Checkout (${itemCount} items)`,
             order_id: rzpOrder.id,
             prefill: {
-              name: deliveryAddress.fullName || customer?.firstName || '',
-              contact: deliveryAddress.mobile || customer?.mobile || '',
+              name: deliveryAddress?.fullName || customer?.firstName || '',
+              contact: deliveryAddress?.mobile || customer?.mobile || '',
               email: customer?.email || '',
+              method: selectedSubMethod || undefined,
             },
             theme: {
               color: '#d97706', // Brand amber/gold
@@ -274,7 +319,6 @@ export default function CheckoutPage() {
         } else {
           // Resilient test mode / SDK offline fallback
           const mockPaymentId = `pay_mock_${Date.now()}`;
-          const crypto = await import('node:crypto').catch(() => null);
 
           const verifyRes = await fetch('/api/checkout/verify', {
             method: 'POST',
@@ -439,29 +483,80 @@ export default function CheckoutPage() {
                 data-testid="checkout-payment-step"
                 className="bg-white rounded-2xl p-6 shadow-xs border border-gray-100 space-y-4"
               >
-                <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
-                  <span className="h-6 w-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">
-                    3
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-6 w-6 rounded-full bg-brand-600 text-white text-xs font-bold flex items-center justify-center">
+                      3
+                    </span>
+                    <h2 className="text-base font-bold text-gray-900">Payment Option</h2>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60 flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    <span>Instant & Secure</span>
                   </span>
-                  <h2 className="text-base font-bold text-gray-900">Payment Option</h2>
                 </div>
 
                 <div className="space-y-3">
-                  {/* Option 1: Razorpay Online Payment */}
+                  {/* Option 1: UPI (Google Pay, PhonePe, Paytm, QR) */}
                   <label
-                    data-testid="payment-method-razorpay"
+                    data-testid="payment-method-upi"
                     className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
-                      paymentMethod === 'razorpay'
+                      paymentMethod === 'razorpay' && selectedSubMethod === 'upi'
                         ? 'border-brand-500 bg-brand-50/30 ring-1 ring-brand-500'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
                     <input
                       type="radio"
-                      name="paymentMethod"
-                      value="razorpay"
-                      checked={paymentMethod === 'razorpay'}
-                      onChange={() => setPaymentMethod('razorpay')}
+                      name="paymentOption"
+                      value="upi"
+                      checked={paymentMethod === 'razorpay' && selectedSubMethod === 'upi'}
+                      onChange={() => {
+                        setPaymentMethod('razorpay');
+                        setSelectedSubMethod('upi');
+                      }}
+                      className="mt-1 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="h-4 w-4 text-emerald-600" />
+                          <span className="text-sm font-bold text-gray-900">
+                            UPI (Google Pay, PhonePe, Paytm, QR)
+                          </span>
+                        </div>
+                        <Badge variant="brand" size="sm" className="text-[10px]">
+                          Popular & Fast
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Pay instantly via Google Pay, PhonePe, Paytm, BHIM, Cred or any UPI App/QR.
+                      </p>
+                      <div className="flex items-center gap-2 pt-1 text-[11px] font-semibold text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Zero Transaction Fee & Instant Confirmation</span>
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 2: Credit & Debit Cards */}
+                  <label
+                    data-testid="payment-method-card"
+                    className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'razorpay' && selectedSubMethod === 'card'
+                        ? 'border-brand-500 bg-brand-50/30 ring-1 ring-brand-500'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentOption"
+                      value="card"
+                      checked={paymentMethod === 'razorpay' && selectedSubMethod === 'card'}
+                      onChange={() => {
+                        setPaymentMethod('razorpay');
+                        setSelectedSubMethod('card');
+                      }}
                       className="mt-1 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
                     />
                     <div className="flex-1 space-y-1">
@@ -469,24 +564,62 @@ export default function CheckoutPage() {
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-brand-600" />
                           <span className="text-sm font-bold text-gray-900">
-                            Online Payment (Razorpay)
+                            Credit / Debit Cards
                           </span>
                         </div>
-                        <Badge variant="brand" size="sm" className="text-[10px]">
-                          Recommended
+                        <Badge variant="secondary" size="sm" className="text-[10px]">
+                          All Major Cards
                         </Badge>
                       </div>
                       <p className="text-xs text-gray-500">
-                        Cards (Visa/Mastercard/RuPay), UPI (GPay, PhonePe, Paytm), Netbanking, and Wallets.
+                        Visa, Mastercard, RuPay, Maestro, Diners Club, and American Express.
                       </p>
                       <div className="flex items-center gap-2 pt-1 text-[11px] font-semibold text-emerald-600">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Instant Refund Eligible & Free Delivery</span>
+                        <span>RBI Compliant Tokenization & 3D Secure OTP</span>
                       </div>
                     </div>
                   </label>
 
-                  {/* Option 2: Cash on Delivery (COD) */}
+                  {/* Option 3: Netbanking */}
+                  <label
+                    data-testid="payment-method-netbanking"
+                    className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'razorpay' && selectedSubMethod === 'netbanking'
+                        ? 'border-brand-500 bg-brand-50/30 ring-1 ring-brand-500'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentOption"
+                      value="netbanking"
+                      checked={paymentMethod === 'razorpay' && selectedSubMethod === 'netbanking'}
+                      onChange={() => {
+                        setPaymentMethod('razorpay');
+                        setSelectedSubMethod('netbanking');
+                      }}
+                      className="mt-1 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Landmark className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-bold text-gray-900">
+                            Netbanking
+                          </span>
+                        </div>
+                        <Badge variant="secondary" size="sm" className="text-[10px]">
+                          50+ Banks
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        HDFC, ICICI, SBI, Axis, Kotak, Punjab National Bank, and all major banks.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 4: Cash on Delivery (COD) */}
                   <label
                     data-testid="payment-method-cod"
                     className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${
@@ -497,10 +630,13 @@ export default function CheckoutPage() {
                   >
                     <input
                       type="radio"
-                      name="paymentMethod"
+                      name="paymentOption"
                       value="cod"
                       checked={paymentMethod === 'cod'}
-                      onChange={() => setPaymentMethod('cod')}
+                      onChange={() => {
+                        setPaymentMethod('cod');
+                        setSelectedSubMethod(null);
+                      }}
                       className="mt-1 h-4 w-4 text-brand-600 border-gray-300 focus:ring-brand-500"
                     />
                     <div className="flex-1 space-y-1">
@@ -512,7 +648,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         <Badge variant="secondary" size="sm" className="text-[10px]">
-                          Manual
+                          Pay on Delivery
                         </Badge>
                       </div>
                       <p className="text-xs text-gray-500">
@@ -541,18 +677,24 @@ export default function CheckoutPage() {
                             src={item.thumbnail}
                             alt={item.title}
                             fill
+                            className="object-cover"
                             sizes="40px"
-                            className="object-cover object-center"
                           />
                         ) : (
-                          <ShoppingBag className="h-5 w-5 text-gray-300 m-auto" />
+                          <div className="h-full w-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs">
+                            Img
+                          </div>
                         )}
                       </div>
+
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-gray-900 truncate">{item.title}</p>
-                        <p className="text-[11px] text-gray-500">Qty: {item.quantity}</p>
+                        <p className="text-[11px] text-gray-500">
+                          Qty: {item.quantity} {item.variantTitle ? `• ${item.variantTitle}` : ''}
+                        </p>
                       </div>
-                      <span className="text-xs font-bold text-gray-900 shrink-0">
+
+                      <span className="text-xs font-bold text-gray-900">
                         {formatINR(item.total)}
                       </span>
                     </div>
@@ -560,15 +702,15 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Totals Breakdown */}
-                <div className="space-y-2.5 text-xs pt-3 border-t border-gray-100">
+                <div className="border-t border-gray-100 pt-4 space-y-2 text-xs">
                   <div className="flex justify-between text-gray-600">
-                    <span>Items Total</span>
+                    <span>Bag Total</span>
                     <span className="font-semibold text-gray-900">{formatINR(subtotal)}</span>
                   </div>
 
                   {cart.discountTotal > 0 && (
                     <div className="flex justify-between text-emerald-600 font-medium">
-                      <span>Discounts</span>
+                      <span>Discount</span>
                       <span>-{formatINR(cart.discountTotal)}</span>
                     </div>
                   )}
@@ -610,7 +752,15 @@ export default function CheckoutPage() {
                       Processing Order...
                     </span>
                   ) : paymentMethod === 'razorpay' ? (
-                    `Pay ${formatINR(total)} with Razorpay`
+                    selectedSubMethod === 'upi' ? (
+                      `Pay ${formatINR(total)} via UPI`
+                    ) : selectedSubMethod === 'card' ? (
+                      `Pay ${formatINR(total)} via Card`
+                    ) : selectedSubMethod === 'netbanking' ? (
+                      `Pay ${formatINR(total)} via Netbanking`
+                    ) : (
+                      `Pay ${formatINR(total)} Online`
+                    )
                   ) : (
                     `Confirm COD Order (${formatINR(total)})`
                   )}

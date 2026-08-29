@@ -195,9 +195,9 @@ export default function CartPage() {
                       Sign In to Select
                     </Button>
                   </div>
-                ) : selectedAddress || cart.shippingAddress ? (
+                ) : (selectedAddress && selectedAddress.addressLine1) || (cart.shippingAddress && cart.shippingAddress.addressLine1) ? (
                   (() => {
-                    const addr = selectedAddress || cart.shippingAddress!;
+                    const addr = (selectedAddress && selectedAddress.addressLine1 ? selectedAddress : cart.shippingAddress)!;
                     return (
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-start gap-3">
