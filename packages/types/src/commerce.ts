@@ -373,6 +373,14 @@ export interface RefundDto {
   createdAt: string;
 }
 
+export interface OrderCancelResult {
+  success: boolean;
+  orderId: string;
+  order?: OrderDto;
+  error?: string;
+  message?: string;
+}
+
 // ==========================================
 // 6. Payment Provider Abstraction Domain
 // ==========================================

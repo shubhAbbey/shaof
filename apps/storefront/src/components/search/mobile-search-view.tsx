@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { MobileBackButton } from '../ui/mobile-back-button';
 import { ProductCard } from '../sections/product-card';
+import { ProductCardSkeleton } from '../ui/skeleton';
 import { useSearch } from '../../hooks/use-search';
 import { StorefrontProduct } from '../../lib/commerce';
 import { cn } from '../../lib/utils';
@@ -381,6 +382,12 @@ export const MobileSearchView: React.FC<MobileSearchViewProps> = ({
               {products.map((product, idx) => (
                 <ProductCard key={product.id} product={product} priority={idx < 4} />
               ))}
+              {isLoadingMore && (
+                <>
+                  <ProductCardSkeleton />
+                  <ProductCardSkeleton />
+                </>
+              )}
             </div>
 
             {/* Infinite Scroll Sentinel */}

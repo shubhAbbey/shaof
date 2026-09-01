@@ -264,15 +264,21 @@ export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] 
               <button
                 type="button"
                 onClick={pdp.handleToggleWishlist}
+                disabled={pdp.isWishlisting}
                 aria-label="Add to wishlist"
                 className={cn(
                   'flex h-12 w-12 items-center justify-center rounded-xl border transition-all shrink-0',
+                  pdp.isWishlisting && 'opacity-60 cursor-not-allowed',
                   pdp.isWishlisted
                     ? 'border-brand-600 bg-brand-50 text-brand-600 ring-2 ring-brand-500/20'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 hover:text-brand-600 hover:bg-gray-50'
                 )}
               >
-                <Heart className={cn('h-5 w-5', pdp.isWishlisted && 'fill-brand-600')} />
+                {pdp.isWishlisting ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+                ) : (
+                  <Heart className={cn('h-5 w-5', pdp.isWishlisted && 'fill-brand-600')} />
+                )}
               </button>
 
               <button

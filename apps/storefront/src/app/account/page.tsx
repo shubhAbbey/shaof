@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, Phone, Mail, LogOut, ShoppingBag, ShieldCheck } from 'lucide-react';
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
+import { AccountSkeleton } from '../../components/ui/skeleton';
 import { LoginForm } from '../../components/auth/login-form';
 import { useAuth } from '../../context/auth-context';
 
@@ -14,8 +15,10 @@ export default function AccountPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      <div className="min-h-[75vh] py-10 bg-gray-50/30">
+        <Container size="lg">
+          <AccountSkeleton />
+        </Container>
       </div>
     );
   }

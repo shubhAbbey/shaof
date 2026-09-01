@@ -12,6 +12,7 @@ import { Drawer } from '../ui/drawer';
 import { EmptyState } from '../ui/empty-state';
 import { MobileBackButton } from '../ui/mobile-back-button';
 import { ProductCard } from '../sections/product-card';
+import { ProductCardSkeleton } from '../ui/skeleton';
 import { PlpFiltersPanel, type ActiveFilters } from './plp-filters-panel';
 import type { StorefrontProduct, ProductFacets } from '../../lib/commerce';
 
@@ -602,9 +603,10 @@ export const InteractivePlpView: React.FC<InteractivePlpViewProps> = ({
           {/* Product Grid Area */}
           <main className="lg:col-span-3">
             {isLoading ? (
-              <div className="flex min-h-[400px] w-full flex-col items-center justify-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-                <span className="text-xs font-medium text-gray-500">Updating catalog...</span>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 md:gap-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <ProductCardSkeleton key={i} />
+                ))}
               </div>
             ) : products.length === 0 ? (
               <EmptyState

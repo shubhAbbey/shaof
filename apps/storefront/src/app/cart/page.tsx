@@ -23,6 +23,7 @@ import {
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { CartSkeleton } from '../../components/ui/skeleton';
 import { useCart } from '../../context/cart-context';
 import { useAuth } from '../../context/auth-context';
 import { useAddress } from '../../context/address-context';
@@ -67,19 +68,9 @@ export default function CartPage() {
   // 1. Initial Loading Skeleton
   if (isLoading) {
     return (
-      <div className="min-h-[70vh] py-12 bg-gray-50/30">
+      <div className="min-h-[70vh] py-8 bg-gray-50/30">
         <Container size="xl">
-          <div className="space-y-8">
-            <div className="h-8 w-48 bg-gray-200 animate-pulse rounded-lg" />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              <div className="lg:col-span-8 space-y-4">
-                {[1, 2].map((i) => (
-                  <div key={i} className="h-32 bg-white rounded-2xl p-6 border border-gray-100 animate-pulse" />
-                ))}
-              </div>
-              <div className="lg:col-span-4 h-64 bg-white rounded-2xl p-6 border border-gray-100 animate-pulse" />
-            </div>
-          </div>
+          <CartSkeleton />
         </Container>
       </div>
     );

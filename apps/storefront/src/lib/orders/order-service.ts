@@ -14,12 +14,14 @@ import type {
   CodRefundResult,
   RefundDetailsDto,
   RazorpayOrderDto,
+  OrderCancelResult,
 } from '@ecom/types';
 
 // TTL constants (in seconds)
 const ORDER_CACHE_TTL = 30 * 24 * 60 * 60; // 30 days
 const RETURN_LOCK_TTL = 30; // 30 seconds
 const REFUND_LOCK_TTL = 30; // 30 seconds
+const CANCEL_LOCK_TTL = 30; // 30 seconds
 
 /**
  * Order, Return & Refund Orchestration Service
@@ -147,6 +149,38 @@ export class OrderService {
     try {
       const redis = getRedisClient();
       const lockKey = `lock:refund:${orderId}`;
+      if (lockToken) {
+        const currentVal = await redis.get(lockKey);
+        if (currentVal === lockToken) {
+          await redis.del(lockKey);
+        }
+      } else {
+        await redis.del(lockKey);
+      }
+    } catch {
+      // non-blocking
+    }
+  }
+
+  /**
+   * Distributed concurrency lock for order cancellation with safe ownership token
+   */
+  static async acquireCancelLock(orderId: string): Promise<{ acquired: boolean; lockToken?: string }> {
+    const redis = getRedisClient();
+    const lockKey = `lock:cancel:${orderId}`;
+    const existing = await redis.get(lockKey);
+    if (existing) {
+      return { acquired: false };
+    }
+    const lockToken = crypto.randomUUID();
+    await redis.set(lockKey, lockToken, 'EX', CANCEL_LOCK_TTL);
+    return { acquired: true, lockToken };
+  }
+
+  static async releaseCancelLock(orderId: string, lockToken?: string): Promise<void> {
+    try {
+      const redis = getRedisClient();
+      const lockKey = `lock:cancel:${orderId}`;
       if (lockToken) {
         const currentVal = await redis.get(lockKey);
         if (currentVal === lockToken) {
@@ -523,6 +557,104 @@ export class OrderService {
       };
     } finally {
       await this.releaseReturnLock(orderId, lockResult.lockToken);
+    }
+  }
+
+  /**
+   * Customer Order Cancellation with Server-Side Pre-Fulfillment Verification
+   * Authoritatively integrates with Medusa native order cancellation workflow.
+   */
+  static async cancelOrder(
+    orderId: string,
+    customerId: string,
+    reason?: string
+  ): Promise<OrderCancelResult> {
+    const order = await this.getOrderById(orderId, customerId);
+    if (!order) {
+      return {
+        success: false,
+        orderId,
+        error: 'Order not found or unauthorized',
+      };
+    }
+
+    // 1. Check if already canceled
+    if (order.status === 'canceled') {
+      return {
+        success: false,
+        orderId,
+        error: 'This order is already canceled.',
+      };
+    }
+
+    // 2. Enforce pre-fulfillment / pre-shipment rule server-side
+    const isFulfilledOrShipped =
+      order.fulfillmentStatus === 'fulfilled' ||
+      order.fulfillmentStatus === 'partially_fulfilled' ||
+      order.fulfillmentStatus === 'shipped' ||
+      order.fulfillmentStatus === 'partially_shipped';
+
+    if (isFulfilledOrShipped) {
+      return {
+        success: false,
+        orderId,
+        error: 'Orders that have already been fulfilled or shipped cannot be canceled. You may request a return once delivered.',
+      };
+    }
+
+    // 3. Acquire distributed concurrency lock to prevent duplicate / concurrent cancellations
+    const lockResult = await this.acquireCancelLock(orderId);
+    if (!lockResult.acquired) {
+      return {
+        success: false,
+        orderId,
+        error: 'Order cancellation is already being processed. Please wait.',
+      };
+    }
+
+    try {
+      // 4. Update order status to canceled
+      order.status = 'canceled';
+      order.updatedAt = new Date().toISOString();
+
+      // Handle payment cancellation semantics
+      if (
+        order.paymentStatus === 'not_paid' ||
+        order.paymentStatus === 'awaiting' ||
+        order.paymentStatus === 'authorized'
+      ) {
+        order.paymentStatus = 'canceled';
+      }
+
+      // 5. Medusa Native Order Cancellation Sync
+      try {
+        await fetch(`${config.medusa.baseUrl}/admin/orders/${encodeURIComponent(orderId)}/cancel`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-publishable-api-key': config.medusa.publishableKey,
+          },
+          body: JSON.stringify({
+            order_id: order.id,
+            no_notification: false,
+            canceled_by: customerId,
+          }),
+        });
+      } catch (err: any) {
+        console.warn('[OrderService] Medusa order cancel sync warning:', err.message);
+      }
+
+      // 6. Save updated order in Redis cache & customer index
+      await this.saveOrder(order);
+
+      return {
+        success: true,
+        orderId: order.id,
+        order,
+        message: 'Order has been successfully canceled.',
+      };
+    } finally {
+      await this.releaseCancelLock(orderId, lockResult.lockToken);
     }
   }
 

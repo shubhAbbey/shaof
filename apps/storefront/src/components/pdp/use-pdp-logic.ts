@@ -42,6 +42,7 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
   const [zoomLevel, setZoomLevel] = useState<number>(1.5);
   const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
   const [isBuyingNow, setIsBuyingNow] = useState<boolean>(false);
+  const [isWishlisting, setIsWishlisting] = useState<boolean>(false);
 
   // Pincode estimation state
 
@@ -205,25 +206,31 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
 
   // 6. Wishlist Handler
   const handleToggleWishlist = useCallback(async () => {
+    if (isWishlisting) return;
     const targetVariantId = selectedVariant?.id || product.defaultVariantId || product.variants?.[0]?.id;
     if (!targetVariantId) {
       toast.warning('Please select your preferred options before adding to wishlist.', 'Options Required');
       return;
     }
 
-    await toggleWishlist({
-      productId: product.id,
-      variantId: targetVariantId,
-      title: product.title,
-      handle: product.handle,
-      thumbnail: selectedVariant?.thumbnail || product.images?.[0] || product.thumbnail || undefined,
-      price: selectedVariant?.price ?? product.price,
-      originalPrice: selectedVariant?.originalPrice ?? product.originalPrice,
-      currencyCode: 'INR',
-      inStock: isAvailable,
-      options: selectedOptions,
-    });
-  }, [product, selectedVariant, isAvailable, selectedOptions, toggleWishlist, toast]);
+    try {
+      setIsWishlisting(true);
+      await toggleWishlist({
+        productId: product.id,
+        variantId: targetVariantId,
+        title: product.title,
+        handle: product.handle,
+        thumbnail: selectedVariant?.thumbnail || product.images?.[0] || product.thumbnail || undefined,
+        price: selectedVariant?.price ?? product.price,
+        originalPrice: selectedVariant?.originalPrice ?? product.originalPrice,
+        currencyCode: 'INR',
+        inStock: isAvailable,
+        options: selectedOptions,
+      });
+    } finally {
+      setIsWishlisting(false);
+    }
+  }, [product, selectedVariant, isAvailable, selectedOptions, isWishlisting, toggleWishlist, toast]);
 
 
 
@@ -268,6 +275,7 @@ export function usePdpLogic({ product, onAddToCartSuccess }: UsePdpLogicOptions)
     setZoomLevel,
     isAddingToCart,
     isBuyingNow,
+    isWishlisting,
     isWishlisted,
     pincode,
     pincodeStatus,

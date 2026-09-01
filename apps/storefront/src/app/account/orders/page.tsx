@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Container } from '../../../components/ui/container';
 import { Button } from '../../../components/ui/button';
+import { AccountSkeleton, OrderItemSkeleton } from '../../../components/ui/skeleton';
 import { LoginForm } from '../../../components/auth/login-form';
 import { useAuth } from '../../../context/auth-context';
 import type { OrderDto } from '@ecom/types';
@@ -74,8 +75,10 @@ export default function OrderHistoryPage() {
   // 1. Auth Loading State
   if (authLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      <div className="min-h-[75vh] py-10 bg-gray-50/30">
+        <Container size="lg">
+          <AccountSkeleton />
+        </Container>
       </div>
     );
   }
@@ -134,22 +137,9 @@ export default function OrderHistoryPage() {
           {/* Loading State */}
           {isLoading && (
             <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs animate-pulse space-y-4"
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="h-4 bg-gray-200 rounded w-1/4" />
-                    <div className="h-4 bg-gray-200 rounded w-1/6" />
-                  </div>
-                  <div className="h-16 bg-gray-100 rounded-xl" />
-                  <div className="flex justify-between items-center pt-2">
-                    <div className="h-4 bg-gray-200 rounded w-1/5" />
-                    <div className="h-8 bg-gray-200 rounded w-24" />
-                  </div>
-                </div>
-              ))}
+              <OrderItemSkeleton />
+              <OrderItemSkeleton />
+              <OrderItemSkeleton />
             </div>
           )}
 

@@ -13,6 +13,7 @@ import { Heading, Text } from '../../components/ui/typography';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card } from '../../components/ui/card';
+import { WishlistSkeleton } from '../../components/ui/skeleton';
 import { formatINR, cn } from '../../lib/utils';
 import type { WishlistItemDto } from '@ecom/types';
 
@@ -85,15 +86,7 @@ export default function WishlistPage() {
     return (
       <div className="min-h-[70vh] bg-gray-50/50 py-8 sm:py-12">
         <Container>
-          <div className="mb-6 animate-pulse">
-            <div className="h-8 w-48 bg-gray-200 rounded mb-2"></div>
-            <div className="h-4 w-32 bg-gray-100 rounded"></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((idx) => (
-              <div key={idx} className="h-80 rounded-xl bg-gray-100 animate-pulse"></div>
-            ))}
-          </div>
+          <WishlistSkeleton />
         </Container>
       </div>
     );

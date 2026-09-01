@@ -19,9 +19,12 @@ import {
   ChevronRight,
   HelpCircle,
   X,
+  Ban,
 } from 'lucide-react';
 import { Container } from '../../../../components/ui/container';
 import { Button } from '../../../../components/ui/button';
+import { Dialog } from '../../../../components/ui/dialog';
+import { OrderItemSkeleton } from '../../../../components/ui/skeleton';
 import { LoginForm } from '../../../../components/auth/login-form';
 import { useAuth } from '../../../../context/auth-context';
 import type { OrderDto, ReturnDto, ReturnRequestPayload, RefundMethod, RefundDetailsDto } from '@ecom/types';
@@ -48,6 +51,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [isSubmittingReturn, setIsSubmittingReturn] = useState<boolean>(false);
   const [returnError, setReturnError] = useState<string | null>(null);
   const [returnSuccess, setReturnSuccess] = useState<string | null>(null);
+
+  // Order cancellation state
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('Ordered by mistake');
+  const [isCanceling, setIsCanceling] = useState<boolean>(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
 
   // Payment retry state
   const [isRetryingPayment, setIsRetryingPayment] = useState<boolean>(false);
@@ -105,11 +115,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     };
   }, [orderId, isAuthenticated, customer, authLoading]);
 
-  // Auth Loading State
-  if (authLoading) {
+  // Auth / Data Loading State
+  if (authLoading || isLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      <div className="min-h-[75vh] py-8 bg-gray-50/40">
+        <Container size="lg">
+          <div className="max-w-4xl mx-auto space-y-6">
+            <OrderItemSkeleton />
+            <OrderItemSkeleton />
+          </div>
+        </Container>
       </div>
     );
   }
@@ -194,7 +209,51 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const canRequestReturn = eligibleItemsToReturn.length > 0;
   const isPaid = order.paymentStatus === 'captured';
   const isCod = order.paymentStatus === 'awaiting';
-  const canRetryPayment = !isPaid && !isCod && order.status !== 'completed';
+  const isCanceled = order.status === 'canceled';
+  const isFulfilledOrShipped =
+    order.fulfillmentStatus === 'fulfilled' ||
+    order.fulfillmentStatus === 'partially_fulfilled' ||
+    order.fulfillmentStatus === 'shipped' ||
+    order.fulfillmentStatus === 'partially_shipped';
+  const canCancelOrder = !isCanceled && !isFulfilledOrShipped;
+  const canRetryPayment = !isPaid && !isCod && !isCanceled && order.status !== 'completed';
+
+  // Handle Order Cancellation
+  async function handleCancelOrder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!order || isCanceling) return;
+    setIsCanceling(true);
+    setCancelError(null);
+    setCancelSuccess(null);
+
+    try {
+      const res = await fetch(`/api/account/orders/${encodeURIComponent(orderId)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Failed to cancel order.');
+      }
+
+      setCancelSuccess('Order has been successfully canceled.');
+      if (data.order) {
+        setOrder(data.order);
+      } else {
+        setOrder((prev) => (prev ? { ...prev, status: 'canceled' } : null));
+      }
+      setTimeout(() => {
+        setIsCancelModalOpen(false);
+        setCancelSuccess(null);
+      }, 1500);
+    } catch (err: any) {
+      setCancelError(err.message || 'Unable to cancel order. Please try again.');
+    } finally {
+      setIsCanceling(false);
+    }
+  }
 
   // Handle Payment Retry
   async function handleRetryPayment() {
@@ -352,23 +411,55 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Badges & Actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-full font-bold text-xs ${
-                  isPaid
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : isCod
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-red-50 text-red-700 border border-red-200'
-                }`}
-              >
-                {isPaid ? 'Payment Captured' : isCod ? 'COD (Pay on Delivery)' : 'Unpaid'}
-              </span>
+              {isCanceled ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full font-bold text-xs bg-red-100 text-red-800 border border-red-200">
+                  Order Canceled
+                </span>
+              ) : (
+                <>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full font-bold text-xs ${
+                      isPaid
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : isCod
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}
+                  >
+                    {isPaid ? 'Payment Captured' : isCod ? 'COD (Pay on Delivery)' : 'Unpaid'}
+                  </span>
 
-              <span className="inline-flex items-center px-3 py-1 rounded-full font-bold text-xs bg-blue-50 text-blue-700 border border-blue-200 capitalize">
-                {order.fulfillmentStatus?.replace(/_/g, ' ') || 'Processing'}
-              </span>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full font-bold text-xs bg-blue-50 text-blue-700 border border-blue-200 capitalize">
+                    {order.fulfillmentStatus?.replace(/_/g, ' ') || 'Processing'}
+                  </span>
+
+                  {canCancelOrder && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsCancelModalOpen(true)}
+                      className="text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                    >
+                      Cancel Order
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
           </div>
+
+          {/* Order Canceled Banner */}
+          {isCanceled && (
+            <div className="bg-red-50/80 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
+              <Ban className="h-5 w-5 text-red-600 shrink-0" />
+              <div className="text-xs text-red-900">
+                <p className="font-bold text-sm">Order Canceled</p>
+                <p>
+                  This order has been canceled. If any online payment was captured, the refund is processed via your original payment method.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Payment Retry Banner (if failed/unpaid) */}
           {canRetryPayment && (
@@ -781,6 +872,71 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       )}
+
+      {/* Cancel Order Confirmation Modal */}
+      <Dialog
+        isOpen={isCancelModalOpen}
+        onClose={() => !isCanceling && setIsCancelModalOpen(false)}
+        title="Cancel Order"
+        size="sm"
+      >
+        <form onSubmit={handleCancelOrder} className="space-y-4">
+          <p className="text-xs text-gray-600">
+            Are you sure you want to cancel Order <span className="font-bold">#{order.id}</span>? Once canceled, this action cannot be undone.
+          </p>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-700">Reason for cancellation</label>
+            <select
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              disabled={isCanceling}
+              className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white"
+            >
+              <option value="Ordered by mistake">Ordered by mistake</option>
+              <option value="Found a better price">Found a better price</option>
+              <option value="Incorrect delivery address">Incorrect delivery address</option>
+              <option value="Changed my mind">Changed my mind</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {cancelError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 font-medium">
+              {cancelError}
+            </div>
+          )}
+
+          {cancelSuccess && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 font-bold">
+              {cancelSuccess}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={isCanceling}
+              onClick={() => setIsCancelModalOpen(false)}
+              className="w-1/2 text-xs font-semibold"
+            >
+              Keep Order
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              isLoading={isCanceling}
+              disabled={isCanceling || !!cancelSuccess}
+              className="w-1/2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white"
+            >
+              Confirm Cancel
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
