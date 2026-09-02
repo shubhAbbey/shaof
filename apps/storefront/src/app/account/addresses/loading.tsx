@@ -1,5 +1,5 @@
 import React from 'react';
-import { Container, AddressCardSkeleton, Skeleton } from '../../../../components/ui';
+import { Container, AddressCardSkeleton, Skeleton } from '../../../components/ui';
 
 export default function Loading() {
   return (

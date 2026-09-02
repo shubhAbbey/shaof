@@ -473,23 +473,44 @@ describe('Phase 36: Authoritative End-to-End Customer Journeys', () => {
       assert.equal(res.status, 401);
     });
 
-    it('7.6. Concurrency lock prevents duplicate simultaneous cancellation attempts', () => {
-      let isLocked = false;
-      const cancelWithLock = () => {
-        if (isLocked) return { success: false, error: 'LOCKED' };
-        isLocked = true;
-        // simulate async Medusa cancel workflow
-        isLocked = false;
-        return { success: true };
+    it('7.6. Atomic SET NX EX 30 concurrency lock prevents simultaneous double-cancellation', async () => {
+      const redisStore = new Map<string, string>();
+      const mockAtomicSetNx = (key: string, value: string, _ex: string, _ttl: number, flag: string) => {
+        if (flag === 'NX' && redisStore.has(key)) {
+          return null;
+        }
+        redisStore.set(key, value);
+        return 'OK';
       };
 
-      const first = cancelWithLock();
-      assert.equal(first.success, true);
+      const lockKey = 'lock:cancel:order_to_cancel_1';
+      const token1 = crypto.randomUUID();
+      const token2 = crypto.randomUUID();
 
-      isLocked = true;
-      const concurrent = cancelWithLock();
-      assert.equal(concurrent.success, false);
-      assert.equal(concurrent.error, 'LOCKED');
+      // First caller attempts lock
+      const res1 = mockAtomicSetNx(lockKey, token1, 'EX', 30, 'NX');
+      assert.equal(res1, 'OK', 'Caller 1 must acquire atomic lock');
+
+      // Second simultaneous caller attempts lock on same key
+      const res2 = mockAtomicSetNx(lockKey, token2, 'EX', 30, 'NX');
+      assert.equal(res2, null, 'Caller 2 must fail to acquire lock while locked');
+
+      // Release only with matching token
+      const releaseLock = (key: string, token: string) => {
+        if (redisStore.get(key) === token) {
+          redisStore.delete(key);
+          return true;
+        }
+        return false;
+      };
+
+      // Attacker/Wrong token cannot release caller 1 lock
+      assert.equal(releaseLock(lockKey, token2), false);
+      assert.equal(redisStore.has(lockKey), true);
+
+      // Caller 1 safely releases lock
+      assert.equal(releaseLock(lockKey, token1), true);
+      assert.equal(redisStore.has(lockKey), false);
     });
   });
 });

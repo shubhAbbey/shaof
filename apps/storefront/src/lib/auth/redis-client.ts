@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 
 export interface IRedisAdapter {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, mode?: string, duration?: number): Promise<'OK' | null>;
+  set(key: string, value: string, mode?: string, duration?: number, flag?: string): Promise<'OK' | null>;
   del(key: string): Promise<number>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
@@ -32,7 +32,10 @@ export class InMemoryRedisAdapter implements IRedisAdapter {
     return this.store.get(key)?.value ?? null;
   }
 
-  async set(key: string, value: string, mode?: string, duration?: number): Promise<'OK' | null> {
+  async set(key: string, value: string, mode?: string, duration?: number, flag?: string): Promise<'OK' | null> {
+    if (flag === 'NX' && this.clean(key)) {
+      return null;
+    }
     let expiresAt: number | undefined;
     if (mode === 'EX' && typeof duration === 'number') {
       expiresAt = Date.now() + duration * 1000;
@@ -124,19 +127,22 @@ export class RedisClientWrapper implements IRedisAdapter {
     return this.fallback.get(key);
   }
 
-  async set(key: string, value: string, mode?: string, duration?: number): Promise<'OK' | null> {
+  async set(key: string, value: string, mode?: string, duration?: number, flag?: string): Promise<'OK' | null> {
     const client = await this.getActiveClient();
     if (client) {
       try {
+        if (mode === 'EX' && typeof duration === 'number' && flag === 'NX') {
+          return await (client as any).set(key, value, 'EX', duration, 'NX');
+        }
         if (mode === 'EX' && typeof duration === 'number') {
           return await client.set(key, value, 'EX', duration);
         }
         return await client.set(key, value);
       } catch {
-        return this.fallback.set(key, value, mode, duration);
+        return this.fallback.set(key, value, mode, duration, flag);
       }
     }
-    return this.fallback.set(key, value, mode, duration);
+    return this.fallback.set(key, value, mode, duration, flag);
   }
 
   async del(key: string): Promise<number> {

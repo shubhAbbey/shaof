@@ -1,5 +1,5 @@
 import React from 'react';
-import { Container, OrderItemSkeleton, Skeleton } from '../../../../components/ui';
+import { Container, OrderItemSkeleton, Skeleton } from '../../../components/ui';
 
 export default function Loading() {
   return (

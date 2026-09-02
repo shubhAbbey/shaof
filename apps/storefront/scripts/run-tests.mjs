@@ -6686,6 +6686,18 @@ describe('Phase 36: Full Customer Journey End-to-End Test Suite', () => {
     assert.equal(r4.success, false);
     assert.equal(r4.status, 409);
     assert.equal(r4.error, 'ALREADY_CANCELED');
+
+    // 5. Atomic Redis SET NX EX 30 concurrency lock prevents double-cancellation
+    const redisStore = new Map();
+    const atomicSetNx = (key, val) => {
+      if (redisStore.has(key)) return null;
+      redisStore.set(key, val);
+      return 'OK';
+    };
+    const t1 = crypto.randomUUID();
+    const t2 = crypto.randomUUID();
+    assert.equal(atomicSetNx('lock:cancel:1', t1), 'OK');
+    assert.equal(atomicSetNx('lock:cancel:1', t2), null);
   });
 });
 

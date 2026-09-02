@@ -100,16 +100,16 @@ export class OrderService {
 
   /**
    * Distributed concurrency lock for return requests with safe ownership token
+   * Uses atomic SET key token EX ttl NX
    */
   static async acquireReturnLock(orderId: string): Promise<{ acquired: boolean; lockToken?: string }> {
     const redis = getRedisClient();
     const lockKey = `lock:return:${orderId}`;
-    const existing = await redis.get(lockKey);
-    if (existing) {
+    const lockToken = crypto.randomUUID();
+    const result = await redis.set(lockKey, lockToken, 'EX', RETURN_LOCK_TTL, 'NX');
+    if (result !== 'OK') {
       return { acquired: false };
     }
-    const lockToken = crypto.randomUUID();
-    await redis.set(lockKey, lockToken, 'EX', RETURN_LOCK_TTL);
     return { acquired: true, lockToken };
   }
 
@@ -132,16 +132,16 @@ export class OrderService {
 
   /**
    * Distributed concurrency lock for refund operations with safe ownership token
+   * Uses atomic SET key token EX ttl NX
    */
   static async acquireRefundLock(orderId: string): Promise<{ acquired: boolean; lockToken?: string }> {
     const redis = getRedisClient();
     const lockKey = `lock:refund:${orderId}`;
-    const existing = await redis.get(lockKey);
-    if (existing) {
+    const lockToken = crypto.randomUUID();
+    const result = await redis.set(lockKey, lockToken, 'EX', REFUND_LOCK_TTL, 'NX');
+    if (result !== 'OK') {
       return { acquired: false };
     }
-    const lockToken = crypto.randomUUID();
-    await redis.set(lockKey, lockToken, 'EX', REFUND_LOCK_TTL);
     return { acquired: true, lockToken };
   }
 
@@ -164,16 +164,16 @@ export class OrderService {
 
   /**
    * Distributed concurrency lock for order cancellation with safe ownership token
+   * Uses atomic SET key token EX 30 NX
    */
   static async acquireCancelLock(orderId: string): Promise<{ acquired: boolean; lockToken?: string }> {
     const redis = getRedisClient();
     const lockKey = `lock:cancel:${orderId}`;
-    const existing = await redis.get(lockKey);
-    if (existing) {
+    const lockToken = crypto.randomUUID();
+    const result = await redis.set(lockKey, lockToken, 'EX', CANCEL_LOCK_TTL, 'NX');
+    if (result !== 'OK') {
       return { acquired: false };
     }
-    const lockToken = crypto.randomUUID();
-    await redis.set(lockKey, lockToken, 'EX', CANCEL_LOCK_TTL);
     return { acquired: true, lockToken };
   }
 
@@ -613,44 +613,67 @@ export class OrderService {
     }
 
     try {
-      // 4. Update order status to canceled
-      order.status = 'canceled';
-      order.updatedAt = new Date().toISOString();
+      let authoritativeOrder: OrderDto = order;
 
-      // Handle payment cancellation semantics
-      if (
-        order.paymentStatus === 'not_paid' ||
-        order.paymentStatus === 'awaiting' ||
-        order.paymentStatus === 'authorized'
-      ) {
-        order.paymentStatus = 'canceled';
-      }
-
-      // 5. Medusa Native Order Cancellation Sync
+      // 4. Medusa Native Order Cancellation Sync
+      // Delegates order state transition, payment cancellation & inventory restocking to Medusa native workflow
       try {
-        await fetch(`${config.medusa.baseUrl}/admin/orders/${encodeURIComponent(orderId)}/cancel`, {
+        const medusaRes = await fetch(`${config.medusa.baseUrl}/store/orders/${encodeURIComponent(orderId)}/cancel`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-publishable-api-key': config.medusa.publishableKey,
           },
           body: JSON.stringify({
-            order_id: order.id,
-            no_notification: false,
-            canceled_by: customerId,
+            customer_id: customerId,
+            reason: reason || 'Customer requested cancellation',
           }),
         });
+
+        if (medusaRes.ok) {
+          const medusaData = await medusaRes.json();
+          const mo = medusaData.order || medusaData.data;
+          if (mo) {
+            authoritativeOrder = this.mapMedusaOrderToDto(mo, customerId);
+          } else {
+            authoritativeOrder.status = 'canceled';
+            authoritativeOrder.updatedAt = new Date().toISOString();
+          }
+        } else {
+          // If Medusa returned an authoritative business error, respect it
+          if (medusaRes.status === 400 || medusaRes.status === 409) {
+            const errData = await medusaRes.json().catch(() => ({}));
+            return {
+              success: false,
+              orderId,
+              error: errData.message || 'Order cannot be canceled in its current state.',
+            };
+          }
+          authoritativeOrder.status = 'canceled';
+          authoritativeOrder.updatedAt = new Date().toISOString();
+        }
       } catch (err: any) {
-        console.warn('[OrderService] Medusa order cancel sync warning:', err.message);
+        console.warn('[OrderService] Medusa order cancel notice:', err.message);
+        authoritativeOrder.status = 'canceled';
+        authoritativeOrder.updatedAt = new Date().toISOString();
       }
 
-      // 6. Save updated order in Redis cache & customer index
-      await this.saveOrder(order);
+      // Handle payment cancellation semantics
+      if (
+        authoritativeOrder.paymentStatus === 'not_paid' ||
+        authoritativeOrder.paymentStatus === 'awaiting' ||
+        authoritativeOrder.paymentStatus === 'authorized'
+      ) {
+        authoritativeOrder.paymentStatus = 'canceled';
+      }
+
+      // 5. Save updated order in Redis cache & customer index
+      await this.saveOrder(authoritativeOrder);
 
       return {
         success: true,
-        orderId: order.id,
-        order,
+        orderId: authoritativeOrder.id,
+        order: authoritativeOrder,
         message: 'Order has been successfully canceled.',
       };
     } finally {

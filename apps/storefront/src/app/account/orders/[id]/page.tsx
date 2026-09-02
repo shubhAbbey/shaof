@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
   Package,
   Calendar,
@@ -29,9 +29,10 @@ import { LoginForm } from '../../../../components/auth/login-form';
 import { useAuth } from '../../../../context/auth-context';
 import type { OrderDto, ReturnDto, ReturnRequestPayload, RefundMethod, RefundDetailsDto } from '@ecom/types';
 
-export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function OrderDetailPage({ params }: { params?: { id: string } | Promise<{ id: string }> }) {
   const router = useRouter();
-  const { id: orderId } = use(params);
+  const routeParams = useParams();
+  const orderId = (routeParams?.id as string) || (params && 'id' in params ? (params as any).id : '');
   const { customer, isAuthenticated, isLoading: authLoading, openRegister } = useAuth();
 
   const [order, setOrder] = useState<OrderDto | null>(null);

@@ -5,10 +5,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc --build",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/types: lint ok\"",
-    "test": "tsc --build && node --test dist/commerce.test.js"
+    "test": "tsc && node --test dist/commerce.test.js"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
