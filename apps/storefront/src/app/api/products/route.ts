@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    return NextResponse.json(result);
+    const response = NextResponse.json(result);
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return response;
   } catch (error: any) {
     console.error('API /api/products error:', error);
     return NextResponse.json(

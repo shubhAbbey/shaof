@@ -29,12 +29,14 @@ export async function GET(req: NextRequest) {
 
     const wishlist = await WishlistService.getWishlist(session.id);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       wishlist,
     });
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return response;
   } catch (error: any) {
-    return NextResponse.json(
+    const errResponse = NextResponse.json(
       {
         success: false,
         error: 'INTERNAL_SERVER_ERROR',
@@ -42,6 +44,8 @@ export async function GET(req: NextRequest) {
       },
       { status: 500 }
     );
+    errResponse.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return errResponse;
   }
 }
 

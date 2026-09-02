@@ -24,7 +24,9 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(product);
+    const response = NextResponse.json(product);
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return response;
   } catch (error: any) {
     console.error(`API /api/products/${handle} error:`, error);
     return NextResponse.json(

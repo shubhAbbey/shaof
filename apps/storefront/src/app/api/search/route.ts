@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    return NextResponse.json(searchResult);
+    const response = NextResponse.json(searchResult);
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return response;
   } catch (error: any) {
     console.error('API /api/search error:', error);
     return NextResponse.json(

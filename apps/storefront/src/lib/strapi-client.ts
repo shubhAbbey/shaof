@@ -22,44 +22,64 @@ export interface StrapiResponse<T> {
   };
 }
 
+const inFlightRequests = new Map<string, Promise<any>>();
+
 export async function fetchStrapi<T>(
   endpoint: string,
   options?: RequestInit & { revalidate?: number }
 ): Promise<T | null> {
   const url = `${STRAPI_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (STRAPI_API_TOKEN) {
-    headers['Authorization'] = `Bearer ${STRAPI_API_TOKEN}`;
+  const isGet = !options?.method || options.method.toUpperCase() === 'GET';
+  if (isGet) {
+    const existing = inFlightRequests.get(url);
+    if (existing) {
+      return existing as Promise<T | null>;
+    }
   }
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        ...headers,
-        ...options?.headers,
-      },
-      next: options?.revalidate !== undefined ? { revalidate: options.revalidate } : undefined,
-    });
+  const promise = (async () => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-    if (!res.ok) {
-      if (res.status === 404) {
-        return null;
-      }
-      console.error(`Strapi fetch error: HTTP ${res.status} for ${url}`);
-      return null;
+    if (STRAPI_API_TOKEN) {
+      headers['Authorization'] = `Bearer ${STRAPI_API_TOKEN}`;
     }
 
-    const json = await res.json();
-    return json.data as T;
-  } catch (error) {
-    console.error(`Failed to fetch from Strapi (${url}):`, error);
-    return null;
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...headers,
+          ...options?.headers,
+        },
+        next: options?.revalidate !== undefined ? { revalidate: options.revalidate } : undefined,
+      });
+
+      if (!res.ok) {
+        if (res.status === 404) {
+          return null;
+        }
+        console.error(`Strapi fetch error: HTTP ${res.status} for ${url}`);
+        return null;
+      }
+
+      const json = await res.json();
+      return json.data as T;
+    } catch (error) {
+      console.error(`Failed to fetch from Strapi (${url}):`, error);
+      return null;
+    } finally {
+      inFlightRequests.delete(url);
+    }
+  })();
+
+  if (isGet) {
+    inFlightRequests.set(url, promise);
   }
+
+  return promise;
 }
 
 /**

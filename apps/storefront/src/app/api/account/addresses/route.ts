@@ -16,12 +16,14 @@ export async function GET(req: NextRequest) {
     const customerId = authResult.customer.id;
     const addresses = await AddressService.listAddresses(customerId);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       addresses,
     });
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return response;
   } catch (error: any) {
-    return NextResponse.json(
+    const errResponse = NextResponse.json(
       {
         success: false,
         error: 'INTERNAL_SERVER_ERROR',
@@ -29,6 +31,8 @@ export async function GET(req: NextRequest) {
       },
       { status: 500 }
     );
+    errResponse.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return errResponse;
   }
 }
 

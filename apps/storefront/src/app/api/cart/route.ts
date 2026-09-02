@@ -10,10 +10,12 @@ export async function GET(req: NextRequest) {
     const cartId = req.cookies.get(CART_COOKIE_NAME)?.value;
 
     if (!cartId) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         cart: null,
       });
+      response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+      return response;
     }
 
     const cart = await MedusaCartService.getCart(cartId);
@@ -33,15 +35,18 @@ export async function GET(req: NextRequest) {
         path: '/',
         maxAge: 0,
       });
+      response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
       return response;
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       cart,
     });
+    response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return response;
   } catch (error: any) {
-    return NextResponse.json(
+    const errResponse = NextResponse.json(
       {
         success: false,
         cart: null,
@@ -50,6 +55,8 @@ export async function GET(req: NextRequest) {
       },
       { status: 500 }
     );
+    errResponse.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return errResponse;
   }
 }
 

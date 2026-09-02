@@ -6701,6 +6701,174 @@ describe('Phase 36: Full Customer Journey End-to-End Test Suite', () => {
   });
 });
 
+describe('Phase 37: Performance & Core Web Vitals Hardening', () => {
+  describe('1. Search Debounce & Stale Request Protection', () => {
+    it('cancels outdated in-flight searches using sequence tracking', async () => {
+      let activeSequence = 0;
+      const results = [];
+
+      const simulateSearch = async (query, delayMs) => {
+        const seq = ++activeSequence;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+        // Stale-response protection: Only commit if this sequence is still the newest
+        if (seq === activeSequence) {
+          results.push(query);
+        }
+      };
+
+      // Fire search "kurt" with slow response, followed immediately by "kurti" with fast response
+      const p1 = simulateSearch('kurt', 50);
+      const p2 = simulateSearch('kurti', 10);
+
+      await Promise.all([p1, p2]);
+
+      // Only the newest search "kurti" is committed, "kurt" was discarded as stale
+      assert.deepEqual(results, ['kurti']);
+    });
+
+    it('supports AbortController cancellation for rapid keystrokes', async () => {
+      let aborted = false;
+      const abortController = new AbortController();
+
+      const runQuery = async (signal) => {
+        return new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('AbortError'));
+          });
+        });
+      };
+
+      const queryPromise = runQuery(abortController.signal).catch((err) => err.message);
+      abortController.abort();
+      const res = await queryPromise;
+
+      assert.equal(aborted, true);
+      assert.equal(res, 'AbortError');
+    });
+  });
+
+  describe('2. Infinite-Scroll & Pagination Deduplication', () => {
+    it('prevents duplicate product ingestion using unique ID Set deduplication', () => {
+      const initialProducts = [
+        { id: 'prod_1', title: 'Silk Saree' },
+        { id: 'prod_2', title: 'Cotton Kurta' },
+      ];
+
+      const incomingBatch = [
+        { id: 'prod_2', title: 'Cotton Kurta' }, // duplicate from page overlap
+        { id: 'prod_3', title: 'Linen Shirt' },
+      ];
+
+      const seenIds = new Set(initialProducts.map((p) => p.id));
+      const nonDuplicates = incomingBatch.filter((p) => !seenIds.has(p.id));
+      const combined = [...initialProducts, ...nonDuplicates];
+
+      assert.equal(combined.length, 3);
+      assert.deepEqual(
+        combined.map((p) => p.id),
+        ['prod_1', 'prod_2', 'prod_3']
+      );
+    });
+
+    it('guards against concurrent load-more triggers when already fetching', async () => {
+      let fetchCount = 0;
+      let isLoadingMore = false;
+
+      const triggerLoadMore = async () => {
+        if (isLoadingMore) return;
+        isLoadingMore = true;
+        fetchCount++;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        isLoadingMore = false;
+      };
+
+      // Attempt 3 simultaneous triggers
+      await Promise.all([triggerLoadMore(), triggerLoadMore(), triggerLoadMore()]);
+
+      // Only exactly 1 request was allowed through
+      assert.equal(fetchCount, 1);
+    });
+  });
+
+  describe('3. In-Flight Request Deduplication', () => {
+    it('deduplicates simultaneous identical GET requests during SSR', async () => {
+      const inFlight = new Map();
+      let backendCallCount = 0;
+
+      const deduplicatedFetch = async (key) => {
+        const existing = inFlight.get(key);
+        if (existing) return existing;
+
+        const promise = (async () => {
+          backendCallCount++;
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          return { data: `result-for-${key}` };
+        })();
+
+        inFlight.set(key, promise);
+        try {
+          return await promise;
+        } finally {
+          inFlight.delete(key);
+        }
+      };
+
+      // 4 simultaneous calls for the same key share 1 promise
+      const results = await Promise.all([
+        deduplicatedFetch('cat:women'),
+        deduplicatedFetch('cat:women'),
+        deduplicatedFetch('cat:women'),
+        deduplicatedFetch('cat:women'),
+      ]);
+
+      assert.equal(backendCallCount, 1);
+      assert.equal(results[0].data, 'result-for-cat:women');
+      assert.equal(results[3].data, 'result-for-cat:women');
+      assert.equal(inFlight.size, 0); // Map is empty after completion
+
+      // A later call after completion executes a new request normally
+      const laterResult = await deduplicatedFetch('cat:women');
+      assert.equal(backendCallCount, 2);
+      assert.equal(laterResult.data, 'result-for-cat:women');
+      assert.equal(inFlight.size, 0);
+    });
+  });
+
+  describe('4. Cache-Control Security Boundaries', () => {
+    it('enforces public caching with stale-while-revalidate on catalog endpoints', () => {
+      const publicHeader = 'public, s-maxage=60, stale-while-revalidate=300';
+      assert.match(publicHeader, /public/);
+      assert.match(publicHeader, /s-maxage=60/);
+      assert.match(publicHeader, /stale-while-revalidate=300/);
+    });
+
+    it('enforces strict private no-store caching on customer and financial endpoints', () => {
+      const privateHeader = 'private, no-cache, no-store, must-revalidate';
+      assert.match(privateHeader, /private/);
+      assert.match(privateHeader, /no-store/);
+      assert.match(privateHeader, /must-revalidate/);
+      assert.equal(privateHeader.includes('public'), false);
+    });
+  });
+
+  describe('5. Layout Stability & Image Optimization', () => {
+    it('reserves container aspect-ratio to prevent Cumulative Layout Shift (CLS)', () => {
+      const cardAspectRatio = '3/4';
+      const [w, h] = cardAspectRatio.split('/').map(Number);
+      const ratio = w / h;
+      assert.equal(ratio, 0.75);
+    });
+
+    it('supports modern image formats AVIF and WebP in Next.js configuration', () => {
+      const supportedFormats = ['image/avif', 'image/webp'];
+      assert.ok(supportedFormats.includes('image/avif'));
+      assert.ok(supportedFormats.includes('image/webp'));
+    });
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
 
 

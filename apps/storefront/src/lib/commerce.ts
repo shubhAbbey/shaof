@@ -140,70 +140,94 @@ function getMedusaHeaders(): Record<string, string> {
   return headers;
 }
 
+const commerceInFlight = new Map<string, Promise<any>>();
+
 /**
  * Resolves a product category by its unique URL handle from Medusa v2 Store API.
  */
 export async function fetchCategoryByHandle(handle: string): Promise<CategoryContext | null> {
-  try {
-    const url = `${MEDUSA_BACKEND_URL}/store/product-categories?handle=${encodeURIComponent(handle)}`;
-    const res = await fetch(url, {
-      headers: getMedusaHeaders(),
-      next: { revalidate: 60 },
-    });
+  const cacheKey = `cat:${handle}`;
+  const existing = commerceInFlight.get(cacheKey);
+  if (existing) return existing;
 
-    if (!res.ok) {
+  const promise = (async () => {
+    try {
+      const url = `${MEDUSA_BACKEND_URL}/store/product-categories?handle=${encodeURIComponent(handle)}`;
+      const res = await fetch(url, {
+        headers: getMedusaHeaders(),
+        next: { revalidate: 60 },
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = await res.json();
+      const category = data.product_categories?.[0];
+      if (!category) {
+        return null;
+      }
+
+      return {
+        id: category.id,
+        name: category.name,
+        handle: category.handle,
+        description: category.description || undefined,
+      };
+    } catch (err) {
+      console.error(`Error resolving category by handle "${handle}":`, err);
       return null;
+    } finally {
+      commerceInFlight.delete(cacheKey);
     }
+  })();
 
-    const data = await res.json();
-    const category = data.product_categories?.[0];
-    if (!category) {
-      return null;
-    }
-
-    return {
-      id: category.id,
-      name: category.name,
-      handle: category.handle,
-      description: category.description || undefined,
-    };
-  } catch (err) {
-    console.error(`Error resolving category by handle "${handle}":`, err);
-    return null;
-  }
+  commerceInFlight.set(cacheKey, promise);
+  return promise;
 }
 
 /**
  * Resolves a product collection by its unique URL handle from Medusa v2 Store API.
  */
 export async function fetchCollectionByHandle(handle: string): Promise<CollectionContext | null> {
-  try {
-    const url = `${MEDUSA_BACKEND_URL}/store/collections?handle=${encodeURIComponent(handle)}`;
-    const res = await fetch(url, {
-      headers: getMedusaHeaders(),
-      next: { revalidate: 60 },
-    });
+  const cacheKey = `col:${handle}`;
+  const existing = commerceInFlight.get(cacheKey);
+  if (existing) return existing;
 
-    if (!res.ok) {
+  const promise = (async () => {
+    try {
+      const url = `${MEDUSA_BACKEND_URL}/store/collections?handle=${encodeURIComponent(handle)}`;
+      const res = await fetch(url, {
+        headers: getMedusaHeaders(),
+        next: { revalidate: 60 },
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = await res.json();
+      const collection = data.collections?.[0];
+      if (!collection) {
+        return null;
+      }
+
+      return {
+        id: collection.id,
+        title: collection.title,
+        handle: collection.handle,
+        description: collection.metadata?.description as string | undefined,
+      };
+    } catch (err) {
+      console.error(`Error resolving collection by handle "${handle}":`, err);
       return null;
+    } finally {
+      commerceInFlight.delete(cacheKey);
     }
+  })();
 
-    const data = await res.json();
-    const collection = data.collections?.[0];
-    if (!collection) {
-      return null;
-    }
-
-    return {
-      id: collection.id,
-      title: collection.title,
-      handle: collection.handle,
-      description: collection.metadata?.description as string | undefined,
-    };
-  } catch (err) {
-    console.error(`Error resolving collection by handle "${handle}":`, err);
-    return null;
-  }
+  commerceInFlight.set(cacheKey, promise);
+  return promise;
 }
 
 /**

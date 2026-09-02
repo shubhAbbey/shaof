@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
       brand,
     });
 
-    return NextResponse.json(suggestionsResult);
+    const response = NextResponse.json(suggestionsResult);
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return response;
   } catch (error: any) {
     console.error('API /api/search/suggestions error:', error);
     return NextResponse.json(
