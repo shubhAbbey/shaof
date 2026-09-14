@@ -1,0 +1,213 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. PostgreSQL Database Service (Private Internal Only)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ecom_prod_network
+
+  # ----------------------------------------------------------------------------
+  # 2. Redis Cache & Mutex Lock Service (Private Internal Only)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: ecom-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - ecom_prod_network
+
+  # ----------------------------------------------------------------------------
+  # 3. Medusa Commerce Backend Service
+  # ----------------------------------------------------------------------------
+  medusa:
+    image: ecom-medusa:prod
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: ecom-medusa
+    restart: unless-stopped
+    command: sh -c "npx medusa db:migrate && npx medusa start"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 9000
+      MEDUSA_ADMIN_DISABLE: "true"
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/medusa_db
+      DATABASE_DRIVER_OPTIONS: '{"connection":{"ssl":false}}'
+      REDIS_URL: redis://redis:6379
+      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://medusa:9000}
+      STORE_CORS: ${STORE_CORS:-http://localhost:3000,http://storefront:3000}
+      ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000,http://localhost:3000}
+      AUTH_CORS: ${AUTH_CORS:-http://localhost:3000,http://storefront:3000}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
+      COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET is required in production}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_secret_placeholder}
+      RAZORPAY_ACCOUNT_ID: ${RAZORPAY_ACCOUNT_ID:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-rzp_webhook_secret_placeholder}
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ecom_prod_network
+
+  # ----------------------------------------------------------------------------
+  # 4. Strapi CMS Service
+  # ----------------------------------------------------------------------------
+  cms:
+    image: ecom-strapi:prod
+    build:
+      context: .
+      dockerfile: apps/cms/Dockerfile
+    container_name: ecom-strapi
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NODE_PATH: /app/node_modules:/app/apps/cms/node_modules
+      HOST: 0.0.0.0
+      PORT: 1337
+      DATABASE_CLIENT: postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/strapi_db
+      APP_KEYS: ${APP_KEYS:?APP_KEYS is required in production}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:?API_TOKEN_SALT is required in production}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required in production}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?TRANSFER_TOKEN_SALT is required in production}
+    volumes:
+      - strapi_uploads:/app/apps/cms/public/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:1337/_health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ecom_prod_network
+
+  # ----------------------------------------------------------------------------
+  # 5. Next.js Storefront Service (Private Internal Only, Routed via Nginx)
+  # ----------------------------------------------------------------------------
+  storefront:
+    image: ecom-storefront:prod
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+    container_name: ecom-storefront
+    restart: unless-stopped
+    depends_on:
+      medusa:
+        condition: service_healthy
+      cms:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://medusa:9000}
+      NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_API_URL:-http://cms:1337}
+      NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+      STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-strapi_read_token_placeholder}
+      REDIS_URL: redis://redis:6379
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ecom_prod_network
+
+  # ----------------------------------------------------------------------------
+  # 6. Nginx Reverse Proxy Service (Public Ingress: 80, 443)
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: ecom-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      storefront:
+        condition: service_healthy
+      cms:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - ecom_prod_network
+
+# ------------------------------------------------------------------------------
+# Private Internal Bridge Network
+# ------------------------------------------------------------------------------
+networks:
+  ecom_prod_network:
+    name: ecom_prod_network
+    driver: bridge
+
+# ------------------------------------------------------------------------------
+# Persistent Data Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: ecom_postgres_data
+    driver: local
+  redis_data:
+    name: ecom_redis_data
+    driver: local
+  strapi_uploads:
+    name: ecom_strapi_uploads
+    driver: local
+  certbot_certs:
+    name: ecom_certbot_certs
+    driver: local
+  certbot_www:
+    name: ecom_certbot_www
+    driver: local

@@ -7,6 +7,11 @@ export default defineConfig({
     databaseUrl:
       process.env.DATABASE_URL ||
       'postgres://postgres:postgres_secure_password@localhost:5432/medusa_db',
+    databaseDriverOptions: {
+      connection: {
+        ssl: false,
+      },
+    },
     redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
     http: {
       storeCors: process.env.STORE_CORS || 'http://localhost:3000',
@@ -24,7 +29,7 @@ export default defineConfig({
     },
   ],
   admin: {
-    disable: false,
+    disable: process.env.MEDUSA_ADMIN_DISABLE === 'true',
   },
 });
 

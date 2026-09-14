@@ -33,20 +33,19 @@ console.log('✓ All schema and component JSON files copied to dist/src.');
  * Resolves Strapi v5 monorepo module resolution where @strapi/core expects @strapi/strapi/package.json.
  */
 export function syncStrapiModules() {
-  const rootDir = fs.existsSync(path.join(process.cwd(), 'node_modules'))
-    ? process.cwd()
-    : path.resolve(cmsDir, '../..');
+  const rootDir = path.resolve(cmsDir, '../..');
   const cmsStrapiDir = path.join(cmsDir, 'node_modules', '@strapi');
   const rootStrapiDir = path.join(rootDir, 'node_modules', '@strapi');
 
   if (fs.existsSync(cmsStrapiDir) && fs.existsSync(rootStrapiDir)) {
+    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
     // Link packages from apps/cms to root node_modules/@strapi
     for (const dir of fs.readdirSync(cmsStrapiDir)) {
       const target = path.join(cmsStrapiDir, dir);
       const link = path.join(rootStrapiDir, dir);
       if (!fs.existsSync(link)) {
         try {
-          fs.symlinkSync(target, link, 'junction');
+          fs.symlinkSync(target, link, symlinkType);
         } catch {
           // ignore if already linked
         }
@@ -58,7 +57,7 @@ export function syncStrapiModules() {
       const link = path.join(cmsStrapiDir, dir);
       if (!fs.existsSync(link)) {
         try {
-          fs.symlinkSync(target, link, 'junction');
+          fs.symlinkSync(target, link, symlinkType);
         } catch {
           // ignore if already linked
         }
