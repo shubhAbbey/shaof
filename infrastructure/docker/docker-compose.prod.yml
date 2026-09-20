@@ -131,6 +131,7 @@ services:
         NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_CLIENT_URL:-https://cms.ateevra.com}
         NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
         NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+        MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:-http://medusa:9000}
     container_name: ecom-storefront
     restart: unless-stopped
     depends_on:
@@ -155,10 +156,12 @@ services:
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://ateevra.com}
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://medusa:9000}
-      NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_API_URL:-http://cms:1337}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_CLIENT_URL:-https://ateevra.com}
+      NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_CLIENT_URL:-https://cms.ateevra.com}
       NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+      MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:-http://medusa:9000}
+      MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-${MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}}
       STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-strapi_read_token_placeholder}
     expose:
       - "3000"
