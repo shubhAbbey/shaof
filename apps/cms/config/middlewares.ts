@@ -1,3 +1,19 @@
+const isProduction = process.env.NODE_ENV === 'production';
+const rawCorsOrigin = process.env.CORS_ORIGIN;
+
+const resolveOrigins = (): string[] => {
+  if (rawCorsOrigin && rawCorsOrigin.trim() !== '') {
+    return rawCorsOrigin
+      .split(',')
+      .map((o) => o.trim())
+      .filter((o) => Boolean(o) && o !== '*');
+  }
+  if (isProduction) {
+    return ['https://ateevra.com', 'https://www.ateevra.com', 'https://cms.ateevra.com'];
+  }
+  return ['http://localhost:3000', 'http://localhost:1337'];
+};
+
 export default [
   'strapi::logger',
   'strapi::errors',
@@ -28,7 +44,7 @@ export default [
   {
     name: 'strapi::cors',
     config: {
-      origin: ['http://localhost:3000', 'http://localhost:1337'],
+      origin: resolveOrigins(),
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
       keepHeaderOnError: true,

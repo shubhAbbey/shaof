@@ -3,13 +3,6 @@ import { OtpService } from '../../../../../lib/auth/otp-service';
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Production fail-closed check
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json(
-        { success: false, message: 'Not Found', error: 'NOT_FOUND' },
-        { status: 404 }
-      );
-    }
 
     const { searchParams } = new URL(req.url);
     const mobile = searchParams.get('mobile') || '';

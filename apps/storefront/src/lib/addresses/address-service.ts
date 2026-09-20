@@ -6,16 +6,8 @@ import type {
   AddressType,
 } from '@ecom/types';
 
-const MEDUSA_URL =
-  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
-  process.env.MEDUSA_BACKEND_URL ||
-  config.medusa.baseUrl ||
-  'http://localhost:9000';
-
-const MEDUSA_PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ||
-  config.medusa.publishableKey ||
-  'pk_962772bcd68f09b11833d76684644ae47e3f46059f995ff0c5eeba74d0cc01e3';
+const MEDUSA_URL = config.medusa.baseUrl;
+const MEDUSA_PUBLISHABLE_KEY = config.medusa.publishableKey;
 
 function getMedusaHeaders(): Record<string, string> {
   const headers: Record<string, string> = {

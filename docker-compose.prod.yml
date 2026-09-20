@@ -64,17 +64,14 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/medusa_db
       DATABASE_DRIVER_OPTIONS: '{"connection":{"ssl":false}}'
       REDIS_URL: redis://redis:6379
-      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://medusa:9000}
-      STORE_CORS: ${STORE_CORS:-http://localhost:3000,http://storefront:3000}
+      STORE_CORS: ${STORE_CORS:-https://ateevra.com,https://www.ateevra.com,http://storefront:3000}
       ADMIN_CORS: ${ADMIN_CORS:-http://localhost:9000,http://localhost:3000}
-      AUTH_CORS: ${AUTH_CORS:-http://localhost:3000,http://storefront:3000}
+      AUTH_CORS: ${AUTH_CORS:-https://ateevra.com,https://www.ateevra.com,http://storefront:3000}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required in production}
       COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET is required in production}
-      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
-      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-rzp_secret_placeholder}
-      RAZORPAY_ACCOUNT_ID: ${RAZORPAY_ACCOUNT_ID:-}
-      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-rzp_webhook_secret_placeholder}
-      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?RAZORPAY_KEY_ID is required in production}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?RAZORPAY_KEY_SECRET is required in production}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?RAZORPAY_WEBHOOK_SECRET is required in production}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:9000/health"]
       interval: 15s
@@ -108,6 +105,7 @@ services:
       API_TOKEN_SALT: ${API_TOKEN_SALT:?API_TOKEN_SALT is required in production}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required in production}
       TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?TRANSFER_TOKEN_SALT is required in production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://ateevra.com,https://www.ateevra.com,https://cms.ateevra.com}
     volumes:
       - strapi_uploads:/app/apps/cms/public/uploads
     healthcheck:
@@ -127,6 +125,13 @@ services:
     build:
       context: .
       dockerfile: apps/storefront/Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://ateevra.com}
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_CLIENT_URL:-https://ateevra.com}
+        NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_CLIENT_URL:-https://cms.ateevra.com}
+        NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+        MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:-http://medusa:9000}
     container_name: ecom-storefront
     restart: unless-stopped
     depends_on:
@@ -137,13 +142,27 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:-http://medusa:9000}
-      NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_API_URL:-http://cms:1337}
-      NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
-      STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-strapi_read_token_placeholder}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/medusa_db
       REDIS_URL: redis://redis:6379
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?RAZORPAY_KEY_ID is required in production}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?RAZORPAY_KEY_SECRET is required in production}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?RAZORPAY_WEBHOOK_SECRET is required in production}
+      OTP_SECRET: ${OTP_SECRET:?OTP_SECRET is required in production}
+      S2S_AUTH_TOKEN: ${S2S_AUTH_TOKEN:?S2S_AUTH_TOKEN is required in production}
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      SMS_SENDER_ID: ${SMS_SENDER_ID:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://ateevra.com}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_CLIENT_URL:-https://ateevra.com}
+      NEXT_PUBLIC_STRAPI_API_URL: ${NEXT_PUBLIC_STRAPI_CLIENT_URL:-https://cms.ateevra.com}
+      NEXT_PUBLIC_RAZORPAY_KEY_ID: ${NEXT_PUBLIC_RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}
+      MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:-http://medusa:9000}
+      MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:-${MEDUSA_PUBLISHABLE_KEY:-pk_test_placeholder}}
+      STRAPI_API_TOKEN: ${STRAPI_API_TOKEN:-strapi_read_token_placeholder}
     expose:
       - "3000"
     healthcheck:

@@ -9,8 +9,16 @@ import { env } from './env';
 
 export const apiConfig = {
   medusa: {
-    baseUrl: env.medusaUrl,
-    publishableKey: env.medusaPublishableKey,
+    baseUrl:
+      typeof window === 'undefined'
+        ? env.medusaInternalUrl || env.medusaUrl
+        : env.medusaUrl,
+    internalUrl: env.medusaInternalUrl,
+    publicUrl: env.medusaUrl,
+    publishableKey:
+      typeof window === 'undefined' && env.medusaServerPublishableKey
+        ? env.medusaServerPublishableKey
+        : env.medusaPublishableKey,
     endpoints: {
       products: '/store/products',
       productByHandle: (handle: string) => `/store/products?handle=${encodeURIComponent(handle)}`,

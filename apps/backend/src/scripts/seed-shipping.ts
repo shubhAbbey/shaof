@@ -1,6 +1,7 @@
 import { MedusaContainer } from '@medusajs/framework/types';
 import { Modules, RuleOperator, ShippingOptionPriceType, ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import {
+  createStockLocationsWorkflow,
   createLocationFulfillmentSetWorkflow,
   createServiceZonesWorkflow,
   createShippingOptionsWorkflow,
@@ -18,11 +19,30 @@ export default async function seedShipping({ container }: { container: MedusaCon
 
   // 1. Stock Location (Ensure Delhi Stock Location)
   const [stockLocations] = await stockLocationModule.listAndCountStockLocations({});
+  let stockLocation: any;
   if (stockLocations.length === 0) {
-    console.error('No stock location found! Cannot configure shipping.');
-    return;
+    console.log('No stock location found. Creating Delhi Central Warehouse...');
+    const { result } = await createStockLocationsWorkflow(container).run({
+      input: {
+        locations: [
+          {
+            name: 'Delhi Central Warehouse',
+            address: {
+              address_1: 'Connaught Place',
+              city: 'New Delhi',
+              province: 'Delhi',
+              postal_code: '110001',
+              country_code: 'in',
+            },
+          },
+        ],
+      },
+    });
+    stockLocation = result[0];
+    console.log(`Created Stock Location: ${stockLocation.name} (${stockLocation.id})`);
+  } else {
+    stockLocation = stockLocations[0];
   }
-  let stockLocation = stockLocations[0];
 
   // Update stock location to Delhi Central Warehouse if not already named so
   if (stockLocation.name !== 'Delhi Central Warehouse') {
@@ -208,8 +228,29 @@ export default async function seedShipping({ container }: { container: MedusaCon
     });
     shippingOption = result[0];
     console.log(`Successfully created shipping option: ${shippingOption.name} (${shippingOption.id})`);
-  } else {
-    console.log(`Found existing shipping option: ${shippingOption.name} (${shippingOption.id})`);
+  // 8. Ensure Inventory Levels for all Inventory Items at Stock Location
+  try {
+    const inventoryModule = container.resolve(Modules.INVENTORY);
+    const [inventoryItems, invCount] = await inventoryModule.listAndCountInventoryItems({});
+    if (invCount > 0) {
+      const existingLevels = await inventoryModule.listInventoryLevels({ location_id: stockLocation.id });
+      const existingItemIds = new Set(existingLevels.map((l: any) => l.inventory_item_id));
+      const toCreate = inventoryItems
+        .filter((item: any) => !existingItemIds.has(item.id))
+        .map((item: any) => ({
+          inventory_item_id: item.id,
+          location_id: stockLocation.id,
+          stocked_quantity: 100,
+        }));
+
+      if (toCreate.length > 0) {
+        console.log(`Creating ${toCreate.length} inventory levels for location ${stockLocation.id}...`);
+        await inventoryModule.createInventoryLevels(toCreate);
+        console.log('Successfully created inventory levels for all catalog items.');
+      }
+    }
+  } catch (invErr: any) {
+    console.log('Inventory level seeding note:', invErr.message || 'Error processing inventory levels');
   }
 
   console.log('=== MEDUSA SHIPPING CONFIGURATION COMPLETE ===');

@@ -2320,10 +2320,10 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
 
   // 5. OtpService Implementation Simulator
   class TestOtpService {
-    static async requestOtp({ mobile: rawMobile, type = 'login', ip, redis, smsProvider }) {
+    static async requestOtp({ mobile: rawMobile, type = 'login', ip, s2sToken, nodeEnv = 'development', redis, smsProvider }) {
       const validation = normalizeIndianMobile(rawMobile);
       if (!validation.isValid) {
-        return { success: false, message: validation.error, expiresInSeconds: 0, error: 'INVALID_MOBILE' };
+        return { success: false, message: validation.error || 'Invalid mobile number', expiresInSeconds: 0, error: 'INVALID_MOBILE' };
       }
       const mobile = validation.normalized;
 
@@ -2342,10 +2342,15 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       const rawOtp = generateSecureOtp();
       const otpHash = hashOtp(rawOtp, mobile);
       const now = Date.now();
+
+      const isDev = nodeEnv !== 'production';
+      const isS2S = Boolean(s2sToken && s2sToken === S2S_AUTH_TOKEN);
+      const isDevFetchEligible = isDev || isS2S;
+
       const state = {
         mobile,
         otpHash,
-        rawOtp,
+        rawOtp: isDevFetchEligible ? rawOtp : undefined,
         otpType: type,
         attempts: 0,
         maxAttempts: 5,
@@ -2418,10 +2423,7 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       };
     }
 
-    static async devFetchOtp({ mobile: rawMobile, s2sToken, nodeEnv = 'development', redis }) {
-      if (nodeEnv === 'production') {
-        return { success: false, error: 'FORBIDDEN_IN_PRODUCTION', message: 'Disabled in production' };
-      }
+    static async devFetchOtp({ mobile: rawMobile, s2sToken, redis }) {
       if (!s2sToken || s2sToken !== S2S_AUTH_TOKEN) {
         return { success: false, error: 'UNAUTHORIZED_S2S', message: 'Invalid S2S token' };
       }
@@ -2434,6 +2436,9 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
         return { success: false, error: 'OTP_NOT_FOUND', message: 'No active OTP found' };
       }
       const state = JSON.parse(stateStr);
+      if (!state.rawOtp) {
+        return { success: false, error: 'OTP_NOT_DEV_FETCH_ELIGIBLE', message: 'No dev-fetch OTP available for this session' };
+      }
       const ttl = await redis.ttl(`otp:${validation.normalized}`);
       return { success: true, otp: state.rawOtp, expiresInSeconds: ttl > 0 ? ttl : 0 };
     }
@@ -2703,10 +2708,47 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
   });
 
   describe('7. Development-Only fetchOtp Security Model', () => {
-    it('requires valid S2S authorization token and rejects unauthorized calls', async () => {
+    it('A. normal production OTP does NOT contain rawOtp in Redis session state', async () => {
       const redis = new InMemoryRedis();
       const mobile = '+919876543214';
-      await TestOtpService.requestOtp({ mobile, redis });
+      // Production request without S2S authorization
+      const reqRes = await TestOtpService.requestOtp({ mobile, nodeEnv: 'production', redis });
+      assert.equal(reqRes.success, true);
+
+      const stateStr = await redis.get(`otp:${mobile}`);
+      assert.ok(stateStr);
+      const state = JSON.parse(stateStr);
+      assert.ok(state.otpHash);
+      assert.strictEqual(state.rawOtp, undefined);
+      assert.strictEqual(JSON.stringify(state).includes('rawOtp'), false);
+    });
+
+    it('B. authorized dev-fetch OTP can be retrieved in production when requested with S2S authorization', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543215';
+      // Production request with valid S2S authorization
+      const reqRes = await TestOtpService.requestOtp({
+        mobile,
+        nodeEnv: 'production',
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
+      assert.equal(reqRes.success, true);
+
+      const devFetchRes = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
+      assert.equal(devFetchRes.success, true);
+      assert.ok(devFetchRes.otp);
+      assert.equal(devFetchRes.otp.length, 6);
+    });
+
+    it('C. unauthorized dev-fetch is rejected with UNAUTHORIZED_S2S', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543216';
+      await TestOtpService.requestOtp({ mobile, s2sToken: S2S_AUTH_TOKEN, redis });
 
       // No token
       const noToken = await TestOtpService.devFetchOtp({ mobile, redis });
@@ -2717,29 +2759,29 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       const badToken = await TestOtpService.devFetchOtp({ mobile, s2sToken: 'invalid_token_123', redis });
       assert.equal(badToken.success, false);
       assert.equal(badToken.error, 'UNAUTHORIZED_S2S');
-
-      // Valid token
-      const validCall = await TestOtpService.devFetchOtp({
-        mobile,
-        s2sToken: 'ecom-s2s-dev-token-secret',
-        redis,
-      });
-      assert.equal(validCall.success, true);
-      assert.ok(validCall.otp);
     });
 
-    it('fails-closed when NODE_ENV is production', async () => {
+    it('D. OTP verification continues to work for both normal and dev-fetch OTPs', async () => {
       const redis = new InMemoryRedis();
-      const mobile = '+919876543215';
+      const mobile = '+919876543217';
 
-      const prodCall = await TestOtpService.devFetchOtp({
-        mobile,
-        s2sToken: 'ecom-s2s-dev-token-secret',
-        nodeEnv: 'production',
-        redis,
-      });
-      assert.equal(prodCall.success, false);
-      assert.equal(prodCall.error, 'FORBIDDEN_IN_PRODUCTION');
+      // Test with authorized dev-fetch OTP
+      await TestOtpService.requestOtp({ mobile, nodeEnv: 'production', s2sToken: S2S_AUTH_TOKEN, redis });
+      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: S2S_AUTH_TOKEN, redis });
+      assert.equal(devFetch.success, true);
+
+      const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, redis });
+      assert.equal(verifyRes.success, true);
+      assert.ok(verifyRes.token);
+    });
+
+    it('E. Redis TTL remains 300 seconds for OTP session state', async () => {
+      const redis = new InMemoryRedis();
+      const mobile = '+919876543218';
+      await TestOtpService.requestOtp({ mobile, redis });
+
+      const ttl = await redis.ttl(`otp:${mobile}`);
+      assert.ok(ttl <= 300 && ttl > 290);
     });
   });
 

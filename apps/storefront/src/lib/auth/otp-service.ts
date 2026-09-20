@@ -48,10 +48,17 @@ export function verifyTimingSafeHash(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
 }
 
+export function isAuthorizedS2S(token?: string): boolean {
+  if (!token || !S2S_AUTH_TOKEN) return false;
+  if (token.length !== S2S_AUTH_TOKEN.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(S2S_AUTH_TOKEN));
+}
+
 export interface RequestOtpOptions {
   mobile: string;
   type?: OtpType;
   ip?: string;
+  s2sToken?: string;
   redis?: IRedisAdapter;
   smsProvider?: ISmsProvider;
 }
@@ -77,7 +84,7 @@ export class OtpService {
    * 1. Request OTP Flow
    */
   static async requestOtp(options: RequestOtpOptions): Promise<RequestOtpResponse> {
-    const { mobile: rawMobile, type = 'login', ip, redis: customRedis, smsProvider: customProvider } = options;
+    const { mobile: rawMobile, type = 'login', ip, s2sToken, redis: customRedis, smsProvider: customProvider } = options;
     const redis = customRedis || getRedisClient();
     const smsProvider = customProvider || getSmsProvider();
 
@@ -123,13 +130,17 @@ export class OtpService {
     const now = Date.now();
     const expiresAt = now + OTP_TTL_SECONDS * 1000;
 
+    // Determine dev-fetch eligibility: allowed in development OR when authorized via S2S token
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isS2SAuthorized = Boolean(s2sToken && isAuthorizedS2S(s2sToken));
+    const isDevFetchEligible = isDev || isS2SAuthorized;
+
     // 5. Store temporary state in Redis (TTL = 300s)
-    const isDevelopment = process.env.NODE_ENV !== 'production';
     const state: OtpSessionState = {
       mobile,
       otpHash,
-      // Only include rawOtp in non-production for the authorized devFetchOtp testing tool
-      rawOtp: isDevelopment ? rawOtp : undefined,
+      // rawOtp is ONLY stored when authorized via S2S or in development mode
+      rawOtp: isDevFetchEligible ? rawOtp : undefined,
       otpType: type,
       attempts: 0,
       maxAttempts: MAX_VERIFY_ATTEMPTS,
@@ -279,17 +290,8 @@ export class OtpService {
     const { mobile: rawMobile, s2sToken, redis: customRedis } = options;
     const redis = customRedis || getRedisClient();
 
-    // 1. Strict Fail-Closed Environment Guard
-    if (process.env.NODE_ENV === 'production') {
-      return {
-        success: false,
-        error: 'FORBIDDEN_IN_PRODUCTION',
-        message: 'fetchOtp is permanently disabled in production environments.',
-      };
-    }
-
-    // 2. S2S Authorization Verification
-    if (!s2sToken || s2sToken !== S2S_AUTH_TOKEN) {
+    // 1. S2S Authorization Verification
+    if (!isAuthorizedS2S(s2sToken)) {
       return {
         success: false,
         error: 'UNAUTHORIZED_S2S',
@@ -320,6 +322,14 @@ export class OtpService {
     }
 
     const state: OtpSessionState = JSON.parse(stateStr);
+    if (!state.rawOtp) {
+      return {
+        success: false,
+        error: 'OTP_NOT_DEV_FETCH_ELIGIBLE',
+        message: 'No dev-fetch OTP available for this session.',
+      };
+    }
+
     const remainingTtl = await redis.ttl(redisKey);
 
     return {

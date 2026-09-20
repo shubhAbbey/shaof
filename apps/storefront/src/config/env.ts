@@ -19,6 +19,7 @@ export interface PublicEnvConfig {
 }
 
 export interface ServerEnvConfig extends PublicEnvConfig {
+  medusaInternalUrl: string;
   strapiApiToken?: string;
   medusaServerPublishableKey?: string;
   redisUrl?: string;
@@ -31,6 +32,12 @@ export interface ServerEnvConfig extends PublicEnvConfig {
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'EcomFashion';
 const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || 'http://localhost:9000';
+const MEDUSA_INTERNAL_URL =
+  typeof window === 'undefined'
+    ? process.env.MEDUSA_INTERNAL_URL ||
+      process.env.MEDUSA_BACKEND_URL ||
+      (process.env.NODE_ENV === 'production' ? 'http://medusa:9000' : 'http://localhost:9000')
+    : MEDUSA_BACKEND_URL;
 const MEDUSA_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ||
   'pk_962772bcd68f09b11833d76684644ae47e3f46059f995ff0c5eeba74d0cc01e3';
@@ -56,10 +63,13 @@ export const env: ServerEnvConfig = {
   isDevelopment,
   isProduction,
   isTest,
-  // Server-only secrets: Never exposed in browser runtime
+  // Server-only configuration: Never exposed in browser runtime
+  medusaInternalUrl: MEDUSA_INTERNAL_URL,
   strapiApiToken: typeof window === 'undefined' ? process.env.STRAPI_API_TOKEN : undefined,
   medusaServerPublishableKey:
-    typeof window === 'undefined' ? process.env.MEDUSA_PUBLISHABLE_KEY : undefined,
+    typeof window === 'undefined'
+      ? process.env.MEDUSA_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
+      : undefined,
   redisUrl: typeof window === 'undefined' ? process.env.REDIS_URL || 'redis://localhost:6379' : undefined,
   smsProvider: typeof window === 'undefined' ? process.env.SMS_PROVIDER || 'mock' : undefined,
   smsApiKey: typeof window === 'undefined' ? process.env.SMS_API_KEY : undefined,
