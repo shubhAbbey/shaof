@@ -52,4 +52,5 @@ yarn-error.log*
 # Redis / DB dumps
 *.rdb
 *.sql
+!infrastructure/docker/init-db.sql
 *.dump
