@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node scripts/copy-schemas.mjs && strapi develop",
     "start": "node scripts/copy-schemas.mjs && strapi start",
-    "build": "tsc && node scripts/copy-schemas.mjs",
+    "build": "tsc && node scripts/copy-schemas.mjs && strapi build",
+    "strapi-build": "strapi build",
     "strapi": "strapi",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/cms: lint ok\"",
@@ -14,6 +15,7 @@
   "dependencies": {
     "@ecom/config": "*",
     "@ecom/types": "*",
+    "@radix-ui/react-tooltip": "^1.1.7",
     "@strapi/plugin-users-permissions": "^5.52.1",
     "@strapi/strapi": "^5.52.1",
     "pg": "^8.13.1",

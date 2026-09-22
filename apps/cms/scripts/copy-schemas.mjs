@@ -103,3 +103,44 @@ export function patchStrapiConfigLoader() {
 }
 
 patchStrapiConfigLoader();
+
+/**
+ * Ensures Radix UI modules required by Strapi Admin Vite aliases are available in both
+ * root and workspace node_modules/@radix-ui.
+ */
+export function syncRadixModules() {
+  const rootDir = path.resolve(cmsDir, '../..');
+  const candidateDirs = [
+    path.join(cmsDir, 'node_modules/@strapi/design-system/node_modules/@radix-ui'),
+    path.join(rootDir, 'node_modules/@strapi/design-system/node_modules/@radix-ui'),
+    path.join(rootDir, 'node_modules/@strapi/core/node_modules/@strapi/design-system/node_modules/@radix-ui'),
+    path.join(rootDir, 'node_modules/@radix-ui'),
+    path.join(cmsDir, 'node_modules/@radix-ui'),
+  ];
+
+  const destCmsRadix = path.join(cmsDir, 'node_modules/@radix-ui');
+  const destRootRadix = path.join(rootDir, 'node_modules/@radix-ui');
+
+  try { fs.mkdirSync(destCmsRadix, { recursive: true }); } catch {}
+  try { fs.mkdirSync(destRootRadix, { recursive: true }); } catch {}
+
+  const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+
+  for (const cDir of candidateDirs) {
+    if (fs.existsSync(cDir)) {
+      for (const entry of fs.readdirSync(cDir)) {
+        const src = path.join(cDir, entry);
+        const dest1 = path.join(destCmsRadix, entry);
+        const dest2 = path.join(destRootRadix, entry);
+        if (!fs.existsSync(dest1)) {
+          try { fs.symlinkSync(src, dest1, symlinkType); } catch {}
+        }
+        if (!fs.existsSync(dest2)) {
+          try { fs.symlinkSync(src, dest2, symlinkType); } catch {}
+        }
+      }
+    }
+  }
+}
+
+syncRadixModules();

@@ -22,6 +22,9 @@ RUN npm install --workspace=@ecom/cms --workspace=@ecom/config --workspace=@ecom
 FROM base AS builder
 WORKDIR /app
 
+ENV NODE_ENV=production
+ENV NODE_PATH=/app/node_modules:/app/apps/cms/node_modules
+
 COPY --from=deps /app ./
 COPY packages/config ./packages/config
 COPY packages/types ./packages/types
