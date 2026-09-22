@@ -228,6 +228,10 @@ export default async function seedShipping({ container }: { container: MedusaCon
     });
     shippingOption = result[0];
     console.log(`Successfully created shipping option: ${shippingOption.name} (${shippingOption.id})`);
+  } else {
+    console.log(`Found existing shipping option: ${shippingOption.name} (${shippingOption.id})`);
+  }
+
   // 8. Ensure Inventory Levels for all Inventory Items at Stock Location
   try {
     const inventoryModule = container.resolve(Modules.INVENTORY);
