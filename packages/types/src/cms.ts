@@ -268,6 +268,8 @@ export interface CmsGlobalSettingsDto {
   documentId?: string;
   siteName: string;
   siteTagline?: string;
+  logo?: CmsMediaDto;
+  logoIcon?: string;
   announcementText?: string;
   announcementLink?: string;
   freeShippingThreshold?: number;

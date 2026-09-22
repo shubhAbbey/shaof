@@ -13,6 +13,7 @@ import { useAuth } from '../../context/auth-context';
 import { useCart } from '../../context/cart-context';
 import { useWishlist } from '../../context/wishlist-context';
 import { cn } from '../../lib/utils';
+import { getStrapiMediaUrl } from '../../lib/strapi-client';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
 
@@ -39,6 +40,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   const announcementText = globalSettings?.announcementText || 'Free Express Shipping across India on orders above ₹999 | Cash on Delivery Available';
   const siteTagline = globalSettings?.siteTagline || 'India Modern Edit';
   const siteName = globalSettings?.siteName || 'EcomFashion';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
 
   const handleCategoryHover = (index: number) => {
     setActiveCategoryIndex(index);
@@ -86,9 +88,19 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
         <Container size="xl" className="flex items-center justify-between gap-8">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0 group">
-            <div className="h-9 w-9 rounded-lg bg-brand-600 flex items-center justify-center text-white shadow-xs group-hover:bg-brand-700 transition-colors">
-              <Sparkles className="h-5 w-5" />
-            </div>
+            {logoUrl ? (
+              <div className="h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
+                <img
+                  src={logoUrl}
+                  alt={globalSettings?.logo?.alternativeText || siteName}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="h-9 w-9 rounded-lg bg-brand-600 flex items-center justify-center text-white shadow-xs group-hover:bg-brand-700 transition-colors">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            )}
             <div className="flex flex-col">
               <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
                 {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>

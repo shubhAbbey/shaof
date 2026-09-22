@@ -18,6 +18,7 @@ import { NAVIGATION_CATEGORIES } from '../../data/navigation';
 import { useUi } from '../../providers/ui-provider';
 import { useAuth } from '../../context/auth-context';
 import { cn } from '../../lib/utils';
+import { getStrapiMediaUrl } from '../../lib/strapi-client';
 
 import type { CmsCategoryNavItemDto, CmsGlobalSettingsDto } from '@ecom/types';
 
@@ -43,6 +44,9 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
     setOpenGroupTitle((prev) => (prev === title ? null : title));
   };
 
+  const siteName = globalSettings?.siteName || 'EcomFashion';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
+
   return (
     <Drawer
       isOpen={isMobileNavOpen}
@@ -52,11 +56,21 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
       showCloseButton
       title={
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-brand-600 flex items-center justify-center text-white text-xs font-black">
-            EF
-          </div>
+          {logoUrl ? (
+            <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center shrink-0">
+              <img
+                src={logoUrl}
+                alt={globalSettings?.logo?.alternativeText || siteName}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="h-7 w-7 rounded-md bg-brand-600 flex items-center justify-center text-white text-xs font-black">
+              EF
+            </div>
+          )}
           <span className="text-base font-black text-gray-900">
-            ECOM<span className="text-brand-600">FASHION</span>
+            {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
           </span>
         </div>
       }

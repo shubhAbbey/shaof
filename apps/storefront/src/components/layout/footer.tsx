@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Container } from '../ui/container';
 import { Sparkles, ShieldCheck, RefreshCw, Truck, CreditCard } from 'lucide-react';
+import { getStrapiMediaUrl } from '../../lib/strapi-client';
 
 import type { CmsFooterNavColumnDto, CmsGlobalSettingsDto } from '@ecom/types';
 
@@ -62,6 +63,7 @@ export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) =>
     "India's premier modern fashion destination offering curated ethnic wear, contemporary western silhouettes, plus size fits, and artisanal textiles with seamless checkout and pan-India express delivery.";
 
   const siteName = globalSettings?.siteName || 'EcomFashion';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
   const currentYear = new Date().getFullYear();
 
   const renderIcon = (iconName?: string) => {
@@ -119,9 +121,19 @@ export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) =>
           {/* Brand Info (Col 1-2 on mobile, 1 on desktop) */}
           <div className="col-span-2 md:col-span-2 space-y-4">
             <Link href="/" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center text-white text-sm font-black">
-                <Sparkles className="h-4 w-4" />
-              </div>
+              {logoUrl ? (
+                <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
+                  <img
+                    src={logoUrl}
+                    alt={globalSettings?.logo?.alternativeText || siteName}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center text-white text-sm font-black">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+              )}
               <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
                 {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
               </span>

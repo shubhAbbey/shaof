@@ -21,6 +21,18 @@
       "type": "string",
       "default": "India Modern Edit"
     },
+    "logo": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "logoIcon": {
+      "type": "string",
+      "default": "sparkles"
+    },
     "announcementText": {
       "type": "string"
     },
