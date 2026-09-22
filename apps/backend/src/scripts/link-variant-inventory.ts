@@ -17,7 +17,21 @@ export default async function linkVariantInventory({ container }: { container: M
   }
   console.log('Using Stock Location:', defaultLocation.id, defaultLocation.name);
 
-  const [products] = await productModule.listAndCountProducts({}, { relations: ['variants'] });
+  const salesChannelModule = container.resolve(Modules.SALES_CHANNEL);
+  const [salesChannels] = await salesChannelModule.listAndCountSalesChannels();
+  const defaultSalesChannel = salesChannels[0];
+  if (defaultSalesChannel) {
+    try {
+      await remoteLink.create([
+        {
+          [Modules.SALES_CHANNEL]: { sales_channel_id: defaultSalesChannel.id },
+          [Modules.STOCK_LOCATION]: { stock_location_id: defaultLocation.id },
+        },
+      ]);
+    } catch (e: any) {}
+  }
+
+  const [products] = await productModule.listAndCountProducts({}, { relations: ['variants'], take: 1000 });
   console.log(`Found ${products.length} products to process`);
 
   for (const product of products) {
@@ -46,6 +60,22 @@ export default async function linkVariantInventory({ container }: { container: M
           },
         });
         item = result[0];
+      } else {
+        const [levels] = await inventoryModule.listAndCountInventoryLevels({
+          inventory_item_id: item.id,
+          location_id: defaultLocation.id,
+        });
+        if (levels.length === 0) {
+          try {
+            await inventoryModule.createInventoryLevels([
+              {
+                inventory_item_id: item.id,
+                location_id: defaultLocation.id,
+                stocked_quantity: 100,
+              },
+            ]);
+          } catch (e: any) {}
+        }
       }
 
       if (item) {

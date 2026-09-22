@@ -1,6 +1,7 @@
 import { MedusaContainer } from '@medusajs/framework/types';
 import { Modules, ProductStatus } from '@medusajs/framework/utils';
 import { createProductsWorkflow } from '@medusajs/medusa/core-flows';
+import linkVariantInventory from './link-variant-inventory';
 
 export default async function seedCatalog({ container }: { container: MedusaContainer }) {
   console.log('Seeding Medusa v2 Catalog with rich multi-filter fashion products...');
@@ -610,6 +611,89 @@ export default async function seedCatalog({ container }: { container: MedusaCont
         is_new: true,
       },
     },
+    {
+      title: 'Classic Crewneck Cotton Tee (₹1 Test)',
+      handle: 'classic-crewneck-cotton-tee-test',
+      subtitle: '100% Combed Cotton Everyday T-Shirt - ₹1 Live Testing Product',
+      description:
+        'Premium breathable organic combed cotton t-shirt designed for testing. Features cutaway seams, ribbed crew collar, and multiple color & size variants. Priced at exactly ₹1 for complete cart, shipping, and payment gateway verification.',
+      thumbnail: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80',
+      images: [
+        { url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80' },
+        { url: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80' },
+        { url: 'https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=800&q=80' },
+      ],
+      collection_id: colMap.get('summer-meadow') || colMap.get('capsule'),
+      category_ids: [catMap.get('men'), catMap.get('men-casual-shirts')].filter(Boolean) as string[],
+      sales_channels: [{ id: defaultSalesChannel.id }],
+      status: ProductStatus.PUBLISHED,
+      options: [
+        { title: 'Color', values: ['Jet Black', 'Pure White', 'Navy Blue'] },
+        { title: 'Size', values: ['S', 'M', 'L'] },
+      ],
+      variants: [
+        {
+          title: 'Jet Black / S',
+          sku: 'TEST-TEE-BLK-S',
+          options: { Color: 'Jet Black', Size: 'S' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Jet Black / M',
+          sku: 'TEST-TEE-BLK-M',
+          options: { Color: 'Jet Black', Size: 'M' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Jet Black / L',
+          sku: 'TEST-TEE-BLK-L',
+          options: { Color: 'Jet Black', Size: 'L' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Pure White / S',
+          sku: 'TEST-TEE-WHT-S',
+          options: { Color: 'Pure White', Size: 'S' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Pure White / M',
+          sku: 'TEST-TEE-WHT-M',
+          options: { Color: 'Pure White', Size: 'M' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Pure White / L',
+          sku: 'TEST-TEE-WHT-L',
+          options: { Color: 'Pure White', Size: 'L' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Navy Blue / S',
+          sku: 'TEST-TEE-NVY-S',
+          options: { Color: 'Navy Blue', Size: 'S' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Navy Blue / M',
+          sku: 'TEST-TEE-NVY-M',
+          options: { Color: 'Navy Blue', Size: 'M' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+        {
+          title: 'Navy Blue / L',
+          sku: 'TEST-TEE-NVY-L',
+          options: { Color: 'Navy Blue', Size: 'L' },
+          prices: [{ amount: 1, currency_code: 'inr' }],
+        },
+      ],
+      metadata: {
+        brand: 'Ateevra Basics',
+        original_price: 499,
+        is_new: true,
+        is_testing: true,
+      },
+    },
   ];
 
   const missingProducts = allProductsCatalog.filter((p) => !existingHandles.has(p.handle));
@@ -626,5 +710,10 @@ export default async function seedCatalog({ container }: { container: MedusaCont
 
   const [allProds, total] = await productModule.listAndCountProducts();
   console.log(`Total active products in Medusa catalog: ${total}`);
+
+  // Automatically ensure inventory items, stock levels & links for all variants
+  console.log('Ensuring all variant inventory items and links are established...');
+  await linkVariantInventory({ container });
+
   console.log('Catalog seeding complete.');
 }
