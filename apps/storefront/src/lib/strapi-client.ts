@@ -106,7 +106,7 @@ export async function fetchCmsNavigation(handle: string): Promise<CmsNavigationD
  * Fetch global storefront settings including announcement, site branding, value props and default SEO.
  */
 export async function fetchCmsGlobalSettings(): Promise<CmsGlobalSettingsDto | null> {
-  const query = `/api/global-setting?populate[defaultSeo][populate]=*&populate[valuePropositions][populate]=*&populate[logo][populate]=*`;
+  const query = `/api/global-setting?populate[defaultSeo][populate]=*&populate[valuePropositions][populate]=*&populate[logo]=*`;
   const result = await fetchStrapi<CmsGlobalSettingsDto>(query, { revalidate: 300 });
   return result;
 }

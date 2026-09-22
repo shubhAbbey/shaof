@@ -202,7 +202,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
               const isActive = activeCategoryIndex === idx;
               return (
                 <button
-                  key={cat.id || cat.handle}
+                  key={cat.id || cat.handle || (cat as any).label || idx}
                   ref={(el) => {
                     categoryTabRefs.current[idx] = el;
                   }}
@@ -216,7 +216,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
                     cat.handle === 'sale' && 'text-red-600 hover:text-red-700 font-bold'
                   )}
                 >
-                  <span>{cat.name}</span>
+                  <span>{cat.name || (cat as any).label || (cat as any).title}</span>
                   {cat.badge && (
                     <Badge
                       variant={cat.handle === 'sale' ? 'danger' : 'brand'}

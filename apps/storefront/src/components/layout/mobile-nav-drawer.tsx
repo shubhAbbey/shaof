@@ -175,10 +175,10 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
           </div>
 
           <div className="divide-y divide-gray-100 border-y border-gray-100">
-            {selectedCategory.groups.map((group) => {
+            {(selectedCategory?.groups || []).map((group, gIdx) => {
               const isExpanded = openGroupTitle === group.title;
               return (
-                <div key={group.title} className="py-2">
+                <div key={group.title || gIdx} className="py-2">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.title)}
@@ -195,8 +195,8 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
 
                   {isExpanded && (
                     <ul className="mt-2 space-y-2 pl-3 pt-1 border-l-2 border-brand-200">
-                      {group.items.map((item) => (
-                        <li key={item.label}>
+                      {(group.items || []).map((item, iIdx) => (
+                        <li key={item.label || iIdx}>
                           <Link
                             href={item.href}
                             onClick={closeMobileNav}

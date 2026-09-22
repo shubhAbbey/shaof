@@ -51,13 +51,47 @@ const DEFAULT_FOOTER_COLUMNS: CmsFooterNavColumnDto[] = [
 ];
 
 export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) => {
-  const valueProps = globalSettings?.valuePropositions && globalSettings.valuePropositions.length > 0
+  const valueProps = globalSettings?.valuePropositions && Array.isArray(globalSettings.valuePropositions) && globalSettings.valuePropositions.length > 0
     ? globalSettings.valuePropositions
     : DEFAULT_VALUE_PROPS;
 
-  const columns = navigation && navigation.length > 0
-    ? navigation
-    : DEFAULT_FOOTER_COLUMNS;
+  const columns: CmsFooterNavColumnDto[] = React.useMemo(() => {
+    if (!navigation || !Array.isArray(navigation) || navigation.length === 0) {
+      return DEFAULT_FOOTER_COLUMNS;
+    }
+
+    // Check if navigation contains structured columns with an items array
+    const hasStructuredColumns = navigation.some(
+      (col: any) => col && Array.isArray(col.items)
+    );
+
+    if (hasStructuredColumns) {
+      return navigation.map((col: any) => ({
+        title: col.title || 'Links',
+        items: Array.isArray(col.items) ? col.items : [],
+      }));
+    }
+
+    // If navigation is a flat array of links (e.g. [{ label, href }])
+    const flatLinks = navigation
+      .filter((item: any) => item && (item.label || item.href))
+      .map((item: any) => ({
+        label: item.label || 'Link',
+        href: item.href || '#',
+      }));
+
+    if (flatLinks.length === 0) {
+      return DEFAULT_FOOTER_COLUMNS;
+    }
+
+    return [
+      ...DEFAULT_FOOTER_COLUMNS.slice(0, 2),
+      {
+        title: 'Quick Links',
+        items: flatLinks,
+      },
+    ];
+  }, [navigation]);
 
   const aboutText = globalSettings?.footerAboutText ||
     "India's premier modern fashion destination offering curated ethnic wear, contemporary western silhouettes, plus size fits, and artisanal textiles with seamless checkout and pan-India express delivery.";
@@ -161,17 +195,17 @@ export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) =>
           </div>
 
           {/* Dynamic Link Columns from Strapi */}
-          {columns.map((col) => (
-            <div key={col.title} className="space-y-3 text-xs">
+          {columns.map((col, cIdx) => (
+            <div key={col.title || cIdx} className="space-y-3 text-xs">
               <h5 className="font-bold text-gray-900 uppercase tracking-wider">{col.title}</h5>
               <ul className="space-y-2 text-gray-600">
-                {col.items.map((item) => (
-                  <li key={item.label}>
+                {(col.items || []).map((item, iIdx) => (
+                  <li key={`${item.label || item.href || iIdx}`}>
                     <Link
-                      href={item.href}
+                      href={item.href || '#'}
                       className={item.href === '/sale' ? 'text-red-600 font-bold hover:underline' : 'hover:text-brand-600'}
                     >
-                      {item.label}
+                      {item.label || 'Link'}
                     </Link>
                   </li>
                 ))}

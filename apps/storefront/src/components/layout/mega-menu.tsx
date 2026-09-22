@@ -49,14 +49,14 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({
                   : 'col-span-12 grid-cols-4'
               )}
             >
-              {category.groups.map((group) => (
-                <div key={group.title} className="space-y-3">
+              {(category.groups || []).map((group, gIdx) => (
+                <div key={group.title || gIdx} className="space-y-3">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-gray-900 border-b border-gray-100 pb-2">
                     {group.title}
                   </h4>
                   <ul className="space-y-2 text-sm">
-                    {group.items.map((item) => (
-                      <li key={item.label}>
+                    {(group.items || []).map((item, iIdx) => (
+                      <li key={item.label || iIdx}>
                         <Link
                           href={item.href}
                           onClick={onClose}
@@ -92,9 +92,9 @@ export const MegaMenu: React.FC<MegaMenuProps> = ({
                   Featured Highlights
                 </h4>
                 <div className="space-y-4">
-                  {category.featured.map((feat) => (
+                  {(category.featured || []).map((feat, fIdx) => (
                     <Link
-                      key={feat.title}
+                      key={feat.title || fIdx}
                       href={feat.href}
                       onClick={onClose}
                       className="group block overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-brand-50/30 hover:shadow-sm"

@@ -120,8 +120,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             const isActive = activeCategoryIndex === idx;
             return (
               <Link
-                key={cat.id || cat.handle}
-                href={cat.href}
+                key={cat.id || cat.handle || (cat as any).label || idx}
+                href={cat.href || '#'}
                 onClick={() => setActiveCategoryIndex(idx)}
                 className={cn(
                   'whitespace-nowrap px-3.5 py-1 rounded-full text-xs font-semibold transition-all shrink-0',
@@ -131,7 +131,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   cat.handle === 'sale' && !isActive && 'text-red-600 bg-red-50'
                 )}
               >
-                {cat.name}
+                {cat.name || (cat as any).label || (cat as any).title}
               </Link>
             );
           })}
