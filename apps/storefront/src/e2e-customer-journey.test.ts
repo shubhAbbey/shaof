@@ -59,6 +59,7 @@ describe('Phase 36: Authoritative End-to-End Customer Journeys', () => {
           city: 'Bengaluru',
           state: 'Karnataka',
           pincode: '560038',
+          countryCode: 'in',
           addressType: 'home' as const,
           isDefault: true,
         },
