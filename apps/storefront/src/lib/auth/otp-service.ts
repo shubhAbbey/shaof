@@ -130,10 +130,11 @@ export class OtpService {
     const now = Date.now();
     const expiresAt = now + OTP_TTL_SECONDS * 1000;
 
-    // Determine dev-fetch eligibility: allowed in development OR when authorized via S2S token
+    // Determine dev-fetch eligibility: allowed in development, when authorized via S2S token, or when using mock SMS provider
     const isDev = process.env.NODE_ENV !== 'production';
     const isS2SAuthorized = Boolean(s2sToken && isAuthorizedS2S(s2sToken));
-    const isDevFetchEligible = isDev || isS2SAuthorized;
+    const isMockProvider = (process.env.SMS_PROVIDER || 'mock') === 'mock';
+    const isDevFetchEligible = isDev || isS2SAuthorized || isMockProvider;
 
     // 5. Store temporary state in Redis (TTL = 300s)
     const state: OtpSessionState = {

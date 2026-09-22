@@ -11,8 +11,8 @@ export interface ISmsProvider {
 export class MockSmsProvider implements ISmsProvider {
   name = 'mock';
 
-  async sendOtp(mobile: string, _otp: string, otpType: OtpType): Promise<SmsSendResult> {
-    // In mock provider, simulated delivery without logging sensitive OTP
+  async sendOtp(mobile: string, otp: string, otpType: OtpType): Promise<SmsSendResult> {
+    console.log(`[MockSmsProvider] Simulated SMS sent to ${mobile}: OTP is ${otp} (${otpType})`);
     return {
       success: true,
       messageId: `mock-msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
