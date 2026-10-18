@@ -27,6 +27,9 @@ export default defineConfig({
     {
       resolve: './src/modules/wishlist',
     },
+    {
+      resolve: './src/modules/marketplace',
+    },
   ],
   admin: {
     disable: process.env.MEDUSA_ADMIN_DISABLE === 'true',

@@ -2,6 +2,7 @@ export * from './search.js';
 export * from './auth.js';
 export * from './cms.js';
 export * from './commerce.js';
+export * from './marketplace.js';
 
 export interface ApiResponse<T> {
   success: boolean;
