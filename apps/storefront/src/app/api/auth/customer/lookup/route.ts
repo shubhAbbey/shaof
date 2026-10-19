@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
       success: true,
       exists: result.exists,
       mobile: validation.normalized,
-      customer: result.customer,
+      customer: null, // Zero PII leakage
     });
+
   } catch (error: any) {
     return NextResponse.json(
       {

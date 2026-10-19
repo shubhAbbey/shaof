@@ -157,11 +157,44 @@ export interface StockLocationOwnershipDto {
 
 export type ActorType = 'customer' | 'merchant_user' | 'super_admin';
 
+export type AuthBoundary = 'store' | 'merchant' | 'admin';
+
+export type MarketplacePermission =
+  | 'catalog:read'
+  | 'catalog:write'
+  | 'catalog:delete'
+  | 'catalog:moderate'
+  | 'inventory:read'
+  | 'inventory:adjust'
+  | 'orders:read'
+  | 'orders:fulfill'
+  | 'returns:read'
+  | 'returns:process'
+  | 'financials:view'
+  | 'financials:payout'
+  | 'team:manage'
+  | 'settings:manage';
+
+export interface AuthenticatedSessionDto {
+  userId: string;
+  actorType: ActorType;
+  authBoundary: AuthBoundary;
+  email?: string | null;
+  mobile?: string | null;
+  merchantId?: string | null;
+  role?: MerchantRole | 'super_admin' | 'reviewer';
+  permissions?: MarketplacePermission[];
+  isMfaVerified?: boolean;
+  sessionToken?: string;
+  issuedAt?: string;
+  expiresAt?: string;
+}
+
 export interface TenantContext {
   actorType: ActorType;
   userId: string;
   merchantId?: string; // Present only if actorType === 'merchant_user' and active membership verified
-  role?: MerchantRole | 'super_admin';
+  role?: MerchantRole | 'super_admin' | 'reviewer';
   isSuperAdmin?: boolean;
 }
 
@@ -171,6 +204,14 @@ export interface OwnershipAssertionResult {
   error?: 'UNAUTHORIZED' | 'FORBIDDEN' | 'BAD_REQUEST';
   message?: string;
 }
+
+export interface IdentityAssertionResult {
+  allowed: boolean;
+  statusCode: 200 | 401 | 403;
+  error?: 'UNAUTHORIZED' | 'FORBIDDEN';
+  message?: string;
+}
+
 
 // ==========================================
 // 6. Ownership Assertion & Governance Utilities
@@ -331,4 +372,175 @@ export class MarketplaceOwnershipGuard {
 
     return merchantMap;
   }
+
+  /**
+   * Asserts whether an authenticated session is permitted to access a given security boundary.
+   *
+   * Boundaries:
+   * - 'store': Customer storefront operations.
+   * - 'merchant': Merchant portal and tenant operations.
+   * - 'admin': Super Admin platform governance operations.
+   *
+   * Rules:
+   * 1. Unauthenticated or missing session -> 401 UNAUTHORIZED
+   * 2. Customer accessing 'merchant' or 'admin' -> 403 FORBIDDEN
+   * 3. Merchant user accessing 'admin' -> 403 FORBIDDEN
+   * 4. Merchant user accessing 'store' with merchant credentials -> 403 FORBIDDEN
+   * 5. Super Admin accessing 'admin' or cross-merchant resources -> 200 OK
+   */
+  static assertBoundaryAccess(
+    session: AuthenticatedSessionDto | null | undefined,
+    targetBoundary: AuthBoundary
+  ): IdentityAssertionResult {
+    if (!session || !session.userId) {
+      return {
+        allowed: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required. No active session token found.',
+      };
+    }
+
+    if (session.actorType === 'customer') {
+      if (targetBoundary !== 'store') {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'Access denied: Customer credentials cannot access merchant or admin boundaries.',
+        };
+      }
+      return { allowed: true, statusCode: 200 };
+    }
+
+    if (session.actorType === 'merchant_user') {
+      if (targetBoundary === 'admin') {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'Access denied: Merchant credentials cannot access platform admin boundary.',
+        };
+      }
+      if (targetBoundary === 'store') {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'Access denied: Merchant credentials cannot perform customer storefront operations directly.',
+        };
+      }
+      return { allowed: true, statusCode: 200 };
+    }
+
+    if (session.actorType === 'super_admin') {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: 'FORBIDDEN',
+      message: 'Access denied: Unknown or unhandled actor type.',
+    };
+  }
+
+  /**
+   * Asserts whether a merchant team member has active membership and active merchant account status.
+   */
+  static assertMerchantActiveMembership(params: {
+    membershipStatus: MerchantMemberStatus | null | undefined;
+    merchantStatus: MerchantStatus | null | undefined;
+  }): IdentityAssertionResult {
+    const { membershipStatus, merchantStatus } = params;
+
+    if (!membershipStatus || membershipStatus !== 'active') {
+      return {
+        allowed: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: `Merchant membership is not active (current status: ${membershipStatus || 'unknown'}). Access denied.`,
+      };
+    }
+
+    if (!merchantStatus || merchantStatus !== 'active') {
+      return {
+        allowed: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: `Merchant account is not active (current status: ${merchantStatus || 'unknown'}). Access denied.`,
+      };
+    }
+
+    return { allowed: true, statusCode: 200 };
+  }
+
+  /**
+   * Evaluates permission-based RBAC for merchant users and platform staff (including reviewer roles).
+   */
+  static assertPermission(
+    session: AuthenticatedSessionDto | null | undefined,
+    requiredPermission: MarketplacePermission
+  ): IdentityAssertionResult {
+    if (!session || !session.userId) {
+      return {
+        allowed: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required.',
+      };
+    }
+
+    // Super Admin role has all permissions globally
+    if (session.role === 'super_admin') {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    // Merchant owner has all permissions within their merchant scope
+    if (session.actorType === 'merchant_user' && session.role === 'owner') {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    // Permission-based evaluation for other roles (admin, manager, staff, reviewer)
+    if (session.permissions && session.permissions.includes(requiredPermission)) {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: 'FORBIDDEN',
+      message: `Access denied: Missing required permission [${requiredPermission}].`,
+    };
+  }
+
+  /**
+   * Dual-transport token extractor supporting:
+   * 1. React Native mobile apps using 'Authorization: Bearer <token>' header
+   * 2. Web browser clients using HTTP-only cookies ('ecom_session_token', 'ecom_merchant_sess', 'ecom_admin_sess')
+   */
+  static extractAuthToken(
+    headers: Record<string, string | undefined>,
+    cookieHeader?: string | null
+  ): { token: string | null; transport: 'bearer' | 'cookie' | null } {
+    const authHeader = headers['authorization'] || headers['Authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const bearerToken = authHeader.substring(7).trim();
+      if (bearerToken) {
+        return { token: bearerToken, transport: 'bearer' };
+      }
+    }
+
+    if (cookieHeader) {
+      const match = cookieHeader.match(
+        /(?:^|;\s*)(?:ecom_session_token|ecom_merchant_sess|ecom_admin_sess)=([^;]+)/
+      );
+      if (match && match[1]) {
+        return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+      }
+    }
+
+    return { token: null, transport: null };
+  }
 }
+

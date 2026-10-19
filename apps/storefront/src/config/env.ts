@@ -74,7 +74,14 @@ export const env: ServerEnvConfig = {
   smsProvider: typeof window === 'undefined' ? process.env.SMS_PROVIDER || 'mock' : undefined,
   smsApiKey: typeof window === 'undefined' ? process.env.SMS_API_KEY : undefined,
   smsSenderId: typeof window === 'undefined' ? process.env.SMS_SENDER_ID : undefined,
-  s2sAuthToken: typeof window === 'undefined' ? process.env.S2S_AUTH_TOKEN || 'ecom-s2s-dev-token-secret' : undefined,
+  s2sAuthToken:
+    typeof window === 'undefined'
+      ? process.env.S2S_AUTH_TOKEN && process.env.S2S_AUTH_TOKEN !== 'ecom-s2s-dev-token-secret'
+        ? process.env.S2S_AUTH_TOKEN
+        : isProduction
+          ? undefined
+          : 'ecom-s2s-dev-token-secret'
+      : undefined,
 };
 
 /**
@@ -87,8 +94,13 @@ export function validateEnvironment(): { isValid: boolean; missing: string[] } {
   if (!MEDUSA_BACKEND_URL) missing.push('NEXT_PUBLIC_MEDUSA_BACKEND_URL');
   if (!STRAPI_URL) missing.push('NEXT_PUBLIC_STRAPI_URL');
 
+  if (isProduction && (!process.env.S2S_AUTH_TOKEN || process.env.S2S_AUTH_TOKEN === 'ecom-s2s-dev-token-secret')) {
+    missing.push('S2S_AUTH_TOKEN (production requires strong non-default secret)');
+  }
+
   return {
     isValid: missing.length === 0,
     missing,
   };
 }
+

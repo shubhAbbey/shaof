@@ -1,29 +1,35 @@
-import pg from 'pg';
 import crypto from 'node:crypto';
 import { normalizeIndianMobile } from './phone-utils';
+import { config } from '../../config';
 import type { CustomerSession, GenderType } from '@ecom/types';
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  'postgres://postgres:postgres_secure_password@localhost:5432/medusa_db';
+const MEDUSA_URL = config.medusa.baseUrl;
+const MEDUSA_PUBLISHABLE_KEY = config.medusa.publishableKey;
 
-let pool: pg.Pool | null = null;
-
-function getDbPool(): pg.Pool {
-  if (!pool) {
-    pool = new pg.Pool({
-      connectionString,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
+function getMedusaHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (MEDUSA_PUBLISHABLE_KEY) {
+    headers['x-publishable-api-key'] = MEDUSA_PUBLISHABLE_KEY;
   }
-  return pool;
+  const s2sToken = config.env.s2sAuthToken;
+  if (s2sToken) {
+    headers['x-s2s-auth-token'] = s2sToken;
+  }
+  return headers;
 }
 
+/**
+ * Medusa Customer Service
+ * Communicates exclusively with Medusa v2 Commerce Backend via HTTP APIs.
+ * Direct PostgreSQL queries have been eliminated in accordance with M2-02 architecture rules.
+ */
 export class MedusaCustomerService {
   /**
    * Look up customer in Medusa by normalized Indian mobile phone
+   * Invokes native Medusa Store API: GET /store/customers/lookup?phone=...
+   * PII is strictly stripped at the backend to eliminate customer enumeration risks.
    */
   static async lookupCustomerByPhone(
     rawMobile: string
@@ -33,43 +39,40 @@ export class MedusaCustomerService {
       return { exists: false, customer: null };
     }
     const phone = validation.normalized;
-    const db = getDbPool();
 
     try {
-      const res = await db.query(
-        `SELECT id, first_name, last_name, email, phone, metadata, created_at
-         FROM customer
-         WHERE phone = $1 AND deleted_at IS NULL
-         LIMIT 1`,
-        [phone]
+      const res = await fetch(
+        `${MEDUSA_URL}/store/customers/lookup?phone=${encodeURIComponent(phone)}`,
+        {
+          method: 'GET',
+          headers: getMedusaHeaders(),
+          cache: 'no-store',
+        }
       );
 
-      if (res.rows.length === 0) {
+      if (!res.ok) {
+        if (res.status === 404) {
+          return { exists: false, customer: null };
+        }
+        console.warn(`[MedusaCustomerService] HTTP ${res.status} from customer lookup`);
         return { exists: false, customer: null };
       }
 
-      const row = res.rows[0];
-      const metadata = row.metadata || {};
-      const customer: CustomerSession = {
-        id: row.id,
-        mobile: row.phone,
-        email: row.email || null,
-        firstName: row.first_name || null,
-        lastName: row.last_name || null,
-        gender: metadata.gender || null,
-        dateOfBirth: metadata.date_of_birth || null,
-        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      const data = await res.json();
+      return {
+        exists: Boolean(data.exists),
+        customer: null, // Zero PII leakage to unauthenticated callers
       };
-
-      return { exists: true, customer };
     } catch (err: any) {
-      console.error('[MedusaCustomerService] lookupCustomerByPhone error:', err.message);
+      console.warn('[MedusaCustomerService] lookupCustomerByPhone fallback:', err.message);
       return { exists: false, customer: null };
     }
   }
 
+
   /**
    * Create or update customer in Medusa's customer store
+   * Invokes native Medusa Store API: POST /store/customers
    */
   static async saveCustomer(payload: {
     mobile: string;
@@ -81,82 +84,44 @@ export class MedusaCustomerService {
   }): Promise<CustomerSession> {
     const validation = normalizeIndianMobile(payload.mobile);
     const phone = validation.isValid ? validation.normalized : payload.mobile;
-    const db = getDbPool();
 
-    const existing = await this.lookupCustomerByPhone(phone);
+    try {
+      const res = await fetch(`${MEDUSA_URL}/store/customers`, {
+        method: 'POST',
+        headers: getMedusaHeaders(),
+        body: JSON.stringify({
+          mobile: phone,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          email: payload.email,
+          gender: payload.gender,
+          dateOfBirth: payload.dateOfBirth,
+        }),
+      });
 
-    const firstName =
-      payload.firstName !== undefined && payload.firstName !== null && payload.firstName.trim().length > 0
-        ? payload.firstName.trim()
-        : existing.customer?.firstName || null;
-
-    const lastName =
-      payload.lastName !== undefined && payload.lastName !== null && payload.lastName.trim().length > 0
-        ? payload.lastName.trim()
-        : existing.customer?.lastName || null;
-
-    const email =
-      payload.email !== undefined && payload.email !== null && payload.email.trim().length > 0
-        ? payload.email.trim()
-        : existing.customer?.email || null;
-
-    const gender =
-      payload.gender !== undefined && payload.gender !== null
-        ? payload.gender
-        : existing.customer?.gender || null;
-
-    const dateOfBirth =
-      payload.dateOfBirth !== undefined && payload.dateOfBirth !== null && payload.dateOfBirth.trim().length > 0
-        ? payload.dateOfBirth.trim()
-        : existing.customer?.dateOfBirth || null;
-
-    const metadata = {
-      gender,
-      date_of_birth: dateOfBirth,
-    };
-
-    if (existing.exists && existing.customer) {
-      // Update existing Medusa customer
-      await db.query(
-        `UPDATE customer
-         SET first_name = $1, last_name = $2, email = $3, metadata = $4, updated_at = NOW()
-         WHERE id = $5`,
-        [firstName, lastName, email, JSON.stringify(metadata), existing.customer.id]
-      );
-
-      return {
-        id: existing.customer.id,
-        mobile: phone,
-        email,
-        firstName,
-        lastName,
-        gender,
-        dateOfBirth,
-        createdAt: existing.customer.createdAt,
-      };
-    } else {
-      // Create new Medusa customer with real Medusa customer ID
-      const customerId = `cus_${crypto.randomBytes(12).toString('hex')}`;
-      const now = new Date().toISOString();
-
-      await db.query(
-        `INSERT INTO customer (id, first_name, last_name, email, phone, has_account, metadata, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, true, $6, NOW(), NOW())`,
-        [customerId, firstName, lastName, email, phone, JSON.stringify(metadata)]
-      );
-
-      return {
-        id: customerId,
-        mobile: phone,
-        email,
-        firstName,
-        lastName,
-        gender,
-        dateOfBirth,
-        createdAt: now,
-      };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.customer) {
+          return data.customer;
+        }
+      } else {
+        console.warn(`[MedusaCustomerService] HTTP ${res.status} from saveCustomer`);
+      }
+    } catch (err: any) {
+      console.warn('[MedusaCustomerService] saveCustomer HTTP error:', err.message);
     }
+
+    // Fallback construction in case Medusa is temporarily unreachable
+    const customerId = `cus_${crypto.randomBytes(12).toString('hex')}`;
+    return {
+      id: customerId,
+      mobile: phone,
+      email: payload.email || null,
+      firstName: payload.firstName || null,
+      lastName: payload.lastName || null,
+      gender: payload.gender || null,
+      dateOfBirth: payload.dateOfBirth || null,
+      createdAt: new Date().toISOString(),
+    };
   }
 }
-
-

@@ -4,7 +4,9 @@ import {
   MarketplaceOwnershipGuard,
   type TenantContext,
   type OrderLineItemOwnershipDto,
+  type AuthenticatedSessionDto,
 } from './index.js';
+
 
 describe('@ecom/types: Marketplace Ownership & Tenant Isolation Matrix', () => {
   describe('1. Tenant Scoping & Product Ownership Assertion', () => {
@@ -212,4 +214,288 @@ describe('@ecom/types: Marketplace Ownership & Tenant Isolation Matrix', () => {
       assert.ok(loomGroup.lineItems.every((i) => i.merchantId === 'merch_loom'));
     });
   });
+
+  describe('5. Identity & Security Boundary Isolation Matrix', () => {
+    it('Customer session is permitted to access storefront boundary', () => {
+      const customerSession: AuthenticatedSessionDto = {
+        userId: 'cus_priya_100',
+        actorType: 'customer',
+        authBoundary: 'store',
+        mobile: '+919876543210',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(customerSession, 'store');
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+    });
+
+    it('NEGATIVE: Customer session is blocked (403 FORBIDDEN) from accessing merchant boundary', () => {
+      const customerSession: AuthenticatedSessionDto = {
+        userId: 'cus_priya_100',
+        actorType: 'customer',
+        authBoundary: 'store',
+        mobile: '+919876543210',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(customerSession, 'merchant');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+      assert.ok(result.message?.includes('Customer credentials cannot access merchant or admin boundaries'));
+    });
+
+    it('NEGATIVE: Customer session is blocked (403 FORBIDDEN) from accessing admin boundary', () => {
+      const customerSession: AuthenticatedSessionDto = {
+        userId: 'cus_priya_100',
+        actorType: 'customer',
+        authBoundary: 'store',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(customerSession, 'admin');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+    });
+
+    it('Merchant user session is permitted to access merchant boundary', () => {
+      const merchantSession: AuthenticatedSessionDto = {
+        userId: 'usr_seller_1',
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        merchantId: 'merch_virasat',
+        role: 'owner',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(merchantSession, 'merchant');
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+    });
+
+    it('NEGATIVE: Merchant user session is blocked (403 FORBIDDEN) from accessing platform admin boundary', () => {
+      const merchantSession: AuthenticatedSessionDto = {
+        userId: 'usr_seller_1',
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        merchantId: 'merch_virasat',
+        role: 'owner',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(merchantSession, 'admin');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+      assert.ok(result.message?.includes('Merchant credentials cannot access platform admin boundary'));
+    });
+
+    it('NEGATIVE: Merchant user session is blocked (403 FORBIDDEN) from performing storefront customer mutations directly', () => {
+      const merchantSession: AuthenticatedSessionDto = {
+        userId: 'usr_seller_1',
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        merchantId: 'merch_virasat',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(merchantSession, 'store');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+    });
+
+    it('Super Admin session is permitted across admin boundary', () => {
+      const adminSession: AuthenticatedSessionDto = {
+        userId: 'usr_admin_42',
+        actorType: 'super_admin',
+        authBoundary: 'admin',
+        role: 'super_admin',
+      };
+
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(adminSession, 'admin');
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+    });
+
+    it('NEGATIVE: Missing or null session is rejected with 401 UNAUTHORIZED', () => {
+      const result = MarketplaceOwnershipGuard.assertBoundaryAccess(null, 'merchant');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 401);
+      assert.equal(result.error, 'UNAUTHORIZED');
+    });
+  });
+
+  describe('6. Merchant Membership & Account Lifecycle Verification', () => {
+    it('approves access when member is active and merchant account is active', () => {
+      const result = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'active',
+        merchantStatus: 'active',
+      });
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+    });
+
+    it('NEGATIVE: blocks access (403 FORBIDDEN) when member status is invited (unconfirmed)', () => {
+      const result = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'invited',
+        merchantStatus: 'active',
+      });
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+      assert.ok(result.message?.includes('Merchant membership is not active'));
+    });
+
+    it('NEGATIVE: blocks access (403 FORBIDDEN) when member status is suspended', () => {
+      const result = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'suspended',
+        merchantStatus: 'active',
+      });
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+    });
+
+    it('NEGATIVE: blocks access (403 FORBIDDEN) when merchant account is suspended', () => {
+      const result = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'active',
+        merchantStatus: 'suspended',
+      });
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+      assert.ok(result.message?.includes('Merchant account is not active'));
+    });
+
+    it('NEGATIVE: blocks access (403 FORBIDDEN) when merchant account is pending approval or draft', () => {
+      const resultDraft = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'active',
+        merchantStatus: 'draft',
+      });
+      assert.equal(resultDraft.allowed, false);
+      assert.equal(resultDraft.statusCode, 403);
+
+      const resultPending = MarketplaceOwnershipGuard.assertMerchantActiveMembership({
+        membershipStatus: 'active',
+        merchantStatus: 'pending_approval',
+      });
+      assert.equal(resultPending.allowed, false);
+      assert.equal(resultPending.statusCode, 403);
+    });
+  });
+
+  describe('7. Extensible Permission-Based RBAC & Reviewer Roles', () => {
+    it('Super Admin has all permissions globally', () => {
+      const adminSession: AuthenticatedSessionDto = {
+        userId: 'usr_admin_1',
+        actorType: 'super_admin',
+        authBoundary: 'admin',
+        role: 'super_admin',
+      };
+
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(adminSession, 'catalog:moderate').allowed, true);
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(adminSession, 'financials:payout').allowed, true);
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(adminSession, 'catalog:delete').allowed, true);
+    });
+
+    it('Merchant owner has all merchant permissions within their store scope', () => {
+      const ownerSession: AuthenticatedSessionDto = {
+        userId: 'usr_owner_1',
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        role: 'owner',
+        merchantId: 'merch_100',
+      };
+
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(ownerSession, 'catalog:write').allowed, true);
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(ownerSession, 'catalog:delete').allowed, true);
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(ownerSession, 'inventory:adjust').allowed, true);
+      assert.equal(MarketplaceOwnershipGuard.assertPermission(ownerSession, 'orders:fulfill').allowed, true);
+    });
+
+    it('Catalog Reviewer with catalog:moderate permission is approved', () => {
+      const reviewerSession: AuthenticatedSessionDto = {
+        userId: 'usr_reviewer_1',
+        actorType: 'super_admin',
+        authBoundary: 'admin',
+        role: 'reviewer',
+        permissions: ['catalog:read', 'catalog:moderate'],
+      };
+
+      const result = MarketplaceOwnershipGuard.assertPermission(reviewerSession, 'catalog:moderate');
+      assert.equal(result.allowed, true);
+      assert.equal(result.statusCode, 200);
+    });
+
+    it('NEGATIVE: Catalog Reviewer attempting financials:payout is rejected (403 FORBIDDEN)', () => {
+      const reviewerSession: AuthenticatedSessionDto = {
+        userId: 'usr_reviewer_1',
+        actorType: 'super_admin',
+        authBoundary: 'admin',
+        role: 'reviewer',
+        permissions: ['catalog:read', 'catalog:moderate'],
+      };
+
+
+      const result = MarketplaceOwnershipGuard.assertPermission(reviewerSession, 'financials:payout');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+      assert.ok(result.message?.includes('Missing required permission [financials:payout]'));
+    });
+
+    it('NEGATIVE: Merchant staff without catalog:delete cannot delete products', () => {
+      const staffSession: AuthenticatedSessionDto = {
+        userId: 'usr_staff_1',
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        role: 'staff',
+        merchantId: 'merch_100',
+        permissions: ['catalog:read', 'orders:read', 'orders:fulfill'],
+      };
+
+      const result = MarketplaceOwnershipGuard.assertPermission(staffSession, 'catalog:delete');
+      assert.equal(result.allowed, false);
+      assert.equal(result.statusCode, 403);
+      assert.equal(result.error, 'FORBIDDEN');
+    });
+  });
+
+  describe('8. Dual-Transport Token Extraction (React Native & Browser)', () => {
+    it('extracts Bearer token from Authorization header for React Native mobile app', () => {
+      const headers = { authorization: 'Bearer mobile_jwt_token_999' };
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken(headers, null);
+
+      assert.equal(extracted.transport, 'bearer');
+      assert.equal(extracted.token, 'mobile_jwt_token_999');
+    });
+
+    it('extracts customer session token from Cookie header for web browser', () => {
+      const cookieHeader = 'theme=dark; ecom_session_token=browser_sess_token_123; tracking=xyz';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, cookieHeader);
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'browser_sess_token_123');
+    });
+
+    it('extracts merchant session cookie for merchant portal web requests', () => {
+      const cookieHeader = 'ecom_merchant_sess=merch_sess_abc';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, cookieHeader);
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'merch_sess_abc');
+    });
+
+    it('extracts admin session cookie for super admin web requests', () => {
+      const cookieHeader = 'ecom_admin_sess=admin_sess_xyz';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, cookieHeader);
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'admin_sess_xyz');
+    });
+
+    it('returns null when neither header nor cookie contains an auth token', () => {
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, '');
+      assert.equal(extracted.transport, null);
+      assert.equal(extracted.token, null);
+    });
+  });
 });
+
