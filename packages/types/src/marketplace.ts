@@ -18,6 +18,30 @@ export type MerchantRole = 'owner' | 'admin' | 'manager' | 'staff';
 
 export type MerchantMemberStatus = 'invited' | 'active' | 'suspended';
 
+export interface MerchantLifecycleEvent {
+  fromStatus: MerchantStatus;
+  toStatus: MerchantStatus;
+  changedAt: string;
+  changedBy: string; // userId of actor or 'system'
+  reason?: string;
+  notes?: string;
+}
+
+export interface MerchantVerificationMetadata {
+  verificationSubmittedAt?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectionReason?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
+  suspensionReason?: string;
+  suspendedAt?: string;
+  suspendedBy?: string;
+  reactivatedAt?: string;
+  reactivatedBy?: string;
+  lifecycleHistory?: MerchantLifecycleEvent[];
+}
+
 export interface MerchantDto {
   id: string;
   name: string;
@@ -27,7 +51,7 @@ export interface MerchantDto {
   phone: string;
   businessRegistrationNumber?: string; // GSTIN for India
   taxIdentifier?: string; // PAN for India
-  metadata?: Record<string, unknown>;
+  metadata?: MerchantVerificationMetadata & Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
@@ -40,7 +64,7 @@ export interface CreateMerchantPayload {
   phone: string;
   businessRegistrationNumber?: string;
   taxIdentifier?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: MerchantVerificationMetadata & Record<string, unknown>;
 }
 
 export interface UpdateMerchantPayload {
@@ -51,7 +75,7 @@ export interface UpdateMerchantPayload {
   phone?: string;
   businessRegistrationNumber?: string;
   taxIdentifier?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: MerchantVerificationMetadata & Record<string, unknown>;
 }
 
 export interface MerchantMemberDto {
@@ -64,6 +88,402 @@ export interface MerchantMemberDto {
   name?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ==========================================
+// 1.1 Validation Constants & Helper Rules
+// ==========================================
+
+export const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+export const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+export const INDIAN_PHONE_REGEX = /^\+91[6-9]\d{9}$/;
+export const MERCHANT_HANDLE_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const RESERVED_MERCHANT_HANDLES = new Set([
+  'admin',
+  'superadmin',
+  'merchant',
+  'seller',
+  'store',
+  'shop',
+  'api',
+  'auth',
+  'system',
+  'root',
+  'support',
+  'help',
+  'billing',
+  'platform',
+]);
+
+export interface BusinessIdentifierValidationResult {
+  isValid: boolean;
+  normalized?: string;
+  error?: string;
+  /**
+   * Format validation strictly evaluates alphanumeric syntax and pattern conformance.
+   * It does NOT query government databases (GSTN / Income Tax Department) and must NOT
+   * be represented as official registration verification.
+   */
+  isOfficialVerification: false;
+}
+
+/**
+ * Validates Indian Goods & Services Tax Identification Number (GSTIN) syntax.
+ * Structural format: 15 alphanumeric characters (2 state code digits + 10 PAN characters + 1 entity num + 'Z' + 1 checksum).
+ *
+ * NOTE: This function performs structural syntax validation only. It does NOT query the GSTN portal
+ * and does NOT constitute official government registration verification.
+ */
+export function validateGSTIN(gstin?: string | null): BusinessIdentifierValidationResult {
+  if (!gstin || typeof gstin !== 'string' || gstin.trim() === '') {
+    return { isValid: false, isOfficialVerification: false, error: 'GSTIN is required' };
+  }
+  const clean = gstin.trim().toUpperCase();
+  if (!GSTIN_REGEX.test(clean)) {
+    return {
+      isValid: false,
+      isOfficialVerification: false,
+      error: 'Invalid GSTIN format: Must be 15 alphanumeric characters (e.g. 07AAAAA0000A1Z5). Note: Structural validation does not verify official GSTN registry.',
+    };
+  }
+  return { isValid: true, normalized: clean, isOfficialVerification: false };
+}
+
+/**
+ * Validates Indian Permanent Account Number (PAN) syntax.
+ * Structural format: 10 characters (5 letters + 4 digits + 1 letter).
+ *
+ * NOTE: This function performs structural syntax validation only. It does NOT query the Income Tax Department
+ * and does NOT constitute official government registration verification.
+ */
+export function validatePAN(pan?: string | null): BusinessIdentifierValidationResult {
+  if (!pan || typeof pan !== 'string' || pan.trim() === '') {
+    return { isValid: false, isOfficialVerification: false, error: 'PAN is required' };
+  }
+  const clean = pan.trim().toUpperCase();
+  if (!PAN_REGEX.test(clean)) {
+    return {
+      isValid: false,
+      isOfficialVerification: false,
+      error: 'Invalid PAN format: Must be 10 characters (e.g. ABCDE1234F). Note: Structural validation does not verify official Income Tax registry.',
+    };
+  }
+  return { isValid: true, normalized: clean, isOfficialVerification: false };
+}
+
+/**
+ * Validates normalized Indian mobile phone number in E.164 format (+91XXXXXXXXXX).
+ */
+export function validateIndianPhone(phone?: string | null): { isValid: boolean; error?: string } {
+  if (!phone || typeof phone !== 'string' || phone.trim() === '') {
+    return { isValid: false, error: 'Phone number is required' };
+  }
+  const clean = phone.trim();
+  if (!INDIAN_PHONE_REGEX.test(clean)) {
+    return {
+      isValid: false,
+      error: 'Invalid Indian phone format: Must be E.164 +91 followed by 10 digits starting with 6-9',
+    };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Validates merchant URL handle.
+ * 3-60 lowercase alphanumeric characters with hyphens, not reserved.
+ */
+export function validateMerchantHandle(handle?: string | null): { isValid: boolean; error?: string } {
+  if (!handle || typeof handle !== 'string' || handle.trim() === '') {
+    return { isValid: false, error: 'Merchant handle is required' };
+  }
+  const clean = handle.trim().toLowerCase();
+  if (clean.length < 3 || clean.length > 60) {
+    return { isValid: false, error: 'Merchant handle must be between 3 and 60 characters long' };
+  }
+  if (!MERCHANT_HANDLE_REGEX.test(clean)) {
+    return {
+      isValid: false,
+      error: 'Merchant handle must contain only lowercase letters, numbers, and single hyphens',
+    };
+  }
+  if (RESERVED_MERCHANT_HANDLES.has(clean)) {
+    return { isValid: false, error: `Handle '${clean}' is reserved and cannot be used` };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Validates merchant profile payload.
+ */
+export function validateMerchantProfile(
+  payload: Partial<CreateMerchantPayload>,
+  isCreate = false
+): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (isCreate || payload.name !== undefined) {
+    if (!payload.name || typeof payload.name !== 'string' || payload.name.trim().length < 2) {
+      errors.push('Merchant name is required and must be at least 2 characters long');
+    } else if (payload.name.trim().length > 120) {
+      errors.push('Merchant name cannot exceed 120 characters');
+    }
+  }
+
+  if (isCreate || payload.email !== undefined) {
+    if (!payload.email || typeof payload.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email.trim())) {
+      errors.push('Valid corporate email address is required');
+    }
+  }
+
+  if (isCreate || payload.phone !== undefined) {
+    const phoneRes = validateIndianPhone(payload.phone);
+    if (!phoneRes.isValid && phoneRes.error) {
+      errors.push(phoneRes.error);
+    }
+  }
+
+  if (payload.handle !== undefined && payload.handle !== null && payload.handle !== '') {
+    const handleRes = validateMerchantHandle(payload.handle);
+    if (!handleRes.isValid && handleRes.error) {
+      errors.push(handleRes.error);
+    }
+  }
+
+  if (payload.businessRegistrationNumber !== undefined && payload.businessRegistrationNumber !== null && payload.businessRegistrationNumber !== '') {
+    const gstinRes = validateGSTIN(payload.businessRegistrationNumber);
+    if (!gstinRes.isValid && gstinRes.error) {
+      errors.push(gstinRes.error);
+    }
+  }
+
+  if (payload.taxIdentifier !== undefined && payload.taxIdentifier !== null && payload.taxIdentifier !== '') {
+    const panRes = validatePAN(payload.taxIdentifier);
+    if (!panRes.isValid && panRes.error) {
+      errors.push(panRes.error);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates status transitions for Merchant lifecycle state machine.
+ */
+export function validateMerchantStatusTransition(
+  current: MerchantStatus,
+  target: MerchantStatus,
+  context?: {
+    actorType?: ActorType;
+    hasActiveOwner?: boolean;
+    reason?: string;
+  }
+): { allowed: boolean; error?: string } {
+  if (current === target) {
+    return {
+      allowed: false,
+      error: `NO_OP_TRANSITION: Target status is already '${target}'.`,
+    };
+  }
+
+  // 1. Draft transitions
+  if (current === 'draft') {
+    if (target === 'pending_approval') {
+      return { allowed: true };
+    }
+    if (target === 'active') {
+      return {
+        allowed: false,
+        error: 'DIRECT_ACTIVATION_BLOCKED: Draft merchant cannot be activated directly. Must submit for verification.',
+      };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition merchant from 'draft' to '${target}'.`,
+    };
+  }
+
+  // 2. Pending Approval transitions
+  if (current === 'pending_approval') {
+    if (target === 'active') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can approve and activate a merchant.',
+        };
+      }
+      if (context?.hasActiveOwner === false) {
+        return {
+          allowed: false,
+          error: 'OWNER_REQUIRED: Merchant must have at least one active owner before activation.',
+        };
+      }
+      return { allowed: true };
+    }
+    if (target === 'rejected') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can reject a merchant application.',
+        };
+      }
+      if (!context?.reason || context.reason.trim() === '') {
+        return {
+          allowed: false,
+          error: 'REJECTION_REASON_REQUIRED: A rejection reason is required when rejecting a merchant.',
+        };
+      }
+      return { allowed: true };
+    }
+    if (target === 'draft') {
+      return { allowed: true }; // Merchant retracts submission to make edits
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition merchant from 'pending_approval' to '${target}'.`,
+    };
+  }
+
+  // 3. Active transitions
+  if (current === 'active') {
+    if (target === 'suspended') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can suspend an active merchant.',
+        };
+      }
+      if (!context?.reason || context.reason.trim() === '') {
+        return {
+          allowed: false,
+          error: 'SUSPENSION_REASON_REQUIRED: A suspension reason is required when suspending a merchant.',
+        };
+      }
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition merchant from 'active' to '${target}'. Only suspension is permitted.`,
+    };
+  }
+
+  // 4. Suspended transitions
+  if (current === 'suspended') {
+    if (target === 'active') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can reactivate a suspended merchant.',
+        };
+      }
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition merchant from 'suspended' to '${target}'. Only reactivation is permitted.`,
+    };
+  }
+
+  // 5. Rejected transitions
+  if (current === 'rejected') {
+    if (target === 'draft' || target === 'pending_approval') {
+      return { allowed: true }; // Merchant rectifies defects and re-submits
+    }
+    if (target === 'active') {
+      return {
+        allowed: false,
+        error: 'RE_REVIEW_REQUIRED: Rejected merchant cannot be directly activated without re-review.',
+      };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition merchant from 'rejected' to '${target}'.`,
+    };
+  }
+
+  return {
+    allowed: false,
+    error: `INVALID_TRANSITION: Unknown status transition from '${current}' to '${target}'.`,
+  };
+}
+
+/**
+ * Validates status transitions for MerchantMember lifecycle.
+ */
+export function validateMemberStatusTransition(
+  current: MerchantMemberStatus,
+  target: MerchantMemberStatus
+): { allowed: boolean; error?: string } {
+  if (current === target) {
+    return {
+      allowed: false,
+      error: `NO_OP_TRANSITION: Target status is already '${target}'.`,
+    };
+  }
+
+  if (current === 'invited') {
+    if (target === 'active') {
+      return { allowed: true };
+    }
+    if (target === 'suspended') {
+      return {
+        allowed: false,
+        error: 'INVALID_TRANSITION: Cannot suspend an unaccepted invitation. Revoke the invitation instead.',
+      };
+    }
+  }
+
+  if (current === 'active') {
+    if (target === 'suspended') {
+      return { allowed: true };
+    }
+  }
+
+  if (current === 'suspended') {
+    if (target === 'active') {
+      return { allowed: true };
+    }
+  }
+
+  return {
+    allowed: false,
+    error: `INVALID_TRANSITION: Cannot transition member from '${current}' to '${target}'.`,
+  };
+}
+
+/**
+ * Validates that an operation will not leave an active merchant without an active owner.
+ */
+export function validateSoleOwnerConstraint(
+  currentMembers: { userId: string; role: MerchantRole; status: MerchantMemberStatus }[],
+  targetUserId: string,
+  newRole?: MerchantRole,
+  newStatus?: MerchantMemberStatus
+): { allowed: boolean; error?: string } {
+  const activeOwners = currentMembers.filter(
+    (m) => m.role === 'owner' && m.status === 'active'
+  );
+
+  const isTargetActiveOwner = activeOwners.some((m) => m.userId === targetUserId);
+
+  if (isTargetActiveOwner && activeOwners.length === 1) {
+    if (newRole && newRole !== 'owner') {
+      return {
+        allowed: false,
+        error: 'SOLE_OWNER_PROTECTION: Cannot demote the sole active owner of this merchant. Transfer ownership to another active member first.',
+      };
+    }
+    if (newStatus && newStatus !== 'active') {
+      return {
+        allowed: false,
+        error: 'SOLE_OWNER_PROTECTION: Cannot suspend or deactivate the sole active owner of this merchant.',
+      };
+    }
+  }
+
+  return { allowed: true };
 }
 
 // ==========================================

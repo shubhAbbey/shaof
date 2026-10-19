@@ -5,6 +5,16 @@ import {
   type TenantContext,
   type OrderLineItemOwnershipDto,
   type AuthenticatedSessionDto,
+  validateGSTIN,
+  validatePAN,
+  validateIndianPhone,
+  validateMerchantHandle,
+  validateMerchantProfile,
+  validateMerchantStatusTransition,
+  validateMemberStatusTransition,
+  validateSoleOwnerConstraint,
+  type MerchantRole,
+  type MerchantMemberStatus,
 } from './index.js';
 
 
@@ -497,5 +507,280 @@ describe('@ecom/types: Marketplace Ownership & Tenant Isolation Matrix', () => {
       assert.equal(extracted.token, null);
     });
   });
+
+  describe('9. Indian Business Profile & Format Validations (M2-03)', () => {
+    it('approves valid Indian GSTIN (15 characters) with normalization and disclaimer', () => {
+      // Test lowercase normalization
+      const res = validateGSTIN('07aaaaa0000a1z5');
+      assert.equal(res.isValid, true);
+      assert.equal(res.normalized, '07AAAAA0000A1Z5');
+      assert.equal(res.isOfficialVerification, false);
+      assert.equal(res.error, undefined);
+    });
+
+    it('NEGATIVE: rejects invalid GSTIN format and notes non-official status', () => {
+      const badLength = validateGSTIN('07AAAAA0000A1Z'); // 14 chars
+      assert.equal(badLength.isValid, false);
+      assert.equal(badLength.isOfficialVerification, false);
+      assert.ok(badLength.error?.includes('Invalid GSTIN format'));
+
+      const badFormat = validateGSTIN('INVALIDGSTIN1234');
+      assert.equal(badFormat.isValid, false);
+      assert.equal(badFormat.isOfficialVerification, false);
+
+      const empty = validateGSTIN('');
+      assert.equal(empty.isValid, false);
+      assert.equal(empty.isOfficialVerification, false);
+    });
+
+    it('approves valid Indian PAN (10 characters) with normalization and disclaimer', () => {
+      // Test lowercase normalization
+      const res = validatePAN('abcde1234f');
+      assert.equal(res.isValid, true);
+      assert.equal(res.normalized, 'ABCDE1234F');
+      assert.equal(res.isOfficialVerification, false);
+      assert.equal(res.error, undefined);
+    });
+
+    it('NEGATIVE: rejects invalid PAN format and notes non-official status', () => {
+      const badLength = validatePAN('ABCDE1234'); // 9 chars
+      assert.equal(badLength.isValid, false);
+      assert.equal(badLength.isOfficialVerification, false);
+      assert.ok(badLength.error?.includes('Invalid PAN format'));
+
+      const digitsFirst = validatePAN('12345ABCDE');
+      assert.equal(digitsFirst.isValid, false);
+      assert.equal(digitsFirst.isOfficialVerification, false);
+
+      const empty = validatePAN(null);
+      assert.equal(empty.isValid, false);
+      assert.equal(empty.isOfficialVerification, false);
+    });
+
+    it('approves valid normalized Indian phone (+91XXXXXXXXXX)', () => {
+      const res = validateIndianPhone('+919876543210');
+      assert.equal(res.isValid, true);
+    });
+
+    it('NEGATIVE: rejects invalid Indian phone number', () => {
+      const noCountryCode = validateIndianPhone('9876543210');
+      assert.equal(noCountryCode.isValid, false);
+      assert.ok(noCountryCode.error?.includes('E.164 +91'));
+
+      const startsWithZero = validateIndianPhone('+910123456789');
+      assert.equal(startsWithZero.isValid, false);
+
+      const wrongLength = validateIndianPhone('+9198765');
+      assert.equal(wrongLength.isValid, false);
+    });
+
+    it('approves valid merchant URL handle', () => {
+      const res = validateMerchantHandle('virasat-heritage-store');
+      assert.equal(res.isValid, true);
+    });
+
+    it('NEGATIVE: rejects invalid or reserved merchant handles', () => {
+      const tooShort = validateMerchantHandle('ab');
+      assert.equal(tooShort.isValid, false);
+      assert.ok(tooShort.error?.includes('between 3 and 60'));
+
+      const reservedAdmin = validateMerchantHandle('admin');
+      assert.equal(reservedAdmin.isValid, false);
+      assert.ok(reservedAdmin.error?.includes('reserved'));
+
+      const reservedApi = validateMerchantHandle('api');
+      assert.equal(reservedApi.isValid, false);
+      assert.ok(reservedApi.error?.includes('reserved'));
+
+      const invalidChars = validateMerchantHandle('Merchant_Store!');
+      assert.equal(invalidChars.isValid, false);
+    });
+
+    it('validateMerchantProfile validates full create payload and aggregates errors', () => {
+      const valid = validateMerchantProfile({
+        name: 'Virasat Heritage',
+        handle: 'virasat-heritage',
+        email: 'contact@virasat.com',
+        phone: '+919876543210',
+        businessRegistrationNumber: '07AAAAA0000A1Z5',
+        taxIdentifier: 'ABCDE1234F',
+      }, true);
+      assert.equal(valid.isValid, true);
+      assert.equal(valid.errors.length, 0);
+
+      const invalid = validateMerchantProfile({
+        name: 'A', // too short
+        email: 'invalid-email',
+        phone: '12345',
+        handle: 'admin', // reserved
+      }, true);
+      assert.equal(invalid.isValid, false);
+      assert.ok(invalid.errors.length >= 4);
+    });
+  });
+
+  describe('10. Merchant Status Lifecycle State Machine (M2-03)', () => {
+    it('allows draft to transition to pending_approval on submission', () => {
+      const res = validateMerchantStatusTransition('draft', 'pending_approval');
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks draft from directly activating (skipping verification)', () => {
+      const res = validateMerchantStatusTransition('draft', 'active');
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('DIRECT_ACTIVATION_BLOCKED'));
+    });
+
+    it('NEGATIVE: blocks draft from being suspended or rejected directly', () => {
+      const res = validateMerchantStatusTransition('draft', 'suspended');
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('INVALID_TRANSITION'));
+    });
+
+    it('approves pending_approval to active when Super Admin approves and owner exists', () => {
+      const res = validateMerchantStatusTransition('pending_approval', 'active', {
+        actorType: 'super_admin',
+        hasActiveOwner: true,
+      });
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks pending_approval activation if actor is merchant user (cannot self-approve)', () => {
+      const res = validateMerchantStatusTransition('pending_approval', 'active', {
+        actorType: 'merchant_user',
+        hasActiveOwner: true,
+      });
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('SUPER_ADMIN_REQUIRED'));
+    });
+
+    it('NEGATIVE: blocks pending_approval activation if merchant has no active owner', () => {
+      const res = validateMerchantStatusTransition('pending_approval', 'active', {
+        actorType: 'super_admin',
+        hasActiveOwner: false,
+      });
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('OWNER_REQUIRED'));
+    });
+
+    it('approves pending_approval rejection with reason by Super Admin', () => {
+      const res = validateMerchantStatusTransition('pending_approval', 'rejected', {
+        actorType: 'super_admin',
+        reason: 'Incomplete GSTIN documentation',
+      });
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks pending_approval rejection if reason is missing', () => {
+      const res = validateMerchantStatusTransition('pending_approval', 'rejected', {
+        actorType: 'super_admin',
+        reason: '',
+      });
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('REJECTION_REASON_REQUIRED'));
+    });
+
+    it('approves active merchant suspension with reason by Super Admin', () => {
+      const res = validateMerchantStatusTransition('active', 'suspended', {
+        actorType: 'super_admin',
+        reason: 'Policy violation',
+      });
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks active merchant suspension without reason', () => {
+      const res = validateMerchantStatusTransition('active', 'suspended', {
+        actorType: 'super_admin',
+        reason: '',
+      });
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('SUSPENSION_REASON_REQUIRED'));
+    });
+
+    it('approves suspended merchant reactivation by Super Admin', () => {
+      const res = validateMerchantStatusTransition('suspended', 'active', {
+        actorType: 'super_admin',
+      });
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks rejected merchant from directly transitioning to active without re-review', () => {
+      const res = validateMerchantStatusTransition('rejected', 'active', {
+        actorType: 'super_admin',
+      });
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('RE_REVIEW_REQUIRED'));
+    });
+
+    it('allows rejected merchant to return to draft or pending_approval for rectification', () => {
+      const draftRes = validateMerchantStatusTransition('rejected', 'draft');
+      assert.equal(draftRes.allowed, true);
+
+      const resubmitRes = validateMerchantStatusTransition('rejected', 'pending_approval');
+      assert.equal(resubmitRes.allowed, true);
+    });
+
+    it('NEGATIVE: rejects identical state transition (no-op)', () => {
+      const res = validateMerchantStatusTransition('active', 'active');
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('NO_OP_TRANSITION'));
+    });
+  });
+
+  describe('11. Merchant Member Lifecycle & Sole Owner Protection (M2-03)', () => {
+    it('allows invited member to transition to active upon accepting invitation', () => {
+      const res = validateMemberStatusTransition('invited', 'active');
+      assert.equal(res.allowed, true);
+    });
+
+    it('NEGATIVE: blocks invited member from directly transitioning to suspended', () => {
+      const res = validateMemberStatusTransition('invited', 'suspended');
+      assert.equal(res.allowed, false);
+      assert.ok(res.error?.includes('INVALID_TRANSITION'));
+    });
+
+    it('allows active member to be suspended and suspended member to be reactivated', () => {
+      const suspendRes = validateMemberStatusTransition('active', 'suspended');
+      assert.equal(suspendRes.allowed, true);
+
+      const reactivateRes = validateMemberStatusTransition('suspended', 'active');
+      assert.equal(reactivateRes.allowed, true);
+    });
+
+    it('NEGATIVE: blocks demoting sole active owner of merchant', () => {
+      const members = [
+        { userId: 'usr_owner_1', role: 'owner' as MerchantRole, status: 'active' as MerchantMemberStatus },
+        { userId: 'usr_staff_2', role: 'staff' as MerchantRole, status: 'active' as MerchantMemberStatus },
+      ];
+
+      const result = validateSoleOwnerConstraint(members, 'usr_owner_1', 'staff');
+      assert.equal(result.allowed, false);
+      assert.ok(result.error?.includes('SOLE_OWNER_PROTECTION'));
+    });
+
+    it('NEGATIVE: blocks suspending sole active owner of merchant', () => {
+      const members = [
+        { userId: 'usr_owner_1', role: 'owner' as MerchantRole, status: 'active' as MerchantMemberStatus },
+      ];
+
+      const result = validateSoleOwnerConstraint(members, 'usr_owner_1', undefined, 'suspended');
+      assert.equal(result.allowed, false);
+      assert.ok(result.error?.includes('SOLE_OWNER_PROTECTION'));
+    });
+
+    it('allows demoting or suspending an owner when another active owner exists', () => {
+      const members = [
+        { userId: 'usr_owner_1', role: 'owner' as MerchantRole, status: 'active' as MerchantMemberStatus },
+        { userId: 'usr_owner_2', role: 'owner' as MerchantRole, status: 'active' as MerchantMemberStatus },
+      ];
+
+      const result = validateSoleOwnerConstraint(members, 'usr_owner_1', 'staff');
+      assert.equal(result.allowed, true);
+
+      const suspendResult = validateSoleOwnerConstraint(members, 'usr_owner_1', undefined, 'suspended');
+      assert.equal(suspendResult.allowed, true);
+    });
+  });
 });
+
 

@@ -6,8 +6,10 @@ import {
   Merchant,
   MerchantMember,
 } from './modules/marketplace/index.js';
+import MarketplaceModuleService from './modules/marketplace/service.js';
+import { Migration20261019000000 } from './modules/marketplace/migrations/Migration20261019000000.js';
 
-import type { AuthenticatedSessionDto } from '@ecom/types';
+import type { AuthenticatedSessionDto, MerchantRole, MerchantMemberStatus } from '@ecom/types';
 import { GET as customerLookupRoute } from './api/store/customers/lookup/route.js';
 import { POST as customerSaveRoute } from './api/store/customers/route.js';
 
@@ -747,7 +749,490 @@ describe('M2-01: Backend Marketplace Ownership & Tenant Scoping Matrix', () => {
       }
     });
   });
+
+  describe('12. MarketplaceModuleService Domain Methods & Migration Compatibility (M2-03)', () => {
+    function createMockMarketplaceService() {
+      const service = new MarketplaceModuleService({} as any);
+      const merchants = new Map<string, any>();
+      const members = new Map<string, any>();
+
+      (service as any).createMerchants = async (data: any) => {
+        const id = data.id || `merch_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { id, ...data, created_at: new Date(), updated_at: new Date() };
+        merchants.set(id, record);
+        return record;
+      };
+
+      (service as any).retrieveMerchant = async (id: string) => {
+        const record = merchants.get(id);
+        if (!record) throw new Error(`Merchant ${id} not found`);
+        return record;
+      };
+
+      (service as any).updateMerchants = async (id: string, data: any) => {
+        const existing = await (service as any).retrieveMerchant(id);
+        const updated = { ...existing, ...data, updated_at: new Date() };
+        merchants.set(id, updated);
+        return updated;
+      };
+
+      (service as any).listMerchantMembers = async (filters: any = {}) => {
+        let result = Array.from(members.values());
+        if (filters.merchant_id) {
+          result = result.filter((m) => m.merchant_id === filters.merchant_id);
+        }
+        if (filters.user_id) {
+          result = result.filter((m) => m.user_id === filters.user_id);
+        }
+        return result;
+      };
+
+      (service as any).createMerchantMembers = async (data: any) => {
+        const id = data.id || `member_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const record = { id, ...data, created_at: new Date(), updated_at: new Date() };
+        members.set(id, record);
+        return record;
+      };
+
+      (service as any).updateMerchantMembers = async (id: string, data: any) => {
+        const existing = members.get(id);
+        if (!existing) throw new Error(`Member ${id} not found`);
+        const updated = { ...existing, ...data, updated_at: new Date() };
+        members.set(id, updated);
+        return updated;
+      };
+
+      return service;
+    }
+
+    it('validateAndCreateMerchant creates draft merchant with normalized handle and uppercase GSTIN/PAN', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Virasat Heritage',
+        email: 'seller@virasat.com',
+        phone: '+919876543210',
+        businessRegistrationNumber: '07aaaaa0000a1z5', // lowercase, should normalize
+        taxIdentifier: 'abcde1234f', // lowercase, should normalize
+      });
+
+      assert.equal(created.name, 'Virasat Heritage');
+      assert.equal(created.handle, 'virasat-heritage');
+      assert.equal(created.status, 'draft');
+      assert.equal(created.email, 'seller@virasat.com');
+      assert.equal(created.business_registration_number, '07AAAAA0000A1Z5');
+      assert.equal(created.tax_identifier, 'ABCDE1234F');
+    });
+
+    it('NEGATIVE: validateAndCreateMerchant throws on invalid profile payload', async () => {
+      const service = createMockMarketplaceService();
+      await assert.rejects(
+        async () => {
+          await service.validateAndCreateMerchant({
+            name: 'A', // too short
+            email: 'not-an-email',
+            phone: '123',
+          });
+        },
+        /MERCHANT_VALIDATION_FAILED/
+      );
+    });
+
+    it('validateAndUpdateMerchant updates fields and validates modifications', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Loom & Thread',
+        handle: 'loom-thread',
+        email: 'contact@loom.com',
+        phone: '+919123456789',
+      });
+
+      const updated = await service.validateAndUpdateMerchant(created.id, {
+        name: 'Loom & Thread Official',
+        businessRegistrationNumber: '29AAAAA0000A1Z5',
+      });
+
+      assert.equal(updated.name, 'Loom & Thread Official');
+      assert.equal(updated.business_registration_number, '29AAAAA0000A1Z5');
+    });
+
+    it('transitionMerchantStatus executes lifecycle state machine with audit history and timestamps', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Royal Cottons',
+        handle: 'royal-cottons',
+        email: 'admin@royalcottons.com',
+        phone: '+919988776655',
+      });
+
+      // 1. Submit for verification
+      const submitted = await service.transitionMerchantStatus(created.id, 'pending_approval', {
+        actorType: 'merchant_user',
+        actorId: 'usr_seller_1',
+      });
+      assert.equal(submitted.status, 'pending_approval');
+      assert.ok(submitted.metadata.verificationSubmittedAt);
+      assert.equal(submitted.metadata.lifecycleHistory.length, 1);
+      assert.equal(submitted.metadata.lifecycleHistory[0].fromStatus, 'draft');
+      assert.equal(submitted.metadata.lifecycleHistory[0].toStatus, 'pending_approval');
+
+      // Add owner before activation
+      await service.addMerchantMember(created.id, {
+        userId: 'usr_seller_1',
+        role: 'owner',
+        status: 'active',
+      });
+
+      // 2. Super Admin approves
+      const approved = await service.transitionMerchantStatus(created.id, 'active', {
+        actorType: 'super_admin',
+        actorId: 'usr_admin_1',
+      });
+      assert.equal(approved.status, 'active');
+      assert.ok(approved.metadata.approvedAt);
+      assert.equal(approved.metadata.approvedBy, 'usr_admin_1');
+      assert.equal(approved.metadata.lifecycleHistory.length, 2);
+
+      // 3. Super Admin suspends with reason
+      const suspended = await service.transitionMerchantStatus(created.id, 'suspended', {
+        actorType: 'super_admin',
+        actorId: 'usr_admin_1',
+        reason: 'Compliance audit pending',
+      });
+      assert.equal(suspended.status, 'suspended');
+      assert.ok(suspended.metadata.suspendedAt);
+      assert.equal(suspended.metadata.suspensionReason, 'Compliance audit pending');
+      assert.equal(suspended.metadata.lifecycleHistory.length, 3);
+
+      // 4. Super Admin reactivates
+      const reactivated = await service.transitionMerchantStatus(created.id, 'active', {
+        actorType: 'super_admin',
+        actorId: 'usr_admin_1',
+      });
+      assert.equal(reactivated.status, 'active');
+      assert.ok(reactivated.metadata.reactivatedAt);
+      assert.equal(reactivated.metadata.lifecycleHistory.length, 4);
+    });
+
+    it('NEGATIVE: transitionMerchantStatus blocks direct activation from draft', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Direct Activate Test',
+        email: 'test@direct.com',
+        phone: '+919988776655',
+      });
+
+      await assert.rejects(
+        async () => {
+          await service.transitionMerchantStatus(created.id, 'active');
+        },
+        /DIRECT_ACTIVATION_BLOCKED/
+      );
+    });
+
+    it('NEGATIVE: transitionMerchantStatus blocks activation if merchant lacks active owner', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'No Owner Test',
+        email: 'test@noowner.com',
+        phone: '+919988776655',
+      });
+
+      await service.transitionMerchantStatus(created.id, 'pending_approval');
+
+      await assert.rejects(
+        async () => {
+          await service.transitionMerchantStatus(created.id, 'active', {
+            actorType: 'super_admin',
+          });
+        },
+        /OWNER_REQUIRED/
+      );
+    });
+
+    it('NEGATIVE: transitionMerchantStatus blocks rejection without a rejection reason', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Reject Reason Test',
+        email: 'test@reject.com',
+        phone: '+919988776655',
+      });
+      await service.transitionMerchantStatus(created.id, 'pending_approval');
+
+      await assert.rejects(
+        async () => {
+          await service.transitionMerchantStatus(created.id, 'rejected', {
+            actorType: 'super_admin',
+            reason: '',
+          });
+        },
+        /REJECTION_REASON_REQUIRED/
+      );
+    });
+
+    it('addMerchantMember and duplicate membership prevention', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Team Test Merchant',
+        email: 'team@test.com',
+        phone: '+919988776655',
+      });
+
+      const member = await service.addMerchantMember(created.id, {
+        userId: 'usr_staff_101',
+        role: 'staff',
+        status: 'active',
+      });
+      assert.equal(member.merchant_id, created.id);
+      assert.equal(member.user_id, 'usr_staff_101');
+      assert.equal(member.role, 'staff');
+
+      // Duplicate membership attempt must be rejected
+      await assert.rejects(
+        async () => {
+          await service.addMerchantMember(created.id, {
+            userId: 'usr_staff_101',
+          });
+        },
+        /DUPLICATE_MEMBERSHIP/
+      );
+    });
+
+    it('updateMerchantMemberRoleOrStatus enforces sole active owner protection', async () => {
+      const service = createMockMarketplaceService();
+      const created = await service.validateAndCreateMerchant({
+        name: 'Sole Owner Guard Test',
+        email: 'guard@test.com',
+        phone: '+919988776655',
+      });
+
+      await service.addMerchantMember(created.id, {
+        userId: 'usr_sole_owner',
+        role: 'owner',
+        status: 'active',
+      });
+      await service.addMerchantMember(created.id, {
+        userId: 'usr_staff_1',
+        role: 'staff',
+        status: 'active',
+      });
+
+      // Attempting to demote the sole active owner to staff must fail
+      await assert.rejects(
+        async () => {
+          await service.updateMerchantMemberRoleOrStatus(created.id, 'usr_sole_owner', {
+            role: 'staff',
+          });
+        },
+        /SOLE_OWNER_PROTECTION/
+      );
+
+      // Attempting to suspend the sole active owner must fail
+      await assert.rejects(
+        async () => {
+          await service.updateMerchantMemberRoleOrStatus(created.id, 'usr_sole_owner', {
+            status: 'suspended',
+          });
+        },
+        /SOLE_OWNER_PROTECTION/
+      );
+
+      // Adding a second active owner relieves the sole owner constraint
+      await service.addMerchantMember(created.id, {
+        userId: 'usr_second_owner',
+        role: 'owner',
+        status: 'active',
+      });
+
+      const demoted = await service.updateMerchantMemberRoleOrStatus(created.id, 'usr_sole_owner', {
+        role: 'manager',
+      });
+      assert.equal(demoted.role, 'manager');
+    });
+
+    it('CONCURRENCY: simultaneous attempts to demote two co-owners prevents race condition and leaves exactly one active owner', async () => {
+      const service = createMockMarketplaceService();
+      const merchant = await service.validateAndCreateMerchant({
+        name: 'Concurrent Demote Merchant',
+        email: 'concur@demote.com',
+        phone: '+919988776655',
+      });
+
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_owner_alpha',
+        role: 'owner',
+        status: 'active',
+      });
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_owner_beta',
+        role: 'owner',
+        status: 'active',
+      });
+
+      // Fire simultaneous concurrent demotions for both owners
+      const results = await Promise.allSettled([
+        service.updateMerchantMemberRoleOrStatus(merchant.id, 'usr_owner_alpha', { role: 'staff' }),
+        service.updateMerchantMemberRoleOrStatus(merchant.id, 'usr_owner_beta', { role: 'staff' }),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // Exactly ONE demotion must succeed, and exactly ONE must be rejected by sole owner guard
+      assert.equal(fulfilled.length, 1, 'Exactly one concurrent demotion must succeed');
+      assert.equal(rejected.length, 1, 'Exactly one concurrent demotion must be rejected by sole owner guard');
+
+      // Check rejection reason matches SOLE_OWNER_PROTECTION
+      const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+      assert.ok(
+        rejectedReason?.message?.includes('SOLE_OWNER_PROTECTION'),
+        'Rejection reason must be SOLE_OWNER_PROTECTION'
+      );
+
+      // Verify the final state in the store: exactly one active owner remains
+      const remainingMembers = await (service as any).listMerchantMembers({ merchant_id: merchant.id });
+      const activeOwners = remainingMembers.filter(
+        (m: any) => m.role === 'owner' && m.status === 'active'
+      );
+      assert.equal(activeOwners.length, 1, 'Merchant must retain exactly one active owner');
+    });
+
+    it('CONCURRENCY: simultaneous attempts to suspend two co-owners prevents race condition and leaves exactly one active owner', async () => {
+      const service = createMockMarketplaceService();
+      const merchant = await service.validateAndCreateMerchant({
+        name: 'Concurrent Suspend Merchant',
+        email: 'concur@suspend.com',
+        phone: '+919988776655',
+      });
+
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_owner_x',
+        role: 'owner',
+        status: 'active',
+      });
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_owner_y',
+        role: 'owner',
+        status: 'active',
+      });
+
+      // Fire simultaneous concurrent suspensions for both owners
+      const results = await Promise.allSettled([
+        service.updateMerchantMemberRoleOrStatus(merchant.id, 'usr_owner_x', { status: 'suspended' }),
+        service.updateMerchantMemberRoleOrStatus(merchant.id, 'usr_owner_y', { status: 'suspended' }),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // Exactly ONE suspension must succeed, and exactly ONE must be rejected
+      assert.equal(fulfilled.length, 1, 'Exactly one concurrent suspension must succeed');
+      assert.equal(rejected.length, 1, 'Exactly one concurrent suspension must be rejected by sole owner guard');
+
+      const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+      assert.ok(
+        rejectedReason?.message?.includes('SOLE_OWNER_PROTECTION'),
+        'Rejection reason must be SOLE_OWNER_PROTECTION'
+      );
+
+      // Verify final state: exactly one active owner remains
+      const remainingMembers = await (service as any).listMerchantMembers({ merchant_id: merchant.id });
+      const activeOwners = remainingMembers.filter(
+        (m: any) => m.role === 'owner' && m.status === 'active'
+      );
+      assert.equal(activeOwners.length, 1, 'Merchant must retain exactly one active owner');
+    });
+
+    it('verifyActiveMembership validates server-side active tenant status', async () => {
+      const service = createMockMarketplaceService();
+      const merchant = await service.validateAndCreateMerchant({
+        name: 'Active Check Merchant',
+        email: 'active@check.com',
+        phone: '+919988776655',
+      });
+
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_owner_10',
+        role: 'owner',
+        status: 'active',
+      });
+      await service.addMerchantMember(merchant.id, {
+        userId: 'usr_suspended_member',
+        role: 'staff',
+        status: 'suspended',
+      });
+
+      // Draft merchant: Even active member gets rejected
+      const draftCheck = await service.verifyActiveMembership('usr_owner_10', merchant.id);
+      assert.equal(draftCheck.valid, false);
+      assert.equal(draftCheck.statusCode, 403);
+      assert.ok(draftCheck.message?.includes('Merchant account is not active'));
+
+      // Transition merchant to active
+      await service.transitionMerchantStatus(merchant.id, 'pending_approval');
+      await service.transitionMerchantStatus(merchant.id, 'active', {
+        actorType: 'super_admin',
+      });
+
+      // Active member of active merchant: PASS
+      const activeCheck = await service.verifyActiveMembership('usr_owner_10', merchant.id);
+      assert.equal(activeCheck.valid, true);
+      assert.equal(activeCheck.statusCode, 200);
+      assert.equal(activeCheck.role, 'owner');
+
+      // Suspended member of active merchant: 403 FORBIDDEN
+      const suspendedCheck = await service.verifyActiveMembership('usr_suspended_member', merchant.id);
+      assert.equal(suspendedCheck.valid, false);
+      assert.equal(suspendedCheck.statusCode, 403);
+      assert.ok(suspendedCheck.message?.includes('Merchant membership is not active'));
+
+      // Unrelated user: 403 FORBIDDEN
+      const strangerCheck = await service.verifyActiveMembership('usr_stranger', merchant.id);
+      assert.equal(strangerCheck.valid, false);
+      assert.equal(strangerCheck.statusCode, 403);
+      assert.ok(strangerCheck.message?.includes('is not a member of merchant'));
+    });
+
+    it('Migration20261019000000 executes valid up() schema and 100% reversible down() rollback without mutating core tables', async () => {
+      class TestMigrationRunner extends Migration20261019000000 {
+        sqlStatements: string[] = [];
+        constructor() {
+          super({} as any, {} as any);
+        }
+        override addSql(sql: string) {
+          this.sqlStatements.push(sql);
+        }
+      }
+
+      const runner = new TestMigrationRunner();
+
+      // Test up()
+      await runner.up();
+      assert.ok(runner.sqlStatements.length >= 10);
+
+      // Verify table creation
+      const allUpSql = runner.sqlStatements.join('\n');
+      assert.ok(allUpSql.includes('CREATE TABLE IF NOT EXISTS "merchant"'));
+      assert.ok(allUpSql.includes('CREATE TABLE IF NOT EXISTS "merchant_member"'));
+      assert.ok(allUpSql.includes('idx_merchant_handle'));
+      assert.ok(allUpSql.includes('idx_merchant_member_unique'));
+
+      // Verify zero core table tampering (no ALTER TABLE product, order, customer, etc.)
+      assert.ok(!allUpSql.includes('ALTER TABLE "product"'));
+      assert.ok(!allUpSql.includes('ALTER TABLE "order"'));
+      assert.ok(!allUpSql.includes('ALTER TABLE "customer"'));
+      assert.ok(!allUpSql.includes('ALTER TABLE "line_item"'));
+
+      // Test down()
+      runner.sqlStatements = [];
+      await runner.down();
+      assert.equal(runner.sqlStatements.length, 2);
+      const allDownSql = runner.sqlStatements.join('\n');
+      assert.ok(allDownSql.includes('DROP TABLE IF EXISTS "merchant_member" CASCADE'));
+      assert.ok(allDownSql.includes('DROP TABLE IF EXISTS "merchant" CASCADE'));
+    });
+  });
 });
+
 
 
 
