@@ -10,7 +10,7 @@
     "db:create": "medusa db:create",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/backend: lint ok\"",
-    "test": "tsc && node --test dist/commerce-domains.test.js dist/marketplace-ownership.test.js dist/persistent-integration.test.js dist/admin-auth.test.js"
+    "test": "tsc && node --test --test-concurrency=1 dist/commerce-domains.test.js dist/marketplace-ownership.test.js dist/persistent-integration.test.js dist/admin-auth.test.js dist/merchant-auth.test.js dist/role-management.test.js"
   },
   "dependencies": {
     "@ecom/config": "*",

@@ -1,3 +1,10 @@
+import type {
+  MerchantStatus,
+  MerchantRole,
+  MerchantMemberStatus,
+  MarketplacePermission,
+} from './marketplace.js';
+
 export type OtpType = 'login' | 'register' | 'profile' | 'checkout';
 
 export interface RequestOtpPayload {
@@ -318,5 +325,191 @@ export interface AdminSessionRecord {
   lastMfaVerifiedAt?: number;
   ip?: string;
   userAgent?: string;
+}
+
+// ==========================================
+// Merchant Authentication & Session Types (M2-06)
+// ==========================================
+
+export interface MerchantRegisterPayload {
+  name: string;
+  handle?: string;
+  email: string;
+  phone: string;
+  businessRegistrationNumber?: string; // GSTIN
+  taxIdentifier?: string; // PAN
+  password: string;
+}
+
+export interface MerchantRegisterResponse {
+  success: boolean;
+  merchant?: {
+    id: string;
+    name: string;
+    handle: string;
+    status: MerchantStatus;
+    email: string;
+    phone: string;
+    createdAt: string;
+  };
+  member?: {
+    id: string;
+    userId: string;
+    role: MerchantRole;
+    status: MerchantMemberStatus;
+  };
+  message?: string;
+  error?: string;
+}
+
+export interface MerchantLoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface MerchantLoginResponse {
+  success: boolean;
+  token?: string;
+  session?: {
+    userId: string;
+    merchantId: string;
+    email: string;
+    role: MerchantRole;
+    authBoundary: 'merchant';
+    actorType: 'merchant_user';
+    membershipStatus: MerchantMemberStatus;
+    merchantStatus: MerchantStatus;
+    permissions: MarketplacePermission[];
+    expiresAt?: string;
+  };
+  error?: string;
+  message?: string;
+  cooldownSeconds?: number;
+}
+
+export interface MerchantSessionRecord {
+  token: string;
+  userId: string;
+  merchantId: string;
+  email: string;
+  role: MerchantRole;
+  membershipStatus: MerchantMemberStatus;
+  merchantStatus: MerchantStatus;
+  permissions: MarketplacePermission[];
+  actorType: 'merchant_user';
+  authBoundary: 'merchant';
+  createdAt: number;
+  lastActivityAt: number;
+  expiresAt: number;
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface MerchantForgotPasswordPayload {
+  email: string;
+}
+
+export interface MerchantForgotPasswordResponse {
+  success: boolean;
+  message: string;
+  resetToken?: string; // Returned in development / test environments only
+  expiresInSeconds?: number;
+  error?: string;
+}
+
+export interface MerchantResetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export interface MerchantResetPasswordResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
+export type MerchantAuthAction =
+  | 'merchant.register'
+  | 'merchant.login.success'
+  | 'merchant.login.failed'
+  | 'merchant.login.locked'
+  | 'merchant.logout'
+  | 'merchant.password_reset_requested'
+  | 'merchant.password_reset_completed'
+  | 'merchant.session.revoked';
+
+export interface MerchantAuthAuditEvent {
+  eventId: string;
+  action: MerchantAuthAction;
+  userId?: string;
+  merchantId?: string;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+  timestamp: string;
+  outcome: 'success' | 'failure';
+  reason?: string;
+}
+
+// ==========================================
+// Team, Role & Permission Management Types (M2-07)
+// ==========================================
+
+export interface MerchantTeamMemberDto {
+  id: string; // memberId
+  merchantId: string;
+  userId: string;
+  email: string;
+  name?: string;
+  role: MerchantRole;
+  status: MerchantMemberStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InviteMerchantMemberPayload {
+  email: string;
+  role: MerchantRole;
+}
+
+export interface UpdateMerchantMemberPayload {
+  role?: MerchantRole;
+  status?: MerchantMemberStatus;
+}
+
+export interface MerchantTeamResponse {
+  success: boolean;
+  count?: number;
+  members?: MerchantTeamMemberDto[];
+  member?: MerchantTeamMemberDto;
+  message?: string;
+  error?: string;
+}
+
+export type TeamAuditAction =
+  | 'team.member.invited'
+  | 'team.member.role_updated'
+  | 'team.member.status_updated'
+  | 'team.member.revoked'
+  | 'admin.team.member_role_updated'
+  | 'admin.team.member_status_updated';
+
+export interface TeamAuditEvent {
+  eventId: string;
+  action: TeamAuditAction;
+  actorUserId: string;
+  actorRole?: string;
+  merchantId?: string;
+  targetUserId: string;
+  targetMemberId?: string;
+  previousRole?: string;
+  newRole?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  timestamp: string;
+  ip?: string;
+  userAgent?: string;
+  outcome: 'success' | 'failure';
+  reason?: string;
 }
 

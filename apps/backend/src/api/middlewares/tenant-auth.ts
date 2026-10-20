@@ -7,6 +7,7 @@ import {
 import { BackendMarketplaceGuard } from '../../modules/marketplace/ownership-guard';
 import { MARKETPLACE_MODULE } from '../../modules/marketplace/index';
 import { SuperAdminAuthEngine } from '../../modules/auth/super-admin-auth-engine';
+import { MerchantAuthEngine } from '../../modules/auth/merchant-auth-engine';
 
 export interface TenantAuthOptions {
   boundary: AuthBoundary;
@@ -24,9 +25,10 @@ export type TenantRouteHandler = (
  * Resolves session token to an AuthenticatedSessionDto.
  * Supports:
  * 1. SuperAdminAuthEngine sessions (sess_admin_*)
- * 2. JSON test tokens (for unit/integration testing)
- * 3. Base64-encoded session tokens
- * 4. Structured test prefixes (admin_token_*, merchant_token_*, customer_token_*, sess_*)
+ * 2. MerchantAuthEngine sessions (sess_merch_*)
+ * 3. JSON test tokens (for unit/integration testing)
+ * 4. Base64-encoded session tokens
+ * 5. Structured test prefixes (admin_token_*, merchant_token_*, customer_token_*, sess_*)
  */
 export async function resolveSessionFromToken(token: string | null): Promise<AuthenticatedSessionDto | null> {
   if (!token) return null;
@@ -34,6 +36,11 @@ export async function resolveSessionFromToken(token: string | null): Promise<Aut
   // 1. Live Super Admin Auth Engine sessions
   if (token.startsWith('sess_admin_')) {
     return await SuperAdminAuthEngine.resolveSession(token);
+  }
+
+  // 2. Live Merchant Auth Engine sessions
+  if (token.startsWith('sess_merch_')) {
+    return await MerchantAuthEngine.resolveSession(token);
   }
 
   // 2. JSON string test tokens

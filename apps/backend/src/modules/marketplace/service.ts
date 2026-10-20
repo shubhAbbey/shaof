@@ -234,21 +234,32 @@ export default class MarketplaceModuleService extends MedusaService({
 
   /**
    * Updates a member's role or status, enforcing sole active owner protection.
+   * Uses PostgreSQL transaction-level advisory locking (pg_advisory_xact_lock) when database manager
+   * is available, ensuring serialization across independent backend instances.
    */
   async updateMerchantMemberRoleOrStatus(
     merchantId: string,
-    userId: string,
+    memberIdOrUserId: string,
     update: {
       role?: MerchantRole;
       status?: MerchantMemberStatus;
     }
   ) {
-    return await MarketplaceModuleService.withMerchantLock(merchantId, async () => {
-      const members = await (this as any).listMerchantMembers({ merchant_id: merchantId });
-      const targetMember = members.find((m: any) => m.user_id === userId);
+    const executeInTransaction = async (em?: any) => {
+      if (em && typeof em.execute === 'function') {
+        // Acquire PostgreSQL transaction-level advisory lock keyed to the merchant.
+        // Automatically released on COMMIT, ROLLBACK, or connection termination.
+        await em.execute('SELECT pg_advisory_xact_lock(hashtext(?))', ['merchant_member_' + merchantId]);
+      }
+
+      const txContext = em ? { transactionManager: em } : undefined;
+      const members = await (this as any).listMerchantMembers({ merchant_id: merchantId }, {}, txContext);
+      const targetMember = members.find(
+        (m: any) => m.id === memberIdOrUserId || m.user_id === memberIdOrUserId
+      );
 
       if (!targetMember) {
-        throw new Error(`MEMBER_NOT_FOUND: Member '${userId}' not found in merchant '${merchantId}'.`);
+        throw new Error(`MEMBER_NOT_FOUND: Member '${memberIdOrUserId}' not found in merchant '${merchantId}'.`);
       }
 
       // Validate status transition if status is being updated
@@ -269,7 +280,7 @@ export default class MarketplaceModuleService extends MedusaService({
           role: m.role as MerchantRole,
           status: m.status as MerchantMemberStatus,
         })),
-        userId,
+        targetMember.user_id,
         update.role,
         update.status
       );
@@ -282,9 +293,81 @@ export default class MarketplaceModuleService extends MedusaService({
       if (update.role) updateData.role = update.role;
       if (update.status) updateData.status = update.status;
 
-      return await (this as any).updateMerchantMembers(targetMember.id, updateData);
-    });
+      try {
+        return await (this as any).updateMerchantMembers(
+          {
+            id: targetMember.id,
+            ...updateData,
+          },
+          txContext
+        );
+      } catch (err: any) {
+        if (err.message && err.message.includes('[object Object]')) {
+          return await (this as any).updateMerchantMembers(targetMember.id, updateData, txContext);
+        }
+        throw err;
+      }
+    };
+
+    const manager = (this as any).__container__?.manager;
+    if (manager && typeof manager.transactional === 'function') {
+      return await manager.transactional(executeInTransaction);
+    }
+
+    // In-memory fallback for mocked unit test environments without database container
+    return await MarketplaceModuleService.withMerchantLock(merchantId, () => executeInTransaction());
   }
+
+  /**
+   * Removes a member from a merchant team, enforcing sole active owner protection.
+   * Uses PostgreSQL transaction-level advisory locking (pg_advisory_xact_lock) when database manager
+   * is available, ensuring serialization across independent backend instances.
+   */
+  async removeMerchantMember(merchantId: string, memberIdOrUserId: string): Promise<boolean> {
+    const executeInTransaction = async (em?: any) => {
+      if (em && typeof em.execute === 'function') {
+        // Acquire PostgreSQL transaction-level advisory lock keyed to the merchant.
+        // Automatically released on COMMIT, ROLLBACK, or connection termination.
+        await em.execute('SELECT pg_advisory_xact_lock(hashtext(?))', ['merchant_member_' + merchantId]);
+      }
+
+      const txContext = em ? { transactionManager: em } : undefined;
+      const members = await (this as any).listMerchantMembers({ merchant_id: merchantId }, {}, txContext);
+      const targetMember = members.find(
+        (m: any) => m.id === memberIdOrUserId || m.user_id === memberIdOrUserId
+      );
+
+      if (!targetMember) {
+        throw new Error(`MEMBER_NOT_FOUND: Member '${memberIdOrUserId}' not found in merchant '${merchantId}'.`);
+      }
+
+      // Check sole active owner constraint before deletion against fresh transactional state
+      const activeOwners = members.filter(
+        (m: any) => m.role === 'owner' && m.status === 'active'
+      );
+      if (
+        targetMember.role === 'owner' &&
+        targetMember.status === 'active' &&
+        activeOwners.length <= 1
+      ) {
+        throw new Error(
+          'SOLE_OWNER_PROTECTION: Cannot remove the sole active owner of this merchant. Transfer ownership to another active member first.'
+        );
+      }
+
+      await (this as any).deleteMerchantMembers([targetMember.id], txContext);
+      return true;
+    };
+
+    const manager = (this as any).__container__?.manager;
+    if (manager && typeof manager.transactional === 'function') {
+      return await manager.transactional(executeInTransaction);
+    }
+
+    // In-memory fallback for mocked unit test environments without database container
+    return await MarketplaceModuleService.withMerchantLock(merchantId, () => executeInTransaction());
+  }
+
 
   /**
    * Server-side verification of active membership for a given user and merchant.

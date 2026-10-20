@@ -810,10 +810,12 @@ describe('M2-01: Backend Marketplace Ownership & Tenant Scoping Matrix', () => {
         return record;
       };
 
-      (service as any).updateMerchantMembers = async (id: string, data: any) => {
+      (service as any).updateMerchantMembers = async (idOrData: any, data?: any) => {
+        const id = typeof idOrData === 'object' && idOrData ? idOrData.id : idOrData;
+        const payload = typeof idOrData === 'object' && idOrData ? idOrData : data || {};
         const existing = members.get(id);
         if (!existing) throw new Error(`Member ${id} not found`);
-        const updated = { ...existing, ...data, updated_at: new Date() };
+        const updated = { ...existing, ...payload, updated_at: new Date() };
         members.set(id, updated);
         return updated;
       };
