@@ -602,6 +602,8 @@ export interface AuthenticatedSessionDto {
   email?: string | null;
   mobile?: string | null;
   merchantId?: string | null;
+  membershipStatus?: MerchantMemberStatus | null;
+  merchantStatus?: MerchantStatus | null;
   role?: MerchantRole | 'super_admin' | 'reviewer';
   permissions?: MarketplacePermission[];
   isMfaVerified?: boolean;

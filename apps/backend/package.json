@@ -10,7 +10,7 @@
     "db:create": "medusa db:create",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/backend: lint ok\"",
-    "test": "tsc && node --test dist/commerce-domains.test.js dist/marketplace-ownership.test.js"
+    "test": "tsc && node --test dist/commerce-domains.test.js dist/marketplace-ownership.test.js dist/persistent-integration.test.js"
   },
   "dependencies": {
     "@ecom/config": "*",

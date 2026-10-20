@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   BackendMarketplaceGuard,
   MARKETPLACE_MODULE,
@@ -12,6 +14,20 @@ import { Migration20261019000000 } from './modules/marketplace/migrations/Migrat
 import type { AuthenticatedSessionDto, MerchantRole, MerchantMemberStatus } from '@ecom/types';
 import { GET as customerLookupRoute } from './api/store/customers/lookup/route.js';
 import { POST as customerSaveRoute } from './api/store/customers/route.js';
+import { GET as merchantProductsGetRoute, POST as merchantProductsPostRoute } from './api/merchant/products/route.js';
+import {
+  GET as merchantProductDetailGetRoute,
+  PUT as merchantProductDetailPutRoute,
+  DELETE as merchantProductDetailDeleteRoute,
+} from './api/merchant/products/[id]/route.js';
+import { POST as merchantVariantPostRoute } from './api/merchant/products/[id]/variants/route.js';
+import { GET as merchantOrdersGetRoute } from './api/merchant/orders/route.js';
+import { GET as merchantOrderDetailGetRoute } from './api/merchant/orders/[id]/route.js';
+import {
+  GET as adminMarketplaceProductsGetRoute,
+  POST as adminMarketplaceProductsPostRoute,
+} from './api/admin/marketplace/products/route.js';
+import { MockMedusaContainer } from './api/__tests__/fixtures/mock-medusa-container.js';
 
 
 
@@ -1231,7 +1247,614 @@ describe('M2-01: Backend Marketplace Ownership & Tenant Scoping Matrix', () => {
       assert.ok(allDownSql.includes('DROP TABLE IF EXISTS "merchant" CASCADE'));
     });
   });
+
+  describe('13. Route-Level Tenant Authorization & API Boundaries (M2-04)', () => {
+    const testContainer = new MockMedusaContainer();
+
+    function createRouteContext(options: {
+      token?: string;
+      cookie?: string;
+      params?: Record<string, string>;
+      query?: Record<string, string>;
+      body?: any;
+      container?: MockMedusaContainer;
+    }) {
+      const container = options.container || testContainer;
+      const headers: Record<string, string> = {};
+      if (options.token) {
+        headers['authorization'] = `Bearer ${options.token}`;
+      }
+      if (options.cookie) {
+        headers['cookie'] = options.cookie;
+      }
+
+      const req: any = {
+        headers,
+        params: options.params || {},
+        query: options.query || {},
+        body: options.body || {},
+        scope: {
+          resolve: (token: any) => container.resolve(token),
+        },
+      };
+
+      const res: any = {
+        statusCode: 200,
+        body: null,
+        status(code: number) {
+          this.statusCode = code;
+          return this;
+        },
+        json(data: any) {
+          this.body = data;
+          return this;
+        },
+      };
+
+      return { req, res, container };
+    }
+
+    // Helper token generators
+    const virasatOwnerToken = 'merchant_token:usr_virasat_owner:merch_virasat_heritage:owner:active:active';
+    const virasatSupportToken = JSON.stringify({
+      userId: 'usr_virasat_support',
+      merchantId: 'merch_virasat_heritage',
+      actorType: 'merchant_user',
+      authBoundary: 'merchant',
+      role: 'support',
+      permissions: ['orders:read'],
+    });
+    const loomOwnerToken = 'merchant_token:usr_loom_owner:merch_loom_thread:owner:active:active';
+    const customerToken = 'customer_token_cus_priya_sharma';
+    const adminToken = 'admin_token_super_root';
+    const suspendedMemberToken = JSON.stringify({
+      userId: 'usr_suspended_virasat',
+      merchantId: 'merch_virasat_heritage',
+      actorType: 'merchant_user',
+      authBoundary: 'merchant',
+      membershipStatus: 'suspended',
+      merchantStatus: 'active',
+      role: 'manager',
+      permissions: ['catalog:read', 'catalog:write'],
+    });
+    const suspendedMerchantToken = JSON.stringify({
+      userId: 'usr_bad_merchant',
+      merchantId: 'merch_suspended_store',
+      actorType: 'merchant_user',
+      authBoundary: 'merchant',
+      membershipStatus: 'active',
+      merchantStatus: 'suspended',
+      role: 'owner',
+      permissions: ['catalog:read', 'catalog:write'],
+    });
+
+    // 13.1 Unauthenticated Access Protection
+    it('NEGATIVE: rejects unauthenticated requests to merchant routes with 401 UNAUTHORIZED', async () => {
+      testContainer.seedDefaultData();
+      const { req, res } = createRouteContext({});
+
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.body.error, 'UNAUTHORIZED');
+
+      const { req: reqPost, res: resPost } = createRouteContext({ body: { title: 'Hack' } });
+      await merchantProductsPostRoute(reqPost, resPost);
+      assert.equal(resPost.statusCode, 401);
+      assert.equal(resPost.body.error, 'UNAUTHORIZED');
+
+      const { req: reqOrders, res: resOrders } = createRouteContext({});
+      await merchantOrdersGetRoute(reqOrders, resOrders);
+      assert.equal(resOrders.statusCode, 401);
+      assert.equal(resOrders.body.error, 'UNAUTHORIZED');
+    });
+
+    it('NEGATIVE: rejects malformed / invalid tokens with 401 UNAUTHORIZED', async () => {
+      const { req, res } = createRouteContext({ token: 'not-a-valid-token' });
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.body.error, 'UNAUTHORIZED');
+    });
+
+    // 13.2 Security Boundary Separation
+    it('NEGATIVE: Customer token cannot access merchant product routes (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({ token: customerToken });
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Customer credentials cannot access merchant or admin boundaries'));
+    });
+
+    it('NEGATIVE: Customer token cannot access admin routes (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({ token: customerToken });
+      await adminMarketplaceProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+    });
+
+    it('NEGATIVE: Merchant token cannot access platform admin boundary (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({ token: virasatOwnerToken });
+      await adminMarketplaceProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Merchant credentials cannot access platform admin boundary'));
+
+      const { req: reqPost, res: resPost } = createRouteContext({
+        token: virasatOwnerToken,
+        body: { title: 'Unauthorized Admin Product', target_merchant_id: 'merch_virasat_heritage' },
+      });
+      await adminMarketplaceProductsPostRoute(reqPost, resPost);
+      assert.equal(resPost.statusCode, 403);
+      assert.equal(resPost.body.error, 'FORBIDDEN');
+    });
+
+    // 13.3 Inactive Membership & Inactive Merchant Enforcement
+    it('NEGATIVE: rejects merchant user with suspended membership (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({ token: suspendedMemberToken });
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Merchant membership is not active'));
+    });
+
+    it('NEGATIVE: rejects merchant user belonging to a suspended merchant (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({ token: suspendedMerchantToken });
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Merchant account is not active'));
+    });
+
+    // 13.4 Anti-Forgery Merchant ID Guard
+    it('NEGATIVE: blocks forged client-supplied merchant_id in query differing from session (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // session is merch_virasat_heritage
+        query: { merchant_id: 'merch_loom_thread' }, // attacker tries to view Loom & Thread
+      });
+
+      await merchantProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('FORGED_MERCHANT_ID'));
+    });
+
+    it('NEGATIVE: blocks forged client-supplied merchant_id in body differing from session (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken,
+        body: {
+          title: 'Malicious Product',
+          merchant_id: 'merch_loom_thread', // attacker tries to inject product into Loom & Thread
+        },
+      });
+
+      await merchantProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('FORGED_MERCHANT_ID'));
+    });
+
+    // 13.5 Permission-Based RBAC Enforcement
+    it('NEGATIVE: blocks merchant staff without catalog:write from creating products (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatSupportToken, // only has orders:read
+        body: { title: 'Unauthorized Creation Attempt' },
+      });
+
+      await merchantProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Missing required permission [catalog:write]'));
+    });
+
+    it('allows merchant owner with catalog:write to create product scoped to own merchant (201 CREATED)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken,
+        body: {
+          title: 'Virasat Zari Silk Dupatta',
+          handle: 'virasat-zari-silk-dupatta',
+          description: 'Authentic zari dupatta',
+        },
+      });
+
+      await merchantProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 201);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.product.merchant_id, 'merch_virasat_heritage');
+      assert.equal(res.body.product.title, 'Virasat Zari Silk Dupatta');
+    });
+
+    // 13.6 Cross-Merchant IDOR Protection on Products
+    it('NEGATIVE: Merchant A cannot read Merchant B product details via GET /merchant/products/:id (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // Merchant A
+        params: { id: 'prod_loom_shirt_01' }, // Owned by Merchant B
+      });
+
+      await merchantProductDetailGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Access denied: You do not own this product'));
+    });
+
+    it('NEGATIVE: Merchant A cannot update Merchant B product via PUT /merchant/products/:id (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // Merchant A
+        params: { id: 'prod_loom_shirt_01' }, // Owned by Merchant B
+        body: { title: 'Hijacked Title' },
+      });
+
+      await merchantProductDetailPutRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Access denied: You do not own this product'));
+    });
+
+    it('NEGATIVE: Merchant A cannot delete Merchant B product via DELETE /merchant/products/:id (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // Merchant A
+        params: { id: 'prod_loom_shirt_01' }, // Owned by Merchant B
+      });
+
+      await merchantProductDetailDeleteRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Access denied: You do not own this product'));
+    });
+
+    it('allows merchant to read and update their own product (200 OK)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_01' },
+      });
+
+      await merchantProductDetailGetRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.product.id, 'prod_loom_shirt_01');
+      assert.equal(res.body.product.merchant_id, 'merch_loom_thread');
+
+      const { req: reqPut, res: resPut } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_01' },
+        body: { description: 'Updated breathable linen shirt' },
+      });
+      await merchantProductDetailPutRoute(reqPut, resPut);
+      assert.equal(resPut.statusCode, 200);
+      assert.equal(resPut.body.product.description, 'Updated breathable linen shirt');
+    });
+
+    // 13.7 Parent-Product Variant Hijacking Protection
+    it('NEGATIVE: Merchant A cannot add variants to Merchant B parent product (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // Merchant A
+        params: { id: 'prod_loom_shirt_01' }, // Parent owned by Merchant B
+        body: {
+          title: 'Forged Variant Size XL',
+          sku: 'LOOM-HIJACK-XL',
+          price: 199900,
+        },
+      });
+
+      await merchantVariantPostRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('Access denied: You do not own this product'));
+    });
+
+    it('allows owning merchant to add variants to own parent product (201 CREATED)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_01' },
+        body: {
+          title: 'Beige / L',
+          sku: 'LOOM-SHIRT-BGE-L',
+          price: 249900,
+        },
+      });
+
+      await merchantVariantPostRoute(req, res);
+      assert.equal(res.statusCode, 201);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.variant.sku, 'LOOM-SHIRT-BGE-L');
+      assert.equal(res.body.variant.productId, 'prod_loom_shirt_01');
+    });
+
+    // 13.8 Product Lifecycle Safety Evaluation
+    it('NEGATIVE: blocks hard deletion of product with historical orders (409 CONFLICT)', async () => {
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken,
+        params: { id: 'prod_virasat_saree_01' }, // hasOrderHistory = true
+      });
+
+      await merchantProductDetailDeleteRoute(req, res);
+      assert.equal(res.statusCode, 409);
+      assert.equal(res.body.error, 'CONFLICT');
+      assert.ok(res.body.message?.includes('historical orders'));
+    });
+
+    it('NEGATIVE: blocks hard deletion of product with active warehouse stock (409 CONFLICT)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_with_stock' }, // activeStockQuantity = 25
+      });
+
+      await merchantProductDetailDeleteRoute(req, res);
+      assert.equal(res.statusCode, 409);
+      assert.equal(res.body.error, 'CONFLICT');
+      assert.ok(res.body.message?.includes('active stock remains'));
+    });
+
+    it('allows deletion of clean product without order history and zero stock (200 OK)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_01' }, // hasOrderHistory = false, stock = 0
+      });
+
+      await merchantProductDetailDeleteRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.message, 'Product successfully deleted.');
+    });
+
+    // 13.9 Mixed-Merchant Order Line-Item Isolation
+    it('Merchant A in mixed-merchant orders sees ONLY Merchant A line items (zero cross-tenant leakage)', async () => {
+      testContainer.seedDefaultData();
+      const { req, res } = createRouteContext({
+        token: virasatOwnerToken, // Virasat Heritage
+      });
+
+      await merchantOrdersGetRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      // Virasat has items in order_mixed_1001 and order_virasat_2001
+      assert.equal(res.body.count, 2);
+
+      const mixedOrder = res.body.orders.find((o: any) => o.id === 'order_mixed_1001');
+      assert.ok(mixedOrder);
+      // Mixed order originally has 2 items (1 Virasat, 1 Loom & Thread).
+      // Virasat must ONLY see 1 item (Banarasi Saree).
+      assert.equal(mixedOrder.items.length, 1);
+      assert.equal(mixedOrder.items[0].merchantId, 'merch_virasat_heritage');
+      assert.equal(mixedOrder.items[0].title, 'Handloom Banarasi Silk Saree');
+      assert.equal(mixedOrder.merchant_subtotal, 1299900);
+
+      // Verify Loom & Thread item is completely absent
+      const hasLoomItem = mixedOrder.items.some((item: any) => item.merchantId === 'merch_loom_thread');
+      assert.equal(hasLoomItem, false);
+    });
+
+    it('Merchant B in mixed-merchant orders sees ONLY Merchant B line items and cannot see Merchant A exclusive orders', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken, // Loom & Thread
+      });
+
+      await merchantOrdersGetRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      // Loom & Thread has items ONLY in order_mixed_1001. order_virasat_2001 must be completely omitted!
+      assert.equal(res.body.count, 1);
+      assert.equal(res.body.orders[0].id, 'order_mixed_1001');
+      assert.equal(res.body.orders[0].items.length, 1);
+      assert.equal(res.body.orders[0].items[0].merchantId, 'merch_loom_thread');
+      assert.equal(res.body.orders[0].merchant_subtotal, 249900);
+
+      // Verify Virasat exclusive order is not leaked
+      const hasVirasatOrder = res.body.orders.some((o: any) => o.id === 'order_virasat_2001');
+      assert.equal(hasVirasatOrder, false);
+    });
+
+    it('NEGATIVE: Merchant B cannot view Merchant A single-merchant order via GET /merchant/orders/:id (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken, // Loom & Thread
+        params: { id: 'order_virasat_2001' }, // Virasat only order
+      });
+
+      await merchantOrderDetailGetRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('You do not have permission to view this order'));
+    });
+
+    it('Merchant B can view mixed order detail, but only their own line items (200 OK)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'order_mixed_1001' },
+      });
+
+      await merchantOrderDetailGetRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.order.items.length, 1);
+      assert.equal(res.body.order.items[0].merchantId, 'merch_loom_thread');
+      assert.equal(res.body.order.merchant_subtotal, 249900);
+    });
+
+    // 13.10 Super Admin Governance and Target Merchant Selection
+    it('NEGATIVE: Super Admin product creation without target_merchant_id is rejected with 400 Bad Request', async () => {
+      const { req, res } = createRouteContext({
+        token: adminToken,
+        body: {
+          title: 'Unassigned Product Attempt',
+          target_merchant_id: '', // Empty target merchant
+        },
+      });
+
+      await adminMarketplaceProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(res.body.error, 'BAD_REQUEST');
+      assert.ok(res.body.message?.includes('TARGET_MERCHANT_REQUIRED'));
+    });
+
+    it('NEGATIVE: Super Admin product creation with non-existent target merchant is rejected with 400 Bad Request', async () => {
+      const { req, res } = createRouteContext({
+        token: adminToken,
+        body: {
+          title: 'Ghost Merchant Product',
+          target_merchant_id: 'merch_non_existent_999',
+        },
+      });
+
+      await adminMarketplaceProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(res.body.error, 'MERCHANT_NOT_FOUND');
+    });
+
+    it('NEGATIVE: Super Admin product creation with suspended target merchant is rejected with 400 Bad Request', async () => {
+      const { req, res } = createRouteContext({
+        token: adminToken,
+        body: {
+          title: 'Suspended Merchant Product',
+          target_merchant_id: 'merch_suspended_store',
+        },
+      });
+
+      await adminMarketplaceProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(res.body.error, 'MERCHANT_NOT_ELIGIBLE');
+    });
+
+    it('Super Admin creates product with explicit target_merchant_id and establishes persistent remote link (201 CREATED)', async () => {
+      const { req, res, container } = createRouteContext({
+        token: adminToken,
+        body: {
+          title: 'Platform Handcrafted Pashmina Shawl',
+          target_merchant_id: 'merch_virasat_heritage',
+        },
+      });
+
+      await adminMarketplaceProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 201);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.product.merchant_id, 'merch_virasat_heritage');
+      assert.equal(res.body.product.title, 'Platform Handcrafted Pashmina Shawl');
+
+      // Verify persistence in Medusa container and remote link
+      const createdId = res.body.product.id;
+      assert.ok(container.products.has(createdId));
+      assert.equal(container.productLinks.get(createdId), 'merch_virasat_heritage');
+    });
+
+    it('Super Admin lists products cross-merchant or filtered by ?merchant_id=... (200 OK)', async () => {
+      // Cross-merchant list
+      const { req, res } = createRouteContext({
+        token: adminToken,
+      });
+
+      await adminMarketplaceProductsGetRoute(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.success, true);
+      assert.ok(res.body.count >= 2);
+
+      // Filtered by specific merchant
+      const { req: reqFiltered, res: resFiltered } = createRouteContext({
+        token: adminToken,
+        query: { merchant_id: 'merch_loom_thread' },
+      });
+
+      await adminMarketplaceProductsGetRoute(reqFiltered, resFiltered);
+      assert.equal(resFiltered.statusCode, 200);
+      const allLoom = resFiltered.body.products.every((p: any) => p.merchant_id === 'merch_loom_thread');
+      assert.equal(allLoom, true);
+    });
+
+    // 13.11 Persistent Medusa Integration & Compensation Rollback (M2-04 Remediation)
+    it('Merchant product creation persists in Medusa Product Module and Remote Link without in-memory store', async () => {
+      const localContainer = new MockMedusaContainer();
+      const { req, res } = createRouteContext({
+        container: localContainer,
+        token: virasatOwnerToken,
+        body: {
+          title: 'Authentic Chanderi Saree',
+          handle: 'authentic-chanderi-saree',
+          description: 'Handwoven pure Chanderi saree',
+        },
+      });
+
+      await merchantProductsPostRoute(req, res);
+      assert.equal(res.statusCode, 201);
+      assert.equal(res.body.success, true);
+      const createdId = res.body.product.id;
+
+      // Assert persisted in container
+      assert.ok(localContainer.products.has(createdId));
+      assert.equal(localContainer.productLinks.get(createdId), 'merch_virasat_heritage');
+
+      // Assert retrievable via GET /merchant/products/:id
+      const { req: reqGet, res: resGet } = createRouteContext({
+        container: localContainer,
+        token: virasatOwnerToken,
+        params: { id: createdId },
+      });
+      await merchantProductDetailGetRoute(reqGet, resGet);
+      assert.equal(resGet.statusCode, 200);
+      assert.equal(resGet.body.product.id, createdId);
+      assert.equal(resGet.body.product.title, 'Authentic Chanderi Saree');
+    });
+
+    it('COMPENSATION: rolls back created product when remote link creation fails (zero orphan products)', async () => {
+      const localContainer = new MockMedusaContainer();
+      localContainer.failNextLinkCreate = true; // Simulate network or DB failure during link establishment
+
+      const { req, res } = createRouteContext({
+        container: localContainer,
+        token: virasatOwnerToken,
+        body: {
+          title: 'Orphan Candidate Saree',
+          handle: 'orphan-candidate-saree',
+        },
+      });
+
+      await merchantProductsPostRoute(req, res);
+      // Expect 500 error due to link failure
+      assert.equal(res.statusCode, 500);
+      assert.equal(res.body.error, 'PRODUCT_CREATION_FAILED');
+
+      // Verify COMPENSATION: The product MUST NOT exist in localContainer.products!
+      const orphanExists = Array.from(localContainer.products.values()).some(
+        (p) => p.title === 'Orphan Candidate Saree'
+      );
+      assert.equal(orphanExists, false, 'Compensation failed: orphan unlinked product remained in database!');
+    });
+
+    it('NEGATIVE: rejects attempts by ordinary merchant to reassign product to another merchant (403 FORBIDDEN)', async () => {
+      const { req, res } = createRouteContext({
+        token: loomOwnerToken,
+        params: { id: 'prod_loom_shirt_01' },
+        body: {
+          title: 'Reassigned Linen Shirt',
+          target_merchant_id: 'merch_virasat_heritage', // Attempt to reassign owner
+        },
+      });
+
+      await merchantProductDetailPutRoute(req, res);
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.body.error, 'FORBIDDEN');
+      assert.ok(res.body.message?.includes('CANNOT_REASSIGN_MERCHANT'));
+    });
+
+    it('Native Medusa Admin /admin/products route is not shadowed (custom route is namespaced under /admin/marketplace/products)', () => {
+      const basePath = process.cwd().includes('apps/backend') || process.cwd().includes('apps\\backend')
+        ? process.cwd()
+        : path.resolve(process.cwd(), 'apps/backend');
+      const conflictingRoutePath = path.resolve(basePath, 'src/api/admin/products/route.ts');
+      const namespacedRoutePath = path.resolve(basePath, 'src/api/admin/marketplace/products/route.ts');
+
+      // Verify conflicting route does NOT exist
+      assert.equal(
+        fs.existsSync(conflictingRoutePath),
+        false,
+        'Conflicting route apps/backend/src/api/admin/products/route.ts must not exist!'
+      );
+
+      // Verify namespaced route DOES exist
+      assert.equal(
+        fs.existsSync(namespacedRoutePath),
+        true,
+        'Namespaced route apps/backend/src/api/admin/marketplace/products/route.ts must exist!'
+      );
+    });
+  });
 });
+
 
 
 
