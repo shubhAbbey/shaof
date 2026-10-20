@@ -1,7 +1,7 @@
 # ADR-007: Merchant and Platform User, Role, and Permission Management
 
-**Status:** IMPLEMENTED / PENDING HUMAN ACCEPTANCE  
-**Date:** 2026-10-20  
+**Status:** ACCEPTED  
+**Date:** 2026-10-21  
 **Authors:** Ecom Engineering Team  
 **Scope:** MVP-2 User, Role and Permission Management (M2-07)  
 **Dependencies:** ADR-002 (Architecture), ADR-003 (Tenant Isolation), ADR-004 (Marketplace Ownership), ADR-006 (Merchant Authentication)  

@@ -92,11 +92,15 @@ This phase extends the durable merchant authentication foundation established in
 2. **M2-04 Product Deletion Concurrency Race:**
    - The product deletion concurrency lock race identified during the initial MVP-2 audit remains scheduled for resolution in Phase **M2-09** (Product Catalog Management).
 
----
+## 5. Formal Acceptance & Phase Gate Sign-off
 
-## 5. Phase Gate Status
-
-- **Phase Gate Status:** HELD AT PHASE GATE.
+- **Phase Status:** **ACCEPTED**
+- **Authorization Reference:** Formally accepted by Human Reviewer on 2026-10-21.
+- **Evidence Baseline:**
+  - 48/48 focused tests passed in `apps/backend/src/role-management.test.ts`.
+  - 260/260 full backend tests passed across 68 suites (`npm test --workspace=@ecom/backend`).
+  - 0 TypeScript compiler errors across all 5 workspaces (`@ecom/backend`, `@ecom/cms`, `@ecom/storefront`, `@ecom/config`, `@ecom/types`).
+  - Clean Next.js 14 production build (`npm run build --workspace=apps/storefront`).
+  - Empirical verification of multi-instance sole-owner safety via PostgreSQL `pg_advisory_xact_lock`.
 - **Commit Status:** Zero unapproved Git commits created.
-- **M2-08 Status:** Not started.
-- **Action Required:** Explicit human authorization is required before accepting Phase M2-07 or proceeding to Phase M2-08.
+- **Next Phase Status (M2-08):** **NOT STARTED** (Awaiting explicit human authorization).
