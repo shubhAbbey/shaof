@@ -6,10 +6,13 @@ import {
 } from '@ecom/types';
 import { BackendMarketplaceGuard } from '../../modules/marketplace/ownership-guard';
 import { MARKETPLACE_MODULE } from '../../modules/marketplace/index';
+import { SuperAdminAuthEngine } from '../../modules/auth/super-admin-auth-engine';
 
 export interface TenantAuthOptions {
   boundary: AuthBoundary;
   requiredPermission?: MarketplacePermission;
+  requireMfa?: boolean;
+  requireStepUp?: boolean;
 }
 
 export type TenantRouteHandler = (
@@ -20,14 +23,20 @@ export type TenantRouteHandler = (
 /**
  * Resolves session token to an AuthenticatedSessionDto.
  * Supports:
- * 1. JSON test tokens (for unit/integration testing)
- * 2. Base64-encoded session tokens
- * 3. Structured test prefixes (admin_token_*, merchant_token_*, customer_token_*, sess_*)
+ * 1. SuperAdminAuthEngine sessions (sess_admin_*)
+ * 2. JSON test tokens (for unit/integration testing)
+ * 3. Base64-encoded session tokens
+ * 4. Structured test prefixes (admin_token_*, merchant_token_*, customer_token_*, sess_*)
  */
-export function resolveSessionFromToken(token: string | null): AuthenticatedSessionDto | null {
+export async function resolveSessionFromToken(token: string | null): Promise<AuthenticatedSessionDto | null> {
   if (!token) return null;
 
-  // 1. JSON string test tokens
+  // 1. Live Super Admin Auth Engine sessions
+  if (token.startsWith('sess_admin_')) {
+    return await SuperAdminAuthEngine.resolveSession(token);
+  }
+
+  // 2. JSON string test tokens
   if (token.startsWith('{') && token.endsWith('}')) {
     try {
       return JSON.parse(token);
@@ -36,7 +45,7 @@ export function resolveSessionFromToken(token: string | null): AuthenticatedSess
     }
   }
 
-  // 2. Base64 encoded JSON session tokens
+  // 3. Base64 encoded JSON session tokens
   if (token.startsWith('ey') || token.startsWith('sess_b64_')) {
     try {
       const b64 = token.startsWith('sess_b64_') ? token.substring(9) : token;
@@ -49,7 +58,7 @@ export function resolveSessionFromToken(token: string | null): AuthenticatedSess
     }
   }
 
-  // 3. Prefix-based simulated session tokens
+  // 4. Prefix-based simulated session tokens
   if (token.startsWith('admin_token:') || token.startsWith('admin_token_')) {
     const id = token.startsWith('admin_token:') ? token.substring(12) : token.substring(12);
     return {
@@ -57,6 +66,7 @@ export function resolveSessionFromToken(token: string | null): AuthenticatedSess
       actorType: 'super_admin',
       authBoundary: 'admin',
       role: 'super_admin',
+      isMfaVerified: true,
     };
   }
 
@@ -167,7 +177,7 @@ export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRou
     }
 
     // 2. Resolve session
-    const session = resolveSessionFromToken(extracted.token);
+    const session = await resolveSessionFromToken(extracted.token);
     if (!session || !session.userId) {
       res.status(401).json({
         success: false,
@@ -275,6 +285,30 @@ export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRou
           success: false,
           error: permAssertion.error,
           message: permAssertion.message,
+        });
+        return;
+      }
+    }
+
+    // 6. Assert MFA verification if required
+    if (options.requireMfa && !session.isMfaVerified) {
+      res.status(403).json({
+        success: false,
+        error: 'MFA_REQUIRED',
+        message: 'Multi-Factor Authentication verification is required to perform this action.',
+      });
+      return;
+    }
+
+    // 7. Assert Step-Up re-authentication if required
+    if (options.requireStepUp) {
+      const isStepUpValid =
+        session.sessionToken && (await SuperAdminAuthEngine.isStepUpActive(session.sessionToken));
+      if (!isStepUpValid) {
+        res.status(403).json({
+          success: false,
+          error: 'STEP_UP_REQUIRED',
+          message: 'Step-up re-authentication required for this sensitive action.',
         });
         return;
       }

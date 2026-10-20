@@ -10,7 +10,7 @@
     "db:create": "medusa db:create",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@ecom/backend: lint ok\"",
-    "test": "tsc && node --test dist/commerce-domains.test.js dist/marketplace-ownership.test.js dist/persistent-integration.test.js"
+    "test": "tsc && node --test dist/commerce-domains.test.js dist/marketplace-ownership.test.js dist/persistent-integration.test.js dist/admin-auth.test.js"
   },
   "dependencies": {
     "@ecom/config": "*",
@@ -20,11 +20,13 @@
     "@medusajs/framework": "^2.19.0",
     "@medusajs/medusa": "^2.19.0",
     "@medusajs/types": "^2.19.0",
+    "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "ioredis": "^5.5.0",
     "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"

@@ -21,6 +21,7 @@ export class OtpAuthService {
   }
 }
 
-export * from './auth-guard.js';
+export * from './auth-guard';
+export * from './super-admin-auth-engine';
 export default OtpAuthService;
 

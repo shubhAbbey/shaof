@@ -209,3 +209,114 @@ export type AuthGuardResult = AuthGuardSuccess | AuthGuardFailure;
 export const PROTECTED_ROUTE_PREFIXES = ['/account', '/wishlist', '/checkout'] as const;
 export const AUTH_ENTRY_ROUTE_PREFIXES = ['/login', '/register'] as const;
 
+// ==========================================
+// Super Admin Authentication & MFA Types (M2-05)
+// ==========================================
+
+export interface SuperAdminLoginPayload {
+  email: string;
+  password: string;
+  totpCode?: string;
+  backupCode?: string;
+}
+
+export interface SuperAdminLoginResponse {
+  success: boolean;
+  mfaRequired?: boolean;
+  mfaChallengeToken?: string;
+  session?: {
+    userId: string;
+    email: string;
+    role: 'super_admin';
+    authBoundary: 'admin';
+    actorType: 'super_admin';
+    isMfaVerified: boolean;
+    expiresAt?: string;
+    lastMfaVerifiedAt?: string;
+  };
+  token?: string;
+  error?: string;
+  message?: string;
+}
+
+export interface MfaSetupResponse {
+  success: boolean;
+  secret: string; // Base32 TOTP secret (shown only once)
+  otpauthUri: string;
+  backupCodes: string[]; // Plaintext backup codes (shown only once)
+  pendingConfirmation?: boolean;
+  error?: string;
+  message?: string;
+}
+
+export interface MfaVerifyPayload {
+  code?: string; // 6-digit TOTP code
+  backupCode?: string; // Backup scratch code
+  mfaChallengeToken?: string; // If verifying during 2-stage login
+}
+
+export interface MfaVerifyResponse {
+  success: boolean;
+  isMfaVerified: boolean;
+  token?: string;
+  backupCodeUsed?: boolean;
+  remainingBackupCodesCount?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface StepUpPayload {
+  password?: string;
+  totpCode?: string;
+}
+
+export interface StepUpResponse {
+  success: boolean;
+  stepUpVerified: boolean;
+  expiresAt: string;
+  error?: string;
+  message?: string;
+}
+
+export type AdminAuthAction =
+  | 'admin.login.success'
+  | 'admin.login.failed'
+  | 'admin.login.locked'
+  | 'admin.mfa.setup'
+  | 'admin.mfa.enrolled'
+  | 'admin.mfa.verified'
+  | 'admin.mfa.failed'
+  | 'admin.backup_code.used'
+  | 'admin.logout'
+  | 'admin.session.revoked'
+  | 'admin.step_up.success'
+  | 'admin.step_up.failed';
+
+export interface AdminAuthAuditEvent {
+  eventId: string;
+  action: AdminAuthAction;
+  userId?: string;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+  timestamp: string;
+  outcome: 'success' | 'failure';
+  reason?: string;
+}
+
+export interface AdminSessionRecord {
+  token: string;
+  userId: string;
+  email: string;
+  role: 'super_admin';
+  actorType: 'super_admin';
+  authBoundary: 'admin';
+  isMfaVerified: boolean;
+  createdAt: number;
+  lastActivityAt: number;
+  expiresAt: number;
+  lastMfaVerifiedAt?: number;
+  ip?: string;
+  userAgent?: string;
+}
+
