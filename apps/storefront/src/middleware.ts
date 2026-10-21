@@ -13,6 +13,43 @@ function matchesRoutePrefixes(pathname: string, prefixes: readonly string[]): bo
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  // 0. CORS handling for /api routes (allows Swagger UI on port 9000 to interact with Storefront BFF)
+  if (pathname.startsWith('/api')) {
+    const origin = req.headers.get('origin') || '';
+    const isAllowedOrigin =
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:') ||
+      origin === '';
+
+    if (req.method === 'OPTIONS') {
+      const response = new NextResponse(null, { status: 204 });
+      if (origin && isAllowedOrigin) {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+        response.headers.set('Access-Control-Allow-Credentials', 'true');
+        response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        response.headers.set(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Authorization, Accept, X-Requested-With, X-CSRF-Token, x-s2s-auth-token'
+        );
+        response.headers.set('Access-Control-Max-Age', '86400');
+      }
+      return response;
+    }
+
+    const res = NextResponse.next();
+    if (origin && isAllowedOrigin) {
+      res.headers.set('Access-Control-Allow-Origin', origin);
+      res.headers.set('Access-Control-Allow-Credentials', 'true');
+      res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      res.headers.set(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, Accept, X-Requested-With, X-CSRF-Token, x-s2s-auth-token'
+      );
+    }
+    return res;
+  }
+
   const sessionCookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const hasSessionCookie = Boolean(sessionCookie && sessionCookie.trim().length > 0);
 
@@ -53,13 +90,12 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for:
-     * - /api/* (API routes handle their own authorization)
+     * Match all request paths except for static files:
      * - /_next/static (static files)
      * - /_next/image (image optimization files)
      * - /favicon.ico (favicon file)
      * - Static asset extensions (.svg, .png, .jpg, .jpeg, .gif, .webp, .ico)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };
