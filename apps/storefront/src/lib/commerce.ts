@@ -18,6 +18,9 @@ export interface StorefrontProduct {
   colors?: string[];
   defaultVariantId?: string;
   createdAt?: string;
+  status?: string;
+  merchantStatus?: string;
+  merchantId?: string;
 }
 
 export interface ProductOptionValue {
@@ -312,6 +315,9 @@ function mapMedusaProductToStorefront(p: any): StorefrontProduct {
     colors: Array.from(colorsSet),
     defaultVariantId: firstVariant?.id || undefined,
     createdAt: p.created_at,
+    status: p.status || p.metadata?.status,
+    merchantStatus: p.merchant?.status || p.merchant_status || p.metadata?.merchant_status,
+    merchantId: p.merchant?.id || p.merchant_id || p.metadata?.merchant_id || undefined,
   };
 }
 
@@ -381,6 +387,12 @@ export async function fetchCommerceProducts(
     const rawProducts = data.products || [];
 
     let mappedProducts: StorefrontProduct[] = rawProducts.map(mapMedusaProductToStorefront);
+
+    // Catalog Isolation (fail-closed): public storefront strictly exposes only published products from active merchants.
+    // If status or merchantStatus is missing/undefined, or not published/active, the product is hidden.
+    mappedProducts = mappedProducts.filter(
+      (p: StorefrontProduct) => p.status === 'published' && p.merchantStatus === 'active'
+    );
 
     if (brand) {
       const normalizedBrand = brand.toLowerCase().replace(/-/g, ' ');
@@ -499,7 +511,10 @@ export async function fetchPlpProducts(
 
     const data = await res.json();
     const rawProducts = data.products || [];
-    const allCandidates: StorefrontProduct[] = rawProducts.map(mapMedusaProductToStorefront);
+    // Catalog Isolation (fail-closed): candidates and dynamic facets strictly include only published products from active merchants
+    const allCandidates: StorefrontProduct[] = rawProducts
+      .map(mapMedusaProductToStorefront)
+      .filter((p: StorefrontProduct) => p.status === 'published' && p.merchantStatus === 'active');
 
     // Compute dynamic facets from the candidates
     const brandCounts = new Map<string, number>();
@@ -555,6 +570,9 @@ export async function fetchPlpProducts(
 
     // Apply Filter Pipeline
     let filtered = allCandidates.filter((p) => {
+      // Catalog Isolation (fail-closed): defensive assertion
+      if (p.status !== 'published' || p.merchantStatus !== 'active') return false;
+
       // 0. Search Query Text Matching (guarantees accuracy across mock & remote fallbacks)
       if (q && q.trim()) {
         const queryTerms = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -868,7 +886,12 @@ export async function fetchProductByHandle(handle: string): Promise<ProductDetai
       const data = await res.json();
       const raw = data.products?.[0];
       if (raw) {
-        return mapMedusaProductToDetail(raw);
+        const detail = mapMedusaProductToDetail(raw);
+        // Catalog Isolation (fail-closed): PDP requires status === 'published' AND merchantStatus === 'active'
+        if (detail.status !== 'published' || detail.merchantStatus !== 'active') {
+          return null;
+        }
+        return detail;
       }
       return null;
     }
@@ -894,6 +917,8 @@ export async function fetchProductByHandle(handle: string): Promise<ProductDetai
     title: formattedTitle || 'Slim Fit Pure Linen Casual Shirt',
     handle,
     subtitle: '100% Breathable Organic Linen',
+    status: 'published',
+    merchantStatus: 'active',
     description:
       'Elevate your everyday wardrobe with our artisanal handcrafted pure linen casual shirt. Meticulously tailored for a relaxed yet refined silhouette, featuring mother-of-pearl buttons, a spread collar, and breathable weave suitable for tropical climates.',
     thumbnail: fallbackImages[0],

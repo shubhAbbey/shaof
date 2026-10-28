@@ -5,6 +5,8 @@ import {
   EncryptionService,
 } from '../../../../../modules/auth/super-admin-auth-engine';
 
+export const AUTHENTICATE = false;
+
 /**
  * POST /admin/auth/mfa/setup
  * Enrolls TOTP Multi-Factor Authentication for the authenticated Super Admin.
@@ -18,7 +20,7 @@ import {
  * 5. Generates 8 single-use bcrypt-hashed backup scratch codes (ADR-002).
  */
 export const POST = requireTenantAuth(
-  { boundary: 'admin' },
+  { boundary: 'admin', requireMfa: false },
   async (req, res: MedusaResponse): Promise<void> => {
     const adminUserId = req.tenantContext.userId;
     const sessionToken = req.tenantContext.sessionToken;

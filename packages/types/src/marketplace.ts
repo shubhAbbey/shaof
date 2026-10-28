@@ -37,6 +37,9 @@ export interface MerchantVerificationMetadata {
   suspensionReason?: string;
   suspendedAt?: string;
   suspendedBy?: string;
+  changesRequestedAt?: string;
+  changesRequestedBy?: string;
+  changesRequestedReason?: string;
   reactivatedAt?: string;
   reactivatedBy?: string;
   lifecycleHistory?: MerchantLifecycleEvent[];
@@ -338,7 +341,13 @@ export function validateMerchantStatusTransition(
       return { allowed: true };
     }
     if (target === 'draft') {
-      return { allowed: true }; // Merchant retracts submission to make edits
+      if (context?.actorType === 'super_admin' && (!context.reason || context.reason.trim() === '')) {
+        return {
+          allowed: false,
+          error: 'CHANGES_REQUESTED_REASON_REQUIRED: A reason is required when requesting changes on a merchant.',
+        };
+      }
+      return { allowed: true }; // Merchant retracts submission to make edits or Super Admin requests changes
     }
     return {
       allowed: false,
@@ -492,11 +501,223 @@ export function validateSoleOwnerConstraint(
 
 export type ProductModerationStatus =
   | 'draft'
+  | 'proposed'
   | 'pending_review'
   | 'approved'
   | 'rejected'
   | 'published'
   | 'archived';
+
+export type ProductLifecycleStatus = 'draft' | 'proposed' | 'published' | 'rejected';
+
+export const CANONICAL_PRODUCT_LIFECYCLE_STATUSES: readonly ProductLifecycleStatus[] = [
+  'draft',
+  'proposed',
+  'published',
+  'rejected',
+] as const;
+
+export interface ProductStatusTransitionContext {
+  actorType?: ActorType;
+  isMerchantActive?: boolean;
+  reason?: string;
+  notes?: string;
+}
+
+/**
+ * Validates status transitions for Product moderation and publication lifecycle.
+ * In Medusa v2 and PostgreSQL, the product status is constrained to 4 canonical persisted values:
+ *   ('draft', 'proposed', 'published', 'rejected')
+ * 'approved' is not a separate persisted state in PostgreSQL; it is the conceptual decision
+ * that sets the status to 'published' while stamping metadata.approvedAt and metadata.approvedBy.
+ * Any reference to 'approved' is normalized to 'published' (and 'pending_review' to 'proposed').
+ */
+export function validateProductStatusTransition(
+  current: ProductLifecycleStatus | string,
+  target: ProductLifecycleStatus | string,
+  context?: ProductStatusTransitionContext
+): { allowed: boolean; error?: string } {
+  // Normalize conceptual aliases to canonical 4-state persisted lifecycle
+  const normalizedCurrent =
+    current === 'pending_review' ? 'proposed' : current === 'approved' ? 'published' : current;
+  const normalizedTarget =
+    target === 'pending_review' ? 'proposed' : target === 'approved' ? 'published' : target;
+
+  if (normalizedCurrent === normalizedTarget) {
+    return {
+      allowed: false,
+      error: `NO_OP_TRANSITION: Target status is already '${target}'.`,
+    };
+  }
+
+  // 1. Proposed transitions (Super Admin moderation queue)
+  if (normalizedCurrent === 'proposed') {
+    if (normalizedTarget === 'published') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can approve and publish products.',
+        };
+      }
+      if (context?.isMerchantActive === false) {
+        return {
+          allowed: false,
+          error: 'MERCHANT_NOT_ACTIVE: Associated merchant must be active to publish product.',
+        };
+      }
+      return { allowed: true };
+    }
+
+    if (normalizedTarget === 'rejected') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can reject product submissions.',
+        };
+      }
+      if (!context?.reason || context.reason.trim() === '') {
+        return {
+          allowed: false,
+          error: 'REJECTION_REASON_REQUIRED: A non-empty reason is required to reject a product.',
+        };
+      }
+      return { allowed: true };
+    }
+
+    if (normalizedTarget === 'draft') {
+      if (context?.actorType && context.actorType !== 'super_admin') {
+        return {
+          allowed: false,
+          error: 'SUPER_ADMIN_REQUIRED: Only Super Admin can request changes on submitted products.',
+        };
+      }
+      if (!context?.reason || context.reason.trim() === '') {
+        return {
+          allowed: false,
+          error: 'CHANGES_REQUESTED_REASON_REQUIRED: A non-empty reason is required when requesting changes.',
+        };
+      }
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition product from 'proposed' to '${target}'.`,
+    };
+  }
+
+  // 2. Draft transitions (Merchant catalog)
+  if (normalizedCurrent === 'draft') {
+    if (normalizedTarget === 'proposed') {
+      return { allowed: true }; // Merchant submits for moderation
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition product from 'draft' to '${target}'. Product must be submitted for moderation first.`,
+    };
+  }
+
+  // 3. Rejected transitions
+  if (normalizedCurrent === 'rejected') {
+    if (normalizedTarget === 'proposed') {
+      return { allowed: true }; // Merchant re-submits for moderation
+    }
+    if (normalizedTarget === 'draft') {
+      return { allowed: true }; // Merchant rectifies or edits
+    }
+    if (normalizedTarget === 'published') {
+      return {
+        allowed: false,
+        error: 'RE_REVIEW_REQUIRED: Rejected product must be re-submitted for moderation review before publishing.',
+      };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition product from 'rejected' to '${target}'.`,
+    };
+  }
+
+  // 4. Published (Approved & Live) transitions
+  if (normalizedCurrent === 'published') {
+    if (normalizedTarget === 'proposed') {
+      return { allowed: true }; // Merchant content change triggers re-review
+    }
+    if (normalizedTarget === 'draft') {
+      return { allowed: true }; // Unpublish to draft
+    }
+    if (normalizedTarget === 'rejected') {
+      return {
+        allowed: false,
+        error: 'INVALID_TRANSITION: Published product cannot be rejected directly from moderation queue. Use unpublish or archive workflow.',
+      };
+    }
+    return {
+      allowed: false,
+      error: `INVALID_TRANSITION: Cannot transition product from 'published' to '${target}'.`,
+    };
+  }
+
+  return {
+    allowed: false,
+    error: `INVALID_TRANSITION: Unknown product status transition from '${current}' to '${target}'.`,
+  };
+}
+
+export interface ProductAvailableActions {
+  canSubmit: boolean;
+  canApprove: boolean;
+  canRequestChanges: boolean;
+  canReject: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export function getAvailableProductActions(
+  status: ProductLifecycleStatus | string,
+  actorBoundary: 'merchant' | 'admin'
+): ProductAvailableActions {
+  const normStatus = status === 'pending_review' ? 'proposed' : status;
+  if (actorBoundary === 'admin') {
+    return {
+      canSubmit: false,
+      canApprove: normStatus === 'proposed',
+      canRequestChanges: normStatus === 'proposed',
+      canReject: normStatus === 'proposed',
+      canEdit: true,
+      canDelete: true,
+    };
+  }
+
+  // actorBoundary === 'merchant'
+  return {
+    canSubmit: normStatus === 'draft' || normStatus === 'rejected',
+    canApprove: false,
+    canRequestChanges: false,
+    canReject: false,
+    canEdit: true,
+    canDelete: true,
+  };
+}
+
+export interface MerchantReviewAvailableActions {
+  canApprove: boolean;
+  canRequestChanges: boolean;
+  canReject: boolean;
+  canSuspend: boolean;
+  canReactivate: boolean;
+}
+
+export function getAvailableMerchantReviewActions(
+  status: MerchantStatus | string
+): MerchantReviewAvailableActions {
+  return {
+    canApprove: status === 'pending_approval',
+    canRequestChanges: status === 'pending_approval',
+    canReject: status === 'pending_approval',
+    canSuspend: status === 'active',
+    canReactivate: status === 'suspended',
+  };
+}
 
 export interface ProductOwnershipDto {
   productId: string;
@@ -940,10 +1161,14 @@ export class MarketplaceOwnershipGuard {
    * Dual-transport token extractor supporting:
    * 1. React Native mobile apps using 'Authorization: Bearer <token>' header
    * 2. Web browser clients using HTTP-only cookies ('ecom_session_token', 'ecom_merchant_sess', 'ecom_admin_sess')
+   *
+   * When a specific boundary is requested, it prioritizes the boundary-specific cookie
+   * to prevent multi-cookie collisions in shared browser environments (e.g. localhost).
    */
   static extractAuthToken(
     headers: Record<string, string | undefined>,
-    cookieHeader?: string | null
+    cookieHeader?: string | null,
+    boundary?: AuthBoundary
   ): { token: string | null; transport: 'bearer' | 'cookie' | null } {
     const authHeader = headers['authorization'] || headers['Authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -954,6 +1179,23 @@ export class MarketplaceOwnershipGuard {
     }
 
     if (cookieHeader) {
+      if (boundary === 'merchant') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_merchant_sess=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      } else if (boundary === 'admin') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_admin_sess=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      } else if (boundary === 'store') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_session_token=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      }
+
       const match = cookieHeader.match(
         /(?:^|;\s*)(?:ecom_session_token|ecom_merchant_sess|ecom_admin_sess)=([^;]+)/
       );

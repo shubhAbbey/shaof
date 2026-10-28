@@ -7,11 +7,17 @@ import {
   BackendMarketplaceGuard,
   MARKETPLACE_MODULE,
 } from './modules/marketplace/index.js';
+import {
+  MerchantAuthEngine,
+  RedisMerchantAuthStorageAdapter,
+  MedusaNativeMerchantIdentityStore,
+} from './modules/auth/merchant-auth-engine.js';
 import type { AuthenticatedSessionDto } from '@ecom/types';
 
 const DB_URL =
   process.env.DATABASE_URL ||
   'postgres://postgres:postgres_secure_password@localhost:5432/medusa_db';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 describe('M2-04: Persistent PostgreSQL & Medusa v2 Integration Test Suite', () => {
   let pool: Pool;
@@ -19,6 +25,7 @@ describe('M2-04: Persistent PostgreSQL & Medusa v2 Integration Test Suite', () =
   before(async () => {
     pool = new Pool({
       connectionString: DB_URL,
+      idleTimeoutMillis: 100,
     });
     // Sanity check connectivity
     const res = await pool.query('SELECT current_database(), version()');
@@ -476,6 +483,385 @@ describe('M2-04: Persistent PostgreSQL & Medusa v2 Integration Test Suite', () =
 
       const namespacedPath = path.resolve(basePath, 'src/api/admin/marketplace/products/route.ts');
       assert.equal(fs.existsSync(namespacedPath), true, 'src/api/admin/marketplace/products/route.ts MUST exist');
+    });
+  });
+
+  describe('7. PostgreSQL Concurrency: Product Deletion vs Customer Order Creation (M2-04 / M2-09)', () => {
+    it('Order placement commits first: Deletion evaluates DB rows under lock and is blocked with 409 Conflict', async () => {
+      const merchantId = 'test_merch_royal_textiles';
+      const productId = 'test_prod_race_ord_first';
+      const orderItemId = 'test_item_race_ord_001';
+
+      // Seed product
+      await pool.query(
+        `INSERT INTO product (id, title, handle, status) VALUES ($1, $2, $3, $4)`,
+        [productId, 'Race Product Order First', 'race-product-order-first', 'published']
+      );
+      await pool.query(
+        `INSERT INTO marketplace_merchant_product_product (id, merchant_id, product_id) VALUES ($1, $2, $3)`,
+        ['test_link_race_01', merchantId, productId]
+      );
+
+      // Connection 1 (Customer Order Creation) places order line item and commits
+      const clientOrder = await pool.connect();
+      try {
+        await clientOrder.query('BEGIN');
+        await clientOrder.query(
+          `INSERT INTO order_line_item (id, title, product_id, unit_price, raw_unit_price, requires_shipping, is_discountable, is_tax_inclusive, is_custom_price, is_giftcard)
+           VALUES ($1, $2, $3, 2000, '{"value":"2000"}'::jsonb, true, true, false, false, false)`,
+          [orderItemId, 'Race Order Line', productId]
+        );
+        await clientOrder.query('COMMIT');
+      } finally {
+        clientOrder.release();
+      }
+
+      // Connection 2 (Merchant Product Deletion) attempts deletion with advisory lock & DB order check
+      const clientDel = await pool.connect();
+      let deleteResult = '';
+      try {
+        await clientDel.query('BEGIN');
+        await clientDel.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['product_' + productId]);
+
+        // Evaluate order history directly against real database
+        const orderCheck = await clientDel.query(
+          'SELECT id FROM order_line_item WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1',
+          [productId]
+        );
+
+        if (orderCheck.rows.length > 0) {
+          // Historical order detected -> abort with conflict
+          await clientDel.query('ROLLBACK');
+          deleteResult = 'CONFLICT_409';
+        } else {
+          await clientDel.query('DELETE FROM marketplace_merchant_product_product WHERE product_id = $1', [productId]);
+          await clientDel.query('DELETE FROM product WHERE id = $1', [productId]);
+          await clientDel.query('COMMIT');
+          deleteResult = 'DELETED_200';
+        }
+      } finally {
+        clientDel.release();
+      }
+
+      assert.equal(deleteResult, 'CONFLICT_409', 'Deletion must be rejected with 409 CONFLICT when historical order exists');
+
+      // Verify product and order line item remain intact in database
+      const prodCheck = await pool.query('SELECT id FROM product WHERE id = $1', [productId]);
+      assert.equal(prodCheck.rows.length, 1, 'Product must remain intact');
+      const itemCheck = await pool.query('SELECT id FROM order_line_item WHERE id = $1', [orderItemId]);
+      assert.equal(itemCheck.rows.length, 1, 'Order line item must remain intact');
+    });
+
+    it('Deletion commits first: Subsequent order placement detects product missing and is safely rejected', async () => {
+      const merchantId = 'test_merch_royal_textiles';
+      const productId = 'test_prod_race_del_first';
+
+      // Seed product with 0 orders
+      await pool.query(
+        `INSERT INTO product (id, title, handle, status) VALUES ($1, $2, $3, $4)`,
+        [productId, 'Race Product Delete First', 'race-product-delete-first', 'draft']
+      );
+      await pool.query(
+        `INSERT INTO marketplace_merchant_product_product (id, merchant_id, product_id) VALUES ($1, $2, $3)`,
+        ['test_link_race_02', merchantId, productId]
+      );
+
+      // Connection 2 (Deletion) executes on clean product
+      const clientDel = await pool.connect();
+      try {
+        await clientDel.query('BEGIN');
+        await clientDel.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['product_' + productId]);
+        const orderCheck = await clientDel.query(
+          'SELECT id FROM order_line_item WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1',
+          [productId]
+        );
+        assert.equal(orderCheck.rows.length, 0);
+        await clientDel.query('DELETE FROM marketplace_merchant_product_product WHERE product_id = $1', [productId]);
+        await clientDel.query('DELETE FROM product WHERE id = $1', [productId]);
+        await clientDel.query('COMMIT');
+      } finally {
+        clientDel.release();
+      }
+
+      // Connection 1 (Order Placement) attempts to order the deleted product
+      const clientOrder = await pool.connect();
+      let orderResult = '';
+      try {
+        await clientOrder.query('BEGIN');
+        const prodCheck = await clientOrder.query('SELECT id FROM product WHERE id = $1', [productId]);
+        if (prodCheck.rows.length === 0) {
+          await clientOrder.query('ROLLBACK');
+          orderResult = 'PRODUCT_NOT_FOUND_404';
+        } else {
+          await clientOrder.query(
+            `INSERT INTO order_line_item (id, title, product_id, unit_price, raw_unit_price, requires_shipping, is_discountable, is_tax_inclusive, is_custom_price, is_giftcard)
+             VALUES ('test_item_orphan', 'Orphan Item', $1, 1000, '{"value":"1000"}'::jsonb, true, true, false, false, false)`,
+            [productId]
+          );
+          await clientOrder.query('COMMIT');
+          orderResult = 'ORDER_CREATED';
+        }
+      } finally {
+        clientOrder.release();
+      }
+
+      assert.equal(orderResult, 'PRODUCT_NOT_FOUND_404', 'Order creation must fail when product was deleted');
+      // Assert zero orphan order items exist
+      const orphanCheck = await pool.query('SELECT id FROM order_line_item WHERE product_id = $1', [productId]);
+      assert.equal(orphanCheck.rows.length, 0, 'No order item referencing deleted product can exist');
+    });
+
+    it('Simultaneous overlapping race with PostgreSQL advisory lock: Deletion waits on Order lock, sees new item, and blocks', async () => {
+      const merchantId = 'test_merch_royal_textiles';
+      const productId = 'test_prod_race_simul';
+      const orderItemId = 'test_item_race_simul_001';
+
+      await pool.query(
+        `INSERT INTO product (id, title, handle, status) VALUES ($1, $2, $3, $4)`,
+        [productId, 'Race Product Simultaneous', 'race-product-simul', 'published']
+      );
+      await pool.query(
+        `INSERT INTO marketplace_merchant_product_product (id, merchant_id, product_id) VALUES ($1, $2, $3)`,
+        ['test_link_race_03', merchantId, productId]
+      );
+
+      const clientOrder = await pool.connect();
+      const clientDel = await pool.connect();
+
+      try {
+        // Step 1: Order transaction begins and acquires advisory lock
+        await clientOrder.query('BEGIN');
+        await clientOrder.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['product_' + productId]);
+
+        // Step 2: Deletion begins in parallel and attempts to acquire the same advisory lock
+        // clientDel will block in PostgreSQL until clientOrder commits or rolls back
+        let delResolved = false;
+        let deleteResult = '';
+        const delPromise = (async () => {
+          await clientDel.query('BEGIN');
+          await clientDel.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['product_' + productId]);
+          delResolved = true;
+
+          // Once unblocked, check if historical orders now exist
+          const orderCheck = await clientDel.query(
+            'SELECT id FROM order_line_item WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1',
+            [productId]
+          );
+          if (orderCheck.rows.length > 0) {
+            await clientDel.query('ROLLBACK');
+            deleteResult = 'CONFLICT_409';
+          } else {
+            await clientDel.query('DELETE FROM marketplace_merchant_product_product WHERE product_id = $1', [productId]);
+            await clientDel.query('DELETE FROM product WHERE id = $1', [productId]);
+            await clientDel.query('COMMIT');
+            deleteResult = 'DELETED_200';
+          }
+        })();
+
+        // Give deletion thread a short moment to start and block on advisory lock
+        await new Promise((r) => setTimeout(r, 50));
+        assert.equal(delResolved, false, 'Deletion must be blocked waiting on Order transaction advisory lock');
+
+        // Step 3: Order transaction inserts order line item and commits
+        await clientOrder.query(
+          `INSERT INTO order_line_item (id, title, product_id, unit_price, raw_unit_price, requires_shipping, is_discountable, is_tax_inclusive, is_custom_price, is_giftcard)
+           VALUES ($1, $2, $3, 3000, '{"value":"3000"}'::jsonb, true, true, false, false, false)`,
+          [orderItemId, 'Simul Line Item', productId]
+        );
+        await clientOrder.query('COMMIT');
+
+        // Step 4: Await completion of deletion transaction
+        await delPromise;
+
+        assert.equal(delResolved, true, 'Deletion must unblock after Order commits');
+        assert.equal(deleteResult, 'CONFLICT_409', 'Deletion must detect newly committed order and reject with 409 CONFLICT');
+
+        // Assert database state: product remains intact, order line item remains intact
+        const prodCheck = await pool.query('SELECT id FROM product WHERE id = $1', [productId]);
+        assert.equal(prodCheck.rows.length, 1, 'Product must NOT be deleted');
+        const itemCheck = await pool.query('SELECT id FROM order_line_item WHERE id = $1', [orderItemId]);
+        assert.equal(itemCheck.rows.length, 1, 'Order item must be safely persisted');
+      } finally {
+        clientOrder.release();
+        clientDel.release();
+      }
+    });
+
+    it('Concurrent Competing Deletions: Exactly one succeeds and competing call safely receives 404 in PostgreSQL', async () => {
+      const merchantId = 'test_merch_royal_textiles';
+      const productId = 'test_prod_competing_dels';
+
+      await pool.query(
+        `INSERT INTO product (id, title, handle, status) VALUES ($1, $2, $3, $4)`,
+        [productId, 'Competing Deletions Product', 'competing-dels-prod', 'draft']
+      );
+      await pool.query(
+        `INSERT INTO marketplace_merchant_product_product (id, merchant_id, product_id) VALUES ($1, $2, $3)`,
+        ['test_link_race_04', merchantId, productId]
+      );
+
+      const runDeletion = async (workerId: number) => {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['product_' + productId]);
+
+          // Check if product exists
+          const prodCheck = await client.query('SELECT id FROM product WHERE id = $1', [productId]);
+          if (prodCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return { workerId, result: 'NOT_FOUND_404' };
+          }
+
+          // Check if orders exist
+          const orderCheck = await client.query(
+            'SELECT id FROM order_line_item WHERE product_id = $1 AND deleted_at IS NULL LIMIT 1',
+            [productId]
+          );
+          if (orderCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return { workerId, result: 'CONFLICT_409' };
+          }
+
+          await client.query('DELETE FROM marketplace_merchant_product_product WHERE product_id = $1', [productId]);
+          const delRes = await client.query('DELETE FROM product WHERE id = $1', [productId]);
+          await client.query('COMMIT');
+          return { workerId, result: delRes.rowCount === 1 ? 'DELETED_200' : 'ALREADY_DELETED' };
+        } finally {
+          client.release();
+        }
+      };
+
+      // Run 3 simultaneous competing deletion requests on independent database connections
+      const results = await Promise.all([runDeletion(1), runDeletion(2), runDeletion(3)]);
+      const deleted = results.filter((r) => r.result === 'DELETED_200');
+      const notFound = results.filter((r) => r.result === 'NOT_FOUND_404');
+
+      assert.equal(deleted.length, 1, 'Exactly one concurrent deletion must succeed');
+      assert.equal(notFound.length, 2, 'All competing calls must see product already deleted');
+
+      // Assert final database state: 0 product rows, 0 link rows
+      const prodCheck = await pool.query('SELECT id FROM product WHERE id = $1', [productId]);
+      assert.equal(prodCheck.rows.length, 0);
+      const linkCheck = await pool.query('SELECT id FROM marketplace_merchant_product_product WHERE product_id = $1', [productId]);
+      assert.equal(linkCheck.rows.length, 0);
+    });
+  });
+
+  describe('8. Redis Distributed Session Invalidation upon Merchant Suspension (M2-08)', () => {
+    let redisAdapter: RedisMerchantAuthStorageAdapter;
+
+    before(async () => {
+      const mockIdentityStore: any = {
+        isHealthy: async () => true,
+        findUserByEmail: async () => null,
+        findUserById: async () => null,
+        findMerchantById: async () => null,
+        findMerchantByHandle: async () => null,
+        close: async () => {},
+      };
+      MerchantAuthEngine.setIdentityStore(mockIdentityStore);
+      redisAdapter = new RedisMerchantAuthStorageAdapter(REDIS_URL);
+    });
+
+    after(async () => {
+      try {
+        await (redisAdapter as any).client?.quit().catch(() => {});
+      } catch {}
+      try {
+        (redisAdapter as any).client?.disconnect(false);
+      } catch {}
+    });
+
+    it('invalidates all member sessions across independent instances when merchant is suspended', async () => {
+      MerchantAuthEngine.setAdapter(redisAdapter);
+
+      const suspendedMerchantId = 'test_merch_susp_01';
+      const unrelatedMerchantId = 'test_merch_unrelated_02';
+
+      const member1UserId = `usr_susp_m1_${Date.now()}`;
+      const member2UserId = `usr_susp_m2_${Date.now()}`;
+      const unrelatedUserId = `usr_active_m3_${Date.now()}`;
+
+      // Create sessions for Member 1 and Member 2 (target merchant)
+      const session1 = await MerchantAuthEngine.createSession({
+        userId: member1UserId,
+        merchantId: suspendedMerchantId,
+        email: 'm1@suspended.in',
+        role: 'owner',
+        membershipStatus: 'active',
+        merchantStatus: 'active',
+      });
+
+      const session2 = await MerchantAuthEngine.createSession({
+        userId: member2UserId,
+        merchantId: suspendedMerchantId,
+        email: 'm2@suspended.in',
+        role: 'staff',
+        membershipStatus: 'active',
+        merchantStatus: 'active',
+      });
+
+      // Create session for Unrelated Merchant Member 3
+      const unrelatedSession = await MerchantAuthEngine.createSession({
+        userId: unrelatedUserId,
+        merchantId: unrelatedMerchantId,
+        email: 'm3@unrelated.in',
+        role: 'owner',
+        membershipStatus: 'active',
+        merchantStatus: 'active',
+      });
+
+      // Verify all 3 sessions resolve before suspension
+      assert.ok(await MerchantAuthEngine.resolveSession(session1.token));
+      assert.ok(await MerchantAuthEngine.resolveSession(session2.token));
+      assert.ok(await MerchantAuthEngine.resolveSession(unrelatedSession.token));
+
+      // Simulate Merchant Suspension: revokes all user sessions for member 1 and member 2
+      await MerchantAuthEngine.revokeAllUserSessions(member1UserId);
+      await MerchantAuthEngine.revokeAllUserSessions(member2UserId);
+
+      // Create an independent Redis adapter instance to verify distributed resolution
+      const independentAdapter = new RedisMerchantAuthStorageAdapter(REDIS_URL);
+      MerchantAuthEngine.setAdapter(independentAdapter);
+
+      // Verify Member 1 and Member 2 sessions are invalidated
+      const res1 = await MerchantAuthEngine.resolveSession(session1.token);
+      const res2 = await MerchantAuthEngine.resolveSession(session2.token);
+      assert.equal(res1, null, 'Suspended merchant Member 1 session must be invalidated across instances');
+      assert.equal(res2, null, 'Suspended merchant Member 2 session must be invalidated across instances');
+
+      // Verify unrelated merchant session is completely unaffected
+      const res3 = await MerchantAuthEngine.resolveSession(unrelatedSession.token);
+      assert.ok(res3, 'Unrelated merchant session must remain active and unaffected');
+      assert.equal(res3?.userId, unrelatedUserId);
+
+      try {
+        await (independentAdapter as any).client?.quit().catch(() => {});
+      } catch {}
+      try {
+        (independentAdapter as any).client?.disconnect(false);
+      } catch {}
+    });
+
+    it('enforces fail-closed behavior when Redis connection fails in production', async () => {
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      let prodAdapter: RedisMerchantAuthStorageAdapter | null = null;
+      try {
+        prodAdapter = new RedisMerchantAuthStorageAdapter('redis://127.0.0.1:59999');
+        await assert.rejects(
+          () => prodAdapter!.checkRateLimit('test_key'),
+          /REDIS_SECURITY_FAILURE/
+        );
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (prodAdapter) {
+          try {
+            (prodAdapter as any).client?.disconnect(false);
+          } catch {}
+        }
+      }
     });
   });
 });

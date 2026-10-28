@@ -3,6 +3,9 @@ import {
   SuperAdminAuthEngine,
   EncryptionService,
 } from '../../../../modules/auth/super-admin-auth-engine';
+import { provisionInitialSuperAdmin } from '../../../../scripts/seed-super-admin';
+
+export const AUTHENTICATE = false;
 
 /**
  * POST /admin/auth/login
@@ -49,6 +52,18 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   }
 
   // 2. Validate User Credentials
+  if (
+    SuperAdminAuthEngine.getUserCount() === 0 &&
+    process.env.INITIAL_ADMIN_EMAIL &&
+    process.env.INITIAL_ADMIN_PASSWORD
+  ) {
+    try {
+      await provisionInitialSuperAdmin();
+    } catch (err: any) {
+      console.error('[Admin Login Provisioning Error]:', err.message);
+    }
+  }
+
   const user = SuperAdminAuthEngine.findUserByEmail(normalizedEmail);
   if (!user) {
     await SuperAdminAuthEngine.recordFailedAttempt(rateLimitKey);
@@ -99,6 +114,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   await SuperAdminAuthEngine.resetRateLimit(rateLimitKey);
 
   // 3. MFA Handling
+  let isSessionMfaVerified = !user.mfaEnabled;
+
   if (user.mfaEnabled && user.encryptedMfaSecret) {
     let mfaVerified = false;
 
@@ -124,6 +141,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         }
 
         mfaVerified = true;
+        isSessionMfaVerified = true;
         user.lastUsedTotpStep = verifyRes.matchedStep;
         SuperAdminAuthEngine.updateUser(user);
 
@@ -145,6 +163,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
 
       if (backupRes.valid) {
         mfaVerified = true;
+        isSessionMfaVerified = true;
         user.hashedBackupCodes = backupRes.remainingHashedCodes;
         SuperAdminAuthEngine.updateUser(user);
 
@@ -179,7 +198,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const sessionRecord = await SuperAdminAuthEngine.createSession({
     userId: user.id,
     email: user.email,
-    isMfaVerified: user.mfaEnabled,
+    isMfaVerified: isSessionMfaVerified,
     ip,
     userAgent,
   });
@@ -188,7 +207,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const isProduction = process.env.NODE_ENV === 'production';
   res.setHeader(
     'Set-Cookie',
-    `ecom_admin_sess=${sessionRecord.token}; Path=/admin; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
+    `ecom_admin_sess=${sessionRecord.token}; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
       SuperAdminAuthEngine.SESSION_ABSOLUTE_TTL_MS / 1000
     }`
   );

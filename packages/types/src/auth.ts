@@ -297,7 +297,8 @@ export type AdminAuthAction =
   | 'admin.logout'
   | 'admin.session.revoked'
   | 'admin.step_up.success'
-  | 'admin.step_up.failed';
+  | 'admin.step_up.failed'
+  | 'admin.password.rotated';
 
 export interface AdminAuthAuditEvent {
   eventId: string;

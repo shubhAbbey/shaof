@@ -11,14 +11,16 @@
  */
 
 import { Modules, ContainerRegistrationKeys } from '@medusajs/framework/utils';
-import { MARKETPLACE_MODULE } from '../../../modules/marketplace/index.js';
+import { MARKETPLACE_MODULE, BackendMarketplaceGuard } from '../../../modules/marketplace/index.js';
+import MarketplaceModuleService from '../../../modules/marketplace/service.js';
 
 export interface MockProduct {
   id: string;
   title: string;
   handle: string;
   description?: string;
-  status: 'draft' | 'pending_review' | 'approved' | 'rejected' | 'published' | 'archived';
+  status: 'draft' | 'proposed' | 'pending_review' | 'approved' | 'rejected' | 'published' | 'archived';
+  metadata?: Record<string, any>;
   variants: MockProductVariant[];
   hasOrderHistory?: boolean;
   activeStockQuantity?: number;
@@ -293,7 +295,20 @@ export class MockMedusaContainer {
         }
         return created;
       },
-      updateProducts: async (data: any[]) => {
+      updateProducts: async (selectorOrData: any, updateArg?: any) => {
+        if (updateArg !== undefined) {
+          const id = typeof selectorOrData === 'string' ? selectorOrData : selectorOrData?.id;
+          const existing = this.products.get(id);
+          if (!existing) throw new Error(`Product with ID '${id}' was not found.`);
+          const updatedProd: MockProduct = {
+            ...existing,
+            ...updateArg,
+            updated_at: new Date().toISOString(),
+          };
+          this.products.set(id, updatedProd);
+          return [updatedProd];
+        }
+        const data = Array.isArray(selectorOrData) ? selectorOrData : [selectorOrData];
         const updated: MockProduct[] = [];
         for (const item of data) {
           const existing = this.products.get(item.id);
@@ -391,7 +406,7 @@ export class MockMedusaContainer {
             const merchant = merchantId ? this.merchants.get(merchantId) : undefined;
             return {
               ...p,
-              merchant: merchant ? { id: merchant.id, name: merchant.name } : null,
+              merchant: merchant ? { id: merchant.id, name: merchant.name, status: merchant.status } : null,
               merchant_id: merchantId || null,
             };
           });
@@ -452,6 +467,67 @@ export class MockMedusaContainer {
           return { valid: false, statusCode: 403, message: 'Merchant account is not active' };
         }
         return { valid: true, statusCode: 200, role: 'owner' };
+      },
+      deleteProductWithSafetyLock: async (
+        productId: string,
+        merchantId: string | undefined,
+        options: any
+      ) => {
+        return await MarketplaceModuleService.withProductLock(productId, async () => {
+          const { data: products } = await options.query.graph({
+            entity: 'product',
+            fields: ['id', 'hasOrderHistory', 'activeStockQuantity', 'hasPendingReturns', 'merchant.*'],
+            filters: { id: productId },
+          });
+
+          const product = products && products.length > 0 ? products[0] : null;
+          if (!product) {
+            const err: any = new Error(`Product with ID '${productId}' was not found.`);
+            err.code = 'PRODUCT_NOT_FOUND';
+            err.statusCode = 404;
+            throw err;
+          }
+
+          if (merchantId) {
+            const productMerchantId = product.merchant?.id || product.merchant_id;
+            const assertion = BackendMarketplaceGuard.assertMerchantProductOwnership(
+              merchantId,
+              productMerchantId
+            );
+            if (!assertion.allowed) {
+              const err: any = new Error(assertion.message);
+              err.code = assertion.error;
+              err.statusCode = assertion.statusCode;
+              throw err;
+            }
+          }
+
+          const lifecycleCheck = BackendMarketplaceGuard.evaluateProductLifecycleSafety({
+            hasOrderHistory: product.hasOrderHistory || false,
+            activeStockQuantity: product.activeStockQuantity || 0,
+            hasPendingReturns: product.hasPendingReturns || false,
+          });
+
+          if (!lifecycleCheck.canDelete) {
+            const err: any = new Error(lifecycleCheck.reason);
+            err.code = 'CONFLICT';
+            err.statusCode = 409;
+            throw err;
+          }
+
+          const productMerchantId = product.merchant?.id || product.merchant_id || merchantId;
+          if (productMerchantId && options.remoteLink) {
+            await options.remoteLink.dismiss([
+              {
+                [MARKETPLACE_MODULE]: { merchant_id: productMerchantId },
+                [Modules.PRODUCT]: { product_id: productId },
+              },
+            ]);
+          }
+
+          await options.productModule.deleteProducts([productId]);
+          return { success: true, id: productId };
+        });
       },
     };
   }

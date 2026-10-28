@@ -1846,13 +1846,27 @@ export class MerchantAuthEngine {
 
   static getAdapter(): IMerchantAuthStorageAdapter {
     if (!MerchantAuthEngine.sessionAdapter) {
-      if (process.env.NODE_ENV === 'production') {
-        MerchantAuthEngine.sessionAdapter = new RedisMerchantAuthStorageAdapter();
-      } else {
+      const isTest = process.env.NODE_ENV === 'test' ||
+        process.execArgv.some((a) => a.includes('--test')) ||
+        process.argv.some((arg) => arg.includes('--test') || arg.endsWith('.test.js') || arg.endsWith('.test.ts'));
+      if (isTest && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
         MerchantAuthEngine.sessionAdapter = new InMemoryMerchantAuthStorageAdapter();
+      } else {
+        MerchantAuthEngine.sessionAdapter = new RedisMerchantAuthStorageAdapter();
       }
     }
     return MerchantAuthEngine.sessionAdapter;
+  }
+
+  static async close(): Promise<void> {
+    if (MerchantAuthEngine.sessionAdapter) {
+      await MerchantAuthEngine.sessionAdapter.close().catch(() => {});
+      MerchantAuthEngine.sessionAdapter = null;
+    }
+    if (MerchantAuthEngine.identityStore) {
+      await MerchantAuthEngine.identityStore.close().catch(() => {});
+      MerchantAuthEngine.identityStore = null;
+    }
   }
 
   static setIdentityStore(store: IMerchantIdentityStore): void {

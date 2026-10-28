@@ -78,6 +78,7 @@ export default function MerchantLoginPage() {
       const res = await fetch('/merchant/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
@@ -149,8 +150,10 @@ export default function MerchantLoginPage() {
         } catch {}
       }
 
-      // Redirect to merchant dashboard
-      window.location.href = '/merchant/dashboard';
+      // Redirect to target or merchant products
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectTarget = searchParams.get('redirect') || '/merchant/products';
+      window.location.href = redirectTarget;
     } catch {
       setErrorMessage('Network error. Unable to reach server. Please try again.');
     } finally {

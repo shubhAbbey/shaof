@@ -1,6 +1,12 @@
-import { describe, it } from 'node:test';
+import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchPlpProducts, type StorefrontProduct, type PlpFilterOptions } from './lib/commerce';
+import {
+  fetchCommerceProducts,
+  fetchPlpProducts,
+  fetchProductByHandle,
+  type StorefrontProduct,
+  type PlpFilterOptions,
+} from './lib/commerce.ts';
 
 // Fixture products for mock catalog testing
 const MOCK_PRODUCTS: StorefrontProduct[] = [
@@ -348,6 +354,300 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
       };
       assert.equal(section.viewAllLink, '/category/women');
       assert.ok(section.viewAllLink.startsWith('/category/'));
+    });
+  });
+
+  describe('8. Fail-Closed Catalog Moderation & Merchant Status Isolation in Storefront Commerce', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('fetchCommerceProducts: strictly enforces fail-closed filtering (published + active merchant ONLY)', async () => {
+      const mockRawProducts = [
+        // 1. Published product + active merchant: MUST BE VISIBLE
+        {
+          id: 'prod_pub_active',
+          title: 'Published Active Product',
+          handle: 'pub-active',
+          status: 'published',
+          merchant: { id: 'merch_active', status: 'active' },
+          variants: [{ id: 'var_1', prices: [{ amount: 1500 }] }],
+        },
+        // 2. Draft product + active merchant: MUST BE HIDDEN
+        {
+          id: 'prod_draft',
+          title: 'Draft Product',
+          handle: 'draft-prod',
+          status: 'draft',
+          merchant: { id: 'merch_active', status: 'active' },
+          variants: [{ id: 'var_2', prices: [{ amount: 1200 }] }],
+        },
+        // 3. Proposed product + active merchant: MUST BE HIDDEN
+        {
+          id: 'prod_proposed',
+          title: 'Proposed Product In Review',
+          handle: 'proposed-prod',
+          status: 'proposed',
+          merchant: { id: 'merch_active', status: 'active' },
+          variants: [{ id: 'var_3', prices: [{ amount: 1800 }] }],
+        },
+        // 4. Rejected product + active merchant: MUST BE HIDDEN
+        {
+          id: 'prod_rejected',
+          title: 'Rejected Compliance Failure',
+          handle: 'rejected-prod',
+          status: 'rejected',
+          merchant: { id: 'merch_active', status: 'active' },
+          variants: [{ id: 'var_4', prices: [{ amount: 2000 }] }],
+        },
+        // 5. Published product + suspended merchant: MUST BE HIDDEN
+        {
+          id: 'prod_suspended_merch',
+          title: 'Suspended Merchant Product',
+          handle: 'suspended-merch-prod',
+          status: 'published',
+          merchant: { id: 'merch_susp', status: 'suspended' },
+          variants: [{ id: 'var_5', prices: [{ amount: 1600 }] }],
+        },
+        // 6. Published product + pending_approval merchant: MUST BE HIDDEN
+        {
+          id: 'prod_pending_merch',
+          title: 'Pending Merchant Product',
+          handle: 'pending-merch-prod',
+          status: 'published',
+          merchant: { id: 'merch_pending', status: 'pending_approval' },
+          variants: [{ id: 'var_6', prices: [{ amount: 1700 }] }],
+        },
+        // 7. Published product + draft merchant: MUST BE HIDDEN
+        {
+          id: 'prod_draft_merch',
+          title: 'Draft Merchant Product',
+          handle: 'draft-merch-prod',
+          status: 'published',
+          merchant: { id: 'merch_draft', status: 'draft' },
+          variants: [{ id: 'var_7', prices: [{ amount: 1400 }] }],
+        },
+        // 8. Missing product status (undefined) + active merchant: MUST BE HIDDEN (fail-closed)
+        {
+          id: 'prod_missing_status',
+          title: 'Product With Missing Status Metadata',
+          handle: 'missing-status-prod',
+          // status is omitted
+          merchant: { id: 'merch_active', status: 'active' },
+          variants: [{ id: 'var_8', prices: [{ amount: 1500 }] }],
+        },
+        // 9. Published product + missing merchant status (undefined): MUST BE HIDDEN (fail-closed)
+        {
+          id: 'prod_missing_merch_status',
+          title: 'Product With Missing Merchant Status',
+          handle: 'missing-merch-status-prod',
+          status: 'published',
+          merchant: { id: 'merch_unknown' }, // status is omitted
+          variants: [{ id: 'var_9', prices: [{ amount: 1500 }] }],
+        },
+        // 10. Missing both product status and merchant object: MUST BE HIDDEN (fail-closed)
+        {
+          id: 'prod_missing_all',
+          title: 'Completely Unspecified Product',
+          handle: 'missing-all-prod',
+          variants: [{ id: 'var_10', prices: [{ amount: 1500 }] }],
+        },
+      ];
+
+      global.fetch = (async (url: any) => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ products: mockRawProducts }),
+      })) as any;
+
+      const visible = await fetchCommerceProducts({});
+
+      assert.equal(
+        visible.length,
+        1,
+        'Only published products from active merchants must pass fail-closed filter'
+      );
+      assert.equal(visible[0].id, 'prod_pub_active');
+      assert.equal(visible[0].status, 'published');
+      assert.equal(visible[0].merchantStatus, 'active');
+    });
+
+    it('fetchProductByHandle (PDP): strictly returns null (triggering 404) for unapproved or inactive merchant products', async () => {
+      // 1. Published + Active merchant -> PDP succeeds
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_valid',
+              title: 'PDP Valid Banarasi Saree',
+              handle: 'pdp-valid-saree',
+              status: 'published',
+              merchant: { id: 'merch_active', status: 'active' },
+              variants: [{ id: 'var_pdp_1', prices: [{ amount: 2499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const validPdp = await fetchProductByHandle('pdp-valid-saree');
+      assert.ok(validPdp);
+      assert.equal(validPdp.id, 'prod_pdp_valid');
+
+      // 2. Draft product -> PDP returns null
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_draft',
+              title: 'PDP Draft Product',
+              handle: 'pdp-draft-prod',
+              status: 'draft',
+              merchant: { id: 'merch_active', status: 'active' },
+              variants: [{ id: 'var_pdp_2', prices: [{ amount: 1499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const draftPdp = await fetchProductByHandle('pdp-draft-prod');
+      assert.equal(draftPdp, null, 'Draft product on PDP must return null');
+
+      // 3. Proposed product -> PDP returns null
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_proposed',
+              title: 'PDP Proposed Product',
+              handle: 'pdp-proposed-prod',
+              status: 'proposed',
+              merchant: { id: 'merch_active', status: 'active' },
+              variants: [{ id: 'var_pdp_3', prices: [{ amount: 1499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const proposedPdp = await fetchProductByHandle('pdp-proposed-prod');
+      assert.equal(proposedPdp, null, 'Proposed product on PDP must return null');
+
+      // 4. Suspended merchant product -> PDP returns null
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_susp',
+              title: 'PDP Suspended Merchant Product',
+              handle: 'pdp-susp-prod',
+              status: 'published',
+              merchant: { id: 'merch_susp', status: 'suspended' },
+              variants: [{ id: 'var_pdp_4', prices: [{ amount: 1499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const suspPdp = await fetchProductByHandle('pdp-susp-prod');
+      assert.equal(suspPdp, null, 'Suspended merchant product on PDP must return null');
+
+      // 5. Missing product status metadata -> PDP returns null (fail-closed)
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_no_status',
+              title: 'PDP Missing Status Product',
+              handle: 'pdp-no-status',
+              merchant: { id: 'merch_active', status: 'active' },
+              variants: [{ id: 'var_pdp_5', prices: [{ amount: 1499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const noStatusPdp = await fetchProductByHandle('pdp-no-status');
+      assert.equal(noStatusPdp, null, 'Missing product status on PDP must return null (fail-closed)');
+
+      // 6. Missing merchant status metadata -> PDP returns null (fail-closed)
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          products: [
+            {
+              id: 'prod_pdp_no_merch_status',
+              title: 'PDP Missing Merchant Status Product',
+              handle: 'pdp-no-merch-status',
+              status: 'published',
+              merchant: { id: 'merch_unknown' },
+              variants: [{ id: 'var_pdp_6', prices: [{ amount: 1499 }] }],
+            },
+          ],
+        }),
+      })) as any;
+
+      const noMerchStatusPdp = await fetchProductByHandle('pdp-no-merch-status');
+      assert.equal(noMerchStatusPdp, null, 'Missing merchant status on PDP must return null (fail-closed)');
+    });
+
+    it('fetchPlpProducts: candidates and dynamic facets strictly exclude unapproved products and inactive merchants fail-closed', async () => {
+      const mockRawProducts = [
+        {
+          id: 'prod_plp_valid',
+          title: 'Silk Saree',
+          handle: 'silk-saree',
+          status: 'published',
+          merchant: { id: 'merch_active', status: 'active' },
+          metadata: { brand: 'ValidBrand' },
+          variants: [{ id: 'v_plp_1', prices: [{ amount: 2000 }] }],
+        },
+        {
+          id: 'prod_plp_unapproved',
+          title: 'Draft Saree',
+          handle: 'draft-saree',
+          status: 'draft',
+          merchant: { id: 'merch_active', status: 'active' },
+          metadata: { brand: 'UnapprovedBrand' },
+          variants: [{ id: 'v_plp_2', prices: [{ amount: 2000 }] }],
+        },
+        {
+          id: 'prod_plp_susp',
+          title: 'Suspended Saree',
+          handle: 'susp-saree',
+          status: 'published',
+          merchant: { id: 'merch_susp', status: 'suspended' },
+          metadata: { brand: 'SuspendedBrand' },
+          variants: [{ id: 'v_plp_3', prices: [{ amount: 2000 }] }],
+        },
+      ];
+
+      global.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ products: mockRawProducts }),
+      })) as any;
+
+      const plpResult = await fetchPlpProducts({});
+
+      assert.equal(plpResult.products.length, 1);
+      assert.equal(plpResult.products[0].id, 'prod_plp_valid');
+      // Verify facets do not leak unapproved or suspended brands
+      const brandFacetValues = plpResult.facets.brands.map((b) => b.value);
+      assert.ok(brandFacetValues.includes('ValidBrand'));
+      assert.ok(!brandFacetValues.includes('UnapprovedBrand'), 'Facets must not include unapproved product brands');
+      assert.ok(!brandFacetValues.includes('SuspendedBrand'), 'Facets must not include suspended merchant brands');
     });
   });
 });

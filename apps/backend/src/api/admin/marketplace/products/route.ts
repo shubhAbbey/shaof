@@ -4,6 +4,8 @@ import { MARKETPLACE_MODULE } from '../../../../modules/marketplace/index';
 import { BackendMarketplaceGuard } from '../../../../modules/marketplace/ownership-guard';
 import { requireTenantAuth } from '../../../middlewares/tenant-auth';
 
+export const AUTHENTICATE = false;
+
 /**
  * GET /admin/marketplace/products
  * Cross-merchant product catalog listing for Super Admin governance.
@@ -165,6 +167,7 @@ export const POST = requireTenantAuth(
 
         res.status(201).json({
           success: true,
+          merchant_id: cleanTargetId,
           product: {
             id: createdProduct.id,
             title: createdProduct.title,

@@ -26,7 +26,7 @@ export const POST = requireTenantAuth(
 
       const { data: products } = await query.graph({
         entity: 'product',
-        fields: ['id', 'merchant.*'],
+        fields: ['id', 'status', 'merchant.*'],
         filters: { id },
       });
 
@@ -91,6 +91,20 @@ export const POST = requireTenantAuth(
           options: body.options,
         },
       ]);
+
+      // Re-Review Trigger: Adding a variant or new pricing to a published product resets status to proposed
+      if (product.status === 'published') {
+        try {
+          await productModule.updateProducts({ id }, { status: 'proposed' }).catch(async () => {
+            await productModule.updateProducts([{ id, status: 'proposed' }]);
+          });
+          console.info(
+            `[AUDIT] [PRODUCT_RE_REVIEW] Variant added to published product '${id}' by merchant '${merchantId}'. Status transitioned to 'proposed'.`
+          );
+        } catch (updateErr: any) {
+          console.warn(`[PRODUCT_RE_REVIEW] Failed to set status to proposed for ${id}:`, updateErr.message);
+        }
+      }
 
       res.status(201).json({
         success: true,

@@ -150,13 +150,40 @@ export const PUT = requireTenantAuth(
         return;
       }
 
+      // Self-Approval / Privilege Escalation Protection: Merchants cannot set privileged status (published, proposed, approved)
+      if (body.status && body.status !== 'draft') {
+        res.status(403).json({
+          success: false,
+          error: 'CANNOT_SELF_APPROVE',
+          message: 'Merchants cannot set privileged status directly. Submit for platform moderation to publish.',
+        });
+        return;
+      }
+
       const updates: Record<string, any> = {};
       if (body.title !== undefined) updates.title = body.title.trim();
       if (body.handle !== undefined) updates.handle = body.handle.trim();
       if (body.description !== undefined) updates.description = body.description;
-      if (body.status !== undefined) updates.status = body.status;
 
-      const [updated] = await productModule.updateProducts([{ id, ...updates }]);
+      // Re-Review Trigger: Modifying a published product moves it back to proposed moderation
+      const hasContentChanges =
+        updates.title !== undefined || updates.handle !== undefined || updates.description !== undefined;
+      if (product.status === 'published' && hasContentChanges) {
+        updates.status = 'proposed';
+        console.info(
+          `[AUDIT] [PRODUCT_RE_REVIEW] Published product '${id}' modified by merchant '${merchantId}'. Status transitioned to 'proposed'.`
+        );
+      } else if (body.status !== undefined) {
+        updates.status = body.status;
+      }
+
+      let updatedList: any;
+      try {
+        updatedList = await productModule.updateProducts({ id }, updates);
+      } catch {
+        updatedList = await productModule.updateProducts([{ id, ...updates }]);
+      }
+      const updated = Array.isArray(updatedList) ? updatedList[0] : updatedList;
 
       res.status(200).json({
         success: true,
@@ -201,68 +228,13 @@ export const DELETE = requireTenantAuth(
       const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY);
       const productModule: any = req.scope.resolve(Modules.PRODUCT);
       const remoteLink: any = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK);
+      const marketplaceService: any = req.scope.resolve(MARKETPLACE_MODULE);
 
-      const { data: products } = await query.graph({
-        entity: 'product',
-        fields: ['id', 'hasOrderHistory', 'activeStockQuantity', 'hasPendingReturns', 'merchant.*'],
-        filters: { id },
+      await marketplaceService.deleteProductWithSafetyLock(id, merchantId, {
+        query,
+        productModule,
+        remoteLink,
       });
-
-      const product = products && products.length > 0 ? products[0] : null;
-      if (!product) {
-        res.status(404).json({
-          success: false,
-          error: 'PRODUCT_NOT_FOUND',
-          message: `Product with ID '${id}' was not found.`,
-        });
-        return;
-      }
-
-      // IDOR Defense: Assert merchant ownership
-      const productMerchantId = product.merchant?.id || product.merchant_id;
-      const assertion = BackendMarketplaceGuard.assertMerchantProductOwnership(
-        merchantId,
-        productMerchantId
-      );
-      if (!assertion.allowed) {
-        res.status(assertion.statusCode).json({
-          success: false,
-          error: assertion.error,
-          message: assertion.message,
-        });
-        return;
-      }
-
-      // Lifecycle Safety Check: order history, active stock, returns
-      const lifecycleCheck = BackendMarketplaceGuard.evaluateProductLifecycleSafety({
-        hasOrderHistory: product.hasOrderHistory || false,
-        activeStockQuantity: product.activeStockQuantity || 0,
-        hasPendingReturns: product.hasPendingReturns || false,
-      });
-
-      if (!lifecycleCheck.canDelete) {
-        res.status(409).json({
-          success: false,
-          error: 'CONFLICT',
-          message: lifecycleCheck.reason,
-        });
-        return;
-      }
-
-      // 1. Dismiss ownership link in Medusa Remote Link
-      try {
-        await remoteLink.dismiss([
-          {
-            [MARKETPLACE_MODULE]: { merchant_id: merchantId },
-            [Modules.PRODUCT]: { product_id: id },
-          },
-        ]);
-      } catch (linkErr: any) {
-        console.warn(`[DELETE PRODUCT] Failed to dismiss link for ${id}:`, linkErr.message);
-      }
-
-      // 2. Delete product in Medusa Product Module
-      await productModule.deleteProducts([id]);
 
       res.status(200).json({
         success: true,
@@ -271,9 +243,10 @@ export const DELETE = requireTenantAuth(
       });
     } catch (err: any) {
       console.error('[Merchant Products API] DELETE :id error:', err.message);
-      res.status(500).json({
+      const statusCode = err.statusCode || (err.code === 'CONFLICT' ? 409 : err.code === 'PRODUCT_NOT_FOUND' ? 404 : 500);
+      res.status(statusCode).json({
         success: false,
-        error: 'DELETE_FAILED',
+        error: err.code || 'DELETE_FAILED',
         message: err.message,
       });
     }

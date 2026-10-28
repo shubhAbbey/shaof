@@ -9,5 +9,8 @@ import ProductModule from '@medusajs/medusa/product';
  */
 export default defineLink(
   MarketplaceModule.linkable.merchant,
-  ProductModule.linkable.product
+  {
+    linkable: ProductModule.linkable.product,
+    isList: true,
+  }
 );

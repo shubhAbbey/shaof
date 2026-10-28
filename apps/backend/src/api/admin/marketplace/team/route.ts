@@ -3,6 +3,8 @@ import { requireTenantAuth } from '../../../middlewares/tenant-auth';
 import { MerchantAuthEngine } from '../../../../modules/auth/merchant-auth-engine';
 import type { MerchantRole, MerchantMemberStatus } from '@ecom/types';
 
+export const AUTHENTICATE = false;
+
 /**
  * GET /admin/marketplace/team
  * Platform-wide directory of merchant members with cross-merchant visibility and filtering.

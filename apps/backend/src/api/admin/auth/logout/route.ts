@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { SuperAdminAuthEngine } from '../../../../modules/auth/super-admin-auth-engine';
 
+export const AUTHENTICATE = false;
+
 /**
  * POST /admin/auth/logout
  * Revokes the active Super Admin session from shared storage and clears the session cookie.
@@ -25,7 +27,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   // Clear HTTP-only cookie
   res.setHeader(
     'Set-Cookie',
-    `ecom_admin_sess=; Path=/admin; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=0`
+    `ecom_admin_sess=; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=0`
   );
 
   res.status(200).json({

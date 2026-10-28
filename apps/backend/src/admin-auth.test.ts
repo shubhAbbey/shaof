@@ -140,11 +140,15 @@ describe('M2-05: Super Admin Authentication & MFA Suite', () => {
       const parts = encrypted.split(':');
 
       // Tamper ciphertext
-      const tamperedCipher = parts[0] + ':' + parts[1] + ':' + 'ff' + parts[2].substring(2);
+      const firstByte = parts[2].substring(0, 2);
+      const flippedByte = firstByte === 'ff' ? '00' : 'ff';
+      const tamperedCipher = parts[0] + ':' + parts[1] + ':' + flippedByte + parts[2].substring(2);
       assert.throws(() => EncryptionService.decrypt(tamperedCipher), /Unsupported state or unable to authenticate data/);
 
       // Tamper auth tag
-      const tamperedTag = parts[0] + ':' + '00'.repeat(16) + ':' + parts[2];
+      const firstTagByte = parts[1].substring(0, 2);
+      const flippedTagByte = firstTagByte === 'ff' ? '00' : 'ff';
+      const tamperedTag = parts[0] + ':' + flippedTagByte + parts[1].substring(2) + ':' + parts[2];
       assert.throws(() => EncryptionService.decrypt(tamperedTag), /Unsupported state or unable to authenticate data/);
     });
 
@@ -761,6 +765,309 @@ describe('M2-05: Super Admin Authentication & MFA Suite', () => {
         if (origPass) process.env.INITIAL_ADMIN_PASSWORD = origPass;
         else delete process.env.INITIAL_ADMIN_PASSWORD;
       }
+    });
+  });
+
+  // ==========================================
+  // 11. Exploit Remediation: Fabricated Token Reject & Environment Protection
+  // ==========================================
+  describe('11. Exploit Remediation: Fabricated Token Reject & Environment Protection', () => {
+    it('NEGATIVE: rejects fabricated admin_token prefix in development/production environment', async () => {
+      const origEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'development';
+
+        // 1. resolveSessionFromToken rejects prefix token
+        const resolved = await resolveSessionFromToken('admin_token_superadmin');
+        assert.equal(resolved, null, 'Fabricated admin token must return null in development/production');
+
+        // 2. HTTP endpoint rejects with 401 UNAUTHORIZED
+        const dummyAdminRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+          res.status(200).json({ success: true });
+        });
+
+        const { req, res } = createMockHttp({
+          headers: { authorization: 'Bearer admin_token_superadmin' },
+        });
+        await dummyAdminRoute(req, res);
+        assert.equal(res.getStatusCode(), 401);
+        assert.equal(res.getBody().error, 'UNAUTHORIZED');
+      } finally {
+        process.env.NODE_ENV = origEnv;
+      }
+    });
+
+    it('NEGATIVE: rejects fabricated merchant_token and JSON tokens in development/production', async () => {
+      const origEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'production';
+
+        const merchResolved = await resolveSessionFromToken('merchant_token_usr1:merch1:owner:active:active');
+        assert.equal(merchResolved, null, 'Fabricated merchant token must return null in production');
+
+        const jsonResolved = await resolveSessionFromToken('{"userId":"hacker","role":"super_admin"}');
+        assert.equal(jsonResolved, null, 'Fabricated JSON token must return null in production');
+
+        const b64Token = `sess_b64_${Buffer.from('{"userId":"hacker"}').toString('base64')}`;
+        const b64Resolved = await resolveSessionFromToken(b64Token);
+        assert.equal(b64Resolved, null, 'Fabricated Base64 token must return null in production');
+      } finally {
+        process.env.NODE_ENV = origEnv;
+      }
+    });
+  });
+
+  // ==========================================
+  // 12. Mandatory MFA Enforcement on Super Admin Boundary
+  // ==========================================
+  describe('12. Mandatory MFA Enforcement on Super Admin Boundary', () => {
+    it('NEGATIVE: rejects Super Admin session with isMfaVerified = false with 403 MFA_REQUIRED', async () => {
+      const user = SuperAdminAuthEngine.registerAdminUser({
+        email: 'mfa_gate_admin@ecom.local',
+        password: 'Password@2026',
+      });
+
+      // Create session with isMfaVerified = false
+      const session = await SuperAdminAuthEngine.createSession({
+        userId: user.id,
+        email: user.email,
+        isMfaVerified: false,
+      });
+
+      const privilegedRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+        res.status(200).json({ success: true, privilegedData: 'confidential' });
+      });
+
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${session.token}` },
+      });
+
+      await privilegedRoute(req, res);
+      assert.equal(res.getStatusCode(), 403, 'Must return 403 Forbidden when MFA is not verified');
+      assert.equal(res.getBody().error, 'MFA_REQUIRED');
+      assert.equal(res.getBody().privilegedData, undefined, 'Zero privileged data must leak');
+    });
+
+    it('SUCCESS: allows Super Admin session with isMfaVerified = true to access admin boundary', async () => {
+      const user = SuperAdminAuthEngine.registerAdminUser({
+        email: 'mfa_verified_admin@ecom.local',
+        password: 'Password@2026',
+      });
+
+      // Create session with isMfaVerified = true
+      const session = await SuperAdminAuthEngine.createSession({
+        userId: user.id,
+        email: user.email,
+        isMfaVerified: true,
+      });
+
+      const privilegedRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+        res.status(200).json({ success: true, privilegedData: 'confidential' });
+      });
+
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${session.token}` },
+      });
+
+      await privilegedRoute(req, res);
+      assert.equal(res.getStatusCode(), 200);
+      assert.equal(res.getBody().success, true);
+      assert.equal(res.getBody().privilegedData, 'confidential');
+    });
+  });
+
+  // ==========================================
+  // 13. Super Admin Password Rotation & Storage Security
+  // ==========================================
+  describe('13. Super Admin Password Rotation & Storage Security', () => {
+    it('successfully rotates admin password, invalidates previous credentials, and revokes pre-rotation sessions', async () => {
+      const email = 'rotation_admin@ecom.local';
+      const initialPassword = 'InitialPassword@2026';
+      const newPassword = 'RotatedSecurePassword@2026!';
+
+      const user = SuperAdminAuthEngine.registerAdminUser({
+        email,
+        password: initialPassword,
+      });
+
+      // Verify initial password works
+      assert.equal(
+        SuperAdminAuthEngine.verifyPassword(initialPassword, user.passwordHash, user.passwordSalt),
+        true
+      );
+
+      // Create an active session BEFORE password rotation
+      const preRotationSession = await SuperAdminAuthEngine.createSession({
+        userId: user.id,
+        email: user.email,
+        isMfaVerified: true,
+      });
+
+      // Confirm pre-rotation session is active initially
+      assert.ok(await SuperAdminAuthEngine.resolveSession(preRotationSession.token));
+
+      // Rotate password (async revocation of all user sessions)
+      const rotated = await SuperAdminAuthEngine.rotatePassword(email, newPassword);
+      assert.equal(rotated, true, 'Password rotation must succeed');
+
+      const updatedUser = SuperAdminAuthEngine.findUserByEmail(email)!;
+
+      // 1. Old password MUST fail verification
+      assert.equal(
+        SuperAdminAuthEngine.verifyPassword(initialPassword, updatedUser.passwordHash, updatedUser.passwordSalt),
+        false,
+        'Old password must fail verification after rotation'
+      );
+
+      // 2. New password MUST succeed verification
+      assert.equal(
+        SuperAdminAuthEngine.verifyPassword(newPassword, updatedUser.passwordHash, updatedUser.passwordSalt),
+        true,
+        'New password must succeed verification after rotation'
+      );
+
+      // 3. Pre-rotation session MUST be immediately invalidated / revoked
+      const staleSessionCheck = await SuperAdminAuthEngine.resolveSession(preRotationSession.token);
+      assert.equal(staleSessionCheck, null, 'Session created before password rotation must be revoked immediately');
+
+      // 4. Stale session calling privileged route returns 401 UNAUTHORIZED
+      const dummyAdminRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+        res.status(200).json({ success: true, privileged: true });
+      });
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${preRotationSession.token}` },
+      });
+      await dummyAdminRoute(req, res);
+      assert.equal(res.getStatusCode(), 401);
+      assert.equal(res.getBody().error, 'UNAUTHORIZED');
+
+      // 5. Rejects rotation to password shorter than 8 characters
+      await assert.rejects(
+        async () => SuperAdminAuthEngine.rotatePassword(email, 'short'),
+        /PASSWORD_TOO_WEAK/
+      );
+    });
+  });
+
+  // ==========================================
+  // 14. Mandatory MFA Session-Token Rotation
+  // ==========================================
+  describe('14. Mandatory MFA Session-Token Rotation', () => {
+    it('SESSION ROTATION (TOTP): revokes pre-MFA session and issues fresh unpredictable token on MFA verify', async () => {
+      const user = SuperAdminAuthEngine.registerAdminUser({
+        email: 'rotation_mfa_totp@ecom.local',
+        password: 'Password@2026',
+      });
+
+      // 1. Primary login creates unverified pre-MFA session
+      const preMfaSession = await SuperAdminAuthEngine.createSession({
+        userId: user.id,
+        email: user.email,
+        isMfaVerified: false,
+      });
+
+      // Enroll in MFA
+      const { base32Secret } = SuperAdminAuthEngine.generateTotpSecret();
+      user.encryptedMfaSecret = EncryptionService.encrypt(base32Secret);
+      user.mfaEnabled = true;
+      SuperAdminAuthEngine.updateUser(user);
+
+      // Verify unverified session CANNOT access admin API (403 MFA_REQUIRED)
+      const privilegedRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+        res.status(200).json({ success: true, secretData: 'admin-vault' });
+      });
+
+      const { req: unverifiedReq, res: unverifiedRes } = createMockHttp({
+        headers: { authorization: `Bearer ${preMfaSession.token}` },
+      });
+      await privilegedRoute(unverifiedReq, unverifiedRes);
+      assert.equal(unverifiedRes.getStatusCode(), 403);
+      assert.equal(unverifiedRes.getBody().error, 'MFA_REQUIRED');
+
+      // 2. Perform MFA verification with valid TOTP
+      const totpCode = SuperAdminAuthEngine.generateTotpCode(base32Secret);
+      const { POST: mfaVerifyHandler } = await import('./api/admin/auth/mfa/verify/route.js');
+      const { req: verifyReq, res: verifyRes } = createMockHttp({
+        headers: { authorization: `Bearer ${preMfaSession.token}` },
+        body: { code: totpCode },
+      });
+
+      await mfaVerifyHandler(verifyReq, verifyRes);
+      assert.equal(verifyRes.getStatusCode(), 200);
+      assert.equal(verifyRes.getBody().isMfaVerified, true);
+
+      const newSessionToken = verifyRes.getBody().token;
+      assert.ok(newSessionToken, 'Must issue a fresh session token');
+      assert.notEqual(newSessionToken, preMfaSession.token, 'New session token must differ from pre-MFA token');
+
+      // 3. Old pre-MFA token MUST now be revoked and rejected with 401 UNAUTHORIZED
+      const { req: staleReq, res: staleRes } = createMockHttp({
+        headers: { authorization: `Bearer ${preMfaSession.token}` },
+      });
+      await privilegedRoute(staleReq, staleRes);
+      assert.equal(staleRes.getStatusCode(), 401, 'Old pre-MFA token must return 401 Unauthorized after MFA rotation');
+      assert.equal(staleRes.getBody().error, 'UNAUTHORIZED');
+
+      // 4. Newly issued session token MUST succeed with 200 OK
+      const { req: validReq, res: validRes } = createMockHttp({
+        headers: { authorization: `Bearer ${newSessionToken}` },
+      });
+      await privilegedRoute(validReq, validRes);
+      assert.equal(validRes.getStatusCode(), 200);
+      assert.equal(validRes.getBody().secretData, 'admin-vault');
+    });
+
+    it('SESSION ROTATION (BACKUP CODE): revokes pre-MFA session and issues fresh token on backup code use', async () => {
+      const user = SuperAdminAuthEngine.registerAdminUser({
+        email: 'rotation_mfa_backup@ecom.local',
+        password: 'Password@2026',
+      });
+
+      const { plainCodes, hashedCodes } = SuperAdminAuthEngine.generateBackupCodes(8);
+      user.encryptedMfaSecret = EncryptionService.encrypt(SuperAdminAuthEngine.generateTotpSecret().base32Secret);
+      user.hashedBackupCodes = [...hashedCodes];
+      user.mfaEnabled = true;
+      SuperAdminAuthEngine.updateUser(user);
+
+      // Create pre-MFA session
+      const preMfaSession = await SuperAdminAuthEngine.createSession({
+        userId: user.id,
+        email: user.email,
+        isMfaVerified: false,
+      });
+
+      // Verify with single-use backup code
+      const testCode = plainCodes[0];
+      const { POST: mfaVerifyHandler } = await import('./api/admin/auth/mfa/verify/route.js');
+      const { req: verifyReq, res: verifyRes } = createMockHttp({
+        headers: { authorization: `Bearer ${preMfaSession.token}` },
+        body: { backupCode: testCode },
+      });
+
+      await mfaVerifyHandler(verifyReq, verifyRes);
+      assert.equal(verifyRes.getStatusCode(), 200);
+
+      const rotatedToken = verifyRes.getBody().token;
+      assert.ok(rotatedToken);
+      assert.notEqual(rotatedToken, preMfaSession.token, 'Must rotate session token on backup code use');
+
+      // Stale pre-MFA session returns 401
+      const privilegedRoute = requireTenantAuth({ boundary: 'admin' }, async (_req, res) => {
+        res.status(200).json({ success: true, privileged: true });
+      });
+      const { req: staleReq, res: staleRes } = createMockHttp({
+        headers: { authorization: `Bearer ${preMfaSession.token}` },
+      });
+      await privilegedRoute(staleReq, staleRes);
+      assert.equal(staleRes.getStatusCode(), 401);
+
+      // Rotated token succeeds with 200
+      const { req: freshReq, res: freshRes } = createMockHttp({
+        headers: { authorization: `Bearer ${rotatedToken}` },
+      });
+      await privilegedRoute(freshReq, freshRes);
+      assert.equal(freshRes.getStatusCode(), 200);
+      assert.equal(freshRes.getBody().privileged, true);
     });
   });
 

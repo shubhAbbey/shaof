@@ -524,7 +524,10 @@ export class SuperAdminAuthEngine {
 
   static getAdapter(): IAuthStorageAdapter {
     if (!SuperAdminAuthEngine.adapter) {
-      if (process.env.NODE_ENV === 'test') {
+      const isTest = process.env.NODE_ENV === 'test' ||
+        process.execArgv.some((a) => a.includes('--test')) ||
+        process.argv.some((arg) => arg.includes('--test') || arg.endsWith('.test.js') || arg.endsWith('.test.ts'));
+      if (isTest && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
         SuperAdminAuthEngine.adapter = new InMemoryAuthStorageAdapter();
       } else {
         SuperAdminAuthEngine.adapter = new RedisAuthStorageAdapter();
@@ -806,6 +809,10 @@ export class SuperAdminAuthEngine {
     return SuperAdminAuthEngine.users.get(email.trim().toLowerCase()) || null;
   }
 
+  static getUserCount(): number {
+    return SuperAdminAuthEngine.users.size;
+  }
+
   static findUserById(id: string): SuperAdminUser | null {
     for (const user of SuperAdminAuthEngine.users.values()) {
       if (user.id === id) return user;
@@ -816,6 +823,28 @@ export class SuperAdminAuthEngine {
   static updateUser(user: SuperAdminUser): void {
     user.updatedAt = new Date().toISOString();
     SuperAdminAuthEngine.users.set(user.email.toLowerCase(), user);
+  }
+
+  static async rotatePassword(email: string, newPassword: string): Promise<boolean> {
+    const user = SuperAdminAuthEngine.findUserByEmail(email);
+    if (!user) return false;
+    const { hash, salt } = SuperAdminAuthEngine.hashPassword(newPassword);
+    user.passwordHash = hash;
+    user.passwordSalt = salt;
+    user.updatedAt = new Date().toISOString();
+    SuperAdminAuthEngine.users.set(user.email.toLowerCase(), user);
+
+    // Invalidate all existing active sessions for this administrator immediately
+    await SuperAdminAuthEngine.revokeAllUserSessions(user.id);
+
+    SuperAdminAuthEngine.logAuditEvent({
+      action: 'admin.password.rotated',
+      outcome: 'success',
+      userId: user.id,
+      email: user.email,
+    });
+
+    return true;
   }
 
   // ------------------------------------------
@@ -884,6 +913,57 @@ export class SuperAdminAuthEngine {
       issuedAt: new Date(session.createdAt).toISOString(),
       expiresAt: new Date(session.expiresAt).toISOString(),
     };
+  }
+
+  static async updateSessionMfa(token: string, isMfaVerified: boolean): Promise<boolean> {
+    const session = await SuperAdminAuthEngine.getAdapter().getSession(token);
+    if (!session) return false;
+    session.isMfaVerified = isMfaVerified;
+    if (isMfaVerified) {
+      session.lastMfaVerifiedAt = Date.now();
+    }
+    await SuperAdminAuthEngine.getAdapter().saveSession(session);
+    return true;
+  }
+
+  static async rotateSessionOnMfaSuccess(
+    oldToken: string | null,
+    params: {
+      userId: string;
+      email: string;
+      ip?: string;
+      userAgent?: string;
+    }
+  ): Promise<AdminSessionRecord> {
+    // 1. Immediately revoke the pre-MFA session from storage
+    if (oldToken) {
+      await SuperAdminAuthEngine.getAdapter().revokeSession(oldToken);
+    }
+
+    // 2. Issue a fresh, cryptographically unpredictable session token with verified MFA
+    const now = Date.now();
+    const newSession = await SuperAdminAuthEngine.createSession({
+      userId: params.userId,
+      email: params.email,
+      isMfaVerified: true,
+      lastMfaVerifiedAt: now,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+
+    // 3. Renew step-up re-authentication window on the fresh session
+    await SuperAdminAuthEngine.renewStepUp(newSession.token);
+
+    SuperAdminAuthEngine.logAuditEvent({
+      action: 'admin.mfa.verified',
+      outcome: 'success',
+      userId: params.userId,
+      email: params.email,
+      ip: params.ip,
+      userAgent: params.userAgent,
+    });
+
+    return newSession;
   }
 
   static async revokeSession(token: string): Promise<boolean> {

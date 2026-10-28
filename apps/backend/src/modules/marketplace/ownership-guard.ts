@@ -338,10 +338,14 @@ export class BackendMarketplaceGuard {
    * Dual-transport token extractor supporting:
    * 1. React Native mobile apps using 'Authorization: Bearer <token>' header
    * 2. Web browser clients using HTTP-only cookies ('ecom_session_token', 'ecom_merchant_sess', 'ecom_admin_sess')
+   *
+   * When a specific boundary is requested, it prioritizes the boundary-specific cookie
+   * to prevent multi-cookie collisions in shared browser environments (e.g. localhost).
    */
   static extractAuthToken(
     headers: Record<string, string | undefined>,
-    cookieHeader?: string | null
+    cookieHeader?: string | null,
+    boundary?: AuthBoundary
   ): { token: string | null; transport: 'bearer' | 'cookie' | null } {
     const authHeader = headers['authorization'] || headers['Authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -352,6 +356,23 @@ export class BackendMarketplaceGuard {
     }
 
     if (cookieHeader) {
+      if (boundary === 'merchant') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_merchant_sess=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      } else if (boundary === 'admin') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_admin_sess=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      } else if (boundary === 'store') {
+        const match = cookieHeader.match(/(?:^|;\s*)ecom_session_token=([^;]+)/);
+        if (match && match[1]) {
+          return { token: decodeURIComponent(match[1].trim()), transport: 'cookie' };
+        }
+      }
+
       const match = cookieHeader.match(
         /(?:^|;\s*)(?:ecom_session_token|ecom_merchant_sess|ecom_admin_sess)=([^;]+)/
       );

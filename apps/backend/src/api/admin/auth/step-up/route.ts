@@ -5,6 +5,8 @@ import {
   EncryptionService,
 } from '../../../../modules/auth/super-admin-auth-engine';
 
+export const AUTHENTICATE = false;
+
 /**
  * POST /admin/auth/step-up
  * Step-up re-authentication for sensitive platform governance operations.

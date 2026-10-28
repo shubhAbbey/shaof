@@ -91,7 +91,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const isProduction = process.env.NODE_ENV === 'production';
   res.setHeader(
     'Set-Cookie',
-    `ecom_merchant_sess=${sessionRecord.token}; Path=/merchant; HttpOnly; SameSite=Strict${
+    `ecom_merchant_sess=${sessionRecord.token}; Path=/; HttpOnly; SameSite=Strict${
       isProduction ? '; Secure' : ''
     }; Max-Age=${MerchantAuthEngine.SESSION_ABSOLUTE_TTL_MS / 1000}`
   );

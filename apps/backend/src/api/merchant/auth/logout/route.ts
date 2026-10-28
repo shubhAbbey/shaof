@@ -25,7 +25,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   // Clear HTTP-only cookie
   res.setHeader(
     'Set-Cookie',
-    `ecom_merchant_sess=; Path=/merchant; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=0`
+    `ecom_merchant_sess=; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=0`
   );
 
   res.status(200).json({

@@ -1,4 +1,4 @@
-import { MedusaService } from '@medusajs/framework/utils';
+import { MedusaService, Modules } from '@medusajs/framework/utils';
 import {
   MerchantStatus,
   MerchantRole,
@@ -14,6 +14,7 @@ import {
 } from '@ecom/types';
 import { Merchant } from './models/merchant';
 import { MerchantMember } from './models/merchant-member';
+import { BackendMarketplaceGuard } from './ownership-guard';
 
 /**
  * MarketplaceModuleService
@@ -47,6 +48,28 @@ export default class MarketplaceModuleService extends MedusaService({
       release!();
       if (MarketplaceModuleService.memberMutationLocks.get(merchantId) === nextLock) {
         MarketplaceModuleService.memberMutationLocks.delete(merchantId);
+      }
+    }
+  }
+
+  // In-process lock chain per product to serialize product deletion vs concurrent customer checkout
+  private static productMutationLocks = new Map<string, Promise<void>>();
+
+  static async withProductLock<T>(productId: string, fn: () => Promise<T>): Promise<T> {
+    const currentLock = MarketplaceModuleService.productMutationLocks.get(productId) || Promise.resolve();
+    let release: () => void;
+    const nextLock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    MarketplaceModuleService.productMutationLocks.set(productId, nextLock);
+
+    try {
+      await currentLock;
+      return await fn();
+    } finally {
+      release!();
+      if (MarketplaceModuleService.productMutationLocks.get(productId) === nextLock) {
+        MarketplaceModuleService.productMutationLocks.delete(productId);
       }
     }
   }
@@ -108,7 +131,11 @@ export default class MarketplaceModuleService extends MedusaService({
     }
     if (payload.metadata !== undefined) updateData.metadata = payload.metadata;
 
-    return await (this as any).updateMerchants(id, updateData);
+    const updated = await (this as any).updateMerchants({
+      id,
+      ...updateData,
+    });
+    return Array.isArray(updated) ? updated[0] : updated;
   }
 
   /**
@@ -189,12 +216,20 @@ export default class MarketplaceModuleService extends MedusaService({
       updatedMetadata.suspendedAt = now;
       updatedMetadata.suspendedBy = context.actorId || 'system';
       updatedMetadata.suspensionReason = context.reason;
+    } else if (targetStatus === 'draft' && currentStatus === 'pending_approval') {
+      if (context.reason) {
+        updatedMetadata.changesRequestedAt = now;
+        updatedMetadata.changesRequestedBy = context.actorId || 'system';
+        updatedMetadata.changesRequestedReason = context.reason;
+      }
     }
 
-    return await (this as any).updateMerchants(id, {
+    const updated = await (this as any).updateMerchants({
+      id,
       status: targetStatus,
       metadata: updatedMetadata,
     });
+    return Array.isArray(updated) ? updated[0] : updated;
   }
 
   /**
@@ -439,5 +474,120 @@ export default class MarketplaceModuleService extends MedusaService({
       statusCode: 200,
       role: member.role as MerchantRole,
     };
+  }
+
+  /**
+   * Deletes a product with distributed concurrency protection.
+   * Acquires a PostgreSQL transaction-level advisory lock (pg_advisory_xact_lock)
+   * on the product ID before evaluating order history and active inventory.
+   * Resolves the M2-04 concurrency race (ADR-004) against concurrent customer orders.
+   */
+  async deleteProductWithSafetyLock(
+    productId: string,
+    merchantId: string | undefined, // undefined if Super Admin
+    options: {
+      query: any;
+      productModule: any;
+      remoteLink: any;
+    }
+  ): Promise<{ success: boolean; id: string }> {
+    const executeInTransaction = async (em?: any) => {
+      if (em && typeof em.execute === 'function') {
+        // Acquire PostgreSQL transaction-level advisory lock keyed to the product.
+        // Automatically released on COMMIT, ROLLBACK, or connection termination.
+        // Compatible with order placement lock protocol on 'product_' + productId.
+        await em.execute('SELECT pg_advisory_xact_lock(hashtext(?))', ['product_' + productId]);
+      }
+
+      // Fetch product and evaluate ownership and order references
+      const { data: products } = await options.query.graph({
+        entity: 'product',
+        fields: ['id', 'hasOrderHistory', 'activeStockQuantity', 'hasPendingReturns', 'merchant.*'],
+        filters: { id: productId },
+      });
+
+      const product = products && products.length > 0 ? products[0] : null;
+      if (!product) {
+        const err: any = new Error(`Product with ID '${productId}' was not found.`);
+        err.code = 'PRODUCT_NOT_FOUND';
+        err.statusCode = 404;
+        throw err;
+      }
+
+      // If merchantId is provided, assert ownership
+      if (merchantId) {
+        const productMerchantId = product.merchant?.id || product.merchant_id;
+        const assertion = BackendMarketplaceGuard.assertMerchantProductOwnership(merchantId, productMerchantId);
+        if (!assertion.allowed) {
+          const err: any = new Error(assertion.message);
+          err.code = assertion.error;
+          err.statusCode = assertion.statusCode;
+          throw err;
+        }
+      }
+
+      // Verify historical order line items directly from database if em is available
+      let hasOrderHistory = Boolean(product.hasOrderHistory);
+      if (em && typeof em.execute === 'function') {
+        try {
+          const orderRows = await em.execute(
+            'SELECT id FROM order_line_item WHERE product_id = ? AND deleted_at IS NULL LIMIT 1',
+            [productId]
+          );
+          if (orderRows && orderRows.length > 0) {
+            hasOrderHistory = true;
+          }
+        } catch {
+          // If table does not exist or mock query, keep existing hasOrderHistory
+        }
+      }
+
+      // Evaluate lifecycle safety (historical customer orders, inventory, pending returns)
+      const lifecycleCheck = BackendMarketplaceGuard.evaluateProductLifecycleSafety({
+        hasOrderHistory,
+        activeStockQuantity: product.activeStockQuantity || 0,
+        hasPendingReturns: product.hasPendingReturns || false,
+      });
+
+      if (!lifecycleCheck.canDelete) {
+        const err: any = new Error(lifecycleCheck.reason);
+        err.code = 'CONFLICT';
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // Dismiss remote link
+      const productMerchantId = product.merchant?.id || product.merchant_id || merchantId;
+      if (productMerchantId && options.remoteLink) {
+        try {
+          await options.remoteLink.dismiss([
+            {
+              marketplaceModule: { merchant_id: productMerchantId },
+              [Modules.PRODUCT]: { product_id: productId },
+            },
+          ]);
+        } catch (linkErr: any) {
+          console.warn(`[DELETE PRODUCT] Failed to dismiss link for ${productId}:`, linkErr.message);
+        }
+      }
+
+      // Delete product in Medusa Product Module
+      await options.productModule.deleteProducts([productId]);
+
+      return { success: true, id: productId };
+    };
+
+    const manager = (this as any).__container__?.manager;
+    if (manager && typeof manager.transactional === 'function') {
+      return await manager.transactional(executeInTransaction);
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'DATABASE_TRANSACTION_UNAVAILABLE: Database manager is required for distributed product deletion lock in production.'
+      );
+    }
+
+    return await MarketplaceModuleService.withProductLock(productId, () => executeInTransaction());
   }
 }

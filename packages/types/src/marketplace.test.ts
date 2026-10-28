@@ -506,6 +506,39 @@ describe('@ecom/types: Marketplace Ownership & Tenant Isolation Matrix', () => {
       assert.equal(extracted.transport, null);
       assert.equal(extracted.token, null);
     });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (merchant boundary)', () => {
+      const multiCookie = 'ecom_admin_sess=admin_123; ecom_merchant_sess=merch_456; ecom_session_token=store_789';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, multiCookie, 'merchant');
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'merch_456');
+    });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (admin boundary)', () => {
+      const multiCookie = 'ecom_merchant_sess=merch_456; ecom_admin_sess=admin_123; ecom_session_token=store_789';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, multiCookie, 'admin');
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'admin_123');
+    });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (store boundary)', () => {
+      const multiCookie = 'ecom_merchant_sess=merch_456; ecom_admin_sess=admin_123; ecom_session_token=store_789';
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken({}, multiCookie, 'store');
+
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'store_789');
+    });
+
+    it('prioritizes Bearer authorization header over any cookie regardless of boundary', () => {
+      const multiCookie = 'ecom_admin_sess=admin_123; ecom_merchant_sess=merch_456';
+      const headers = { authorization: 'Bearer explicit_bearer_token' };
+      const extracted = MarketplaceOwnershipGuard.extractAuthToken(headers, multiCookie, 'merchant');
+
+      assert.equal(extracted.transport, 'bearer');
+      assert.equal(extracted.token, 'explicit_bearer_token');
+    });
   });
 
   describe('9. Indian Business Profile & Format Validations (M2-03)', () => {

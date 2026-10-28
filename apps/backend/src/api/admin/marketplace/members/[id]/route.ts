@@ -3,6 +3,8 @@ import { requireTenantAuth } from '../../../../middlewares/tenant-auth';
 import { MerchantAuthEngine } from '../../../../../modules/auth/merchant-auth-engine';
 import type { MerchantRole, MerchantMemberStatus } from '@ecom/types';
 
+export const AUTHENTICATE = false;
+
 /**
  * PUT /admin/marketplace/members/:id
  * Platform governance: Super Admin updates role or status of any merchant team member.

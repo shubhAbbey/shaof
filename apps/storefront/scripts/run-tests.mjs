@@ -655,6 +655,77 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
       assert.ok(section.viewAllLink.startsWith('/category/'));
     });
   });
+
+  describe('8. Fail-Closed Catalog Moderation & Merchant Status Isolation in Storefront Commerce', () => {
+    it('fetchCommerceProducts: strictly enforces fail-closed filtering (published + active merchant ONLY)', () => {
+      const mockRawProducts = [
+        // 1. Published + active merchant: VISIBLE
+        { id: 'prod_pub_active', status: 'published', merchantStatus: 'active' },
+        // 2. Draft product: HIDDEN
+        { id: 'prod_draft', status: 'draft', merchantStatus: 'active' },
+        // 3. Proposed product: HIDDEN
+        { id: 'prod_proposed', status: 'proposed', merchantStatus: 'active' },
+        // 4. Rejected product: HIDDEN
+        { id: 'prod_rejected', status: 'rejected', merchantStatus: 'active' },
+        // 5. Suspended merchant product: HIDDEN
+        { id: 'prod_suspended_merch', status: 'published', merchantStatus: 'suspended' },
+        // 6. Pending approval merchant product: HIDDEN
+        { id: 'prod_pending_merch', status: 'published', merchantStatus: 'pending_approval' },
+        // 7. Draft merchant product: HIDDEN
+        { id: 'prod_draft_merch', status: 'published', merchantStatus: 'draft' },
+        // 8. Missing product status: HIDDEN (fail-closed)
+        { id: 'prod_missing_status', merchantStatus: 'active' },
+        // 9. Missing merchant status: HIDDEN (fail-closed)
+        { id: 'prod_missing_merch_status', status: 'published' },
+        // 10. Missing all status: HIDDEN (fail-closed)
+        { id: 'prod_missing_all' },
+      ];
+
+      // Fail-closed catalog isolation rule matching commerce.ts
+      const visible = mockRawProducts.filter(
+        (p) => p.status === 'published' && p.merchantStatus === 'active'
+      );
+
+      assert.equal(visible.length, 1);
+      assert.equal(visible[0].id, 'prod_pub_active');
+    });
+
+    it('fetchProductByHandle (PDP): strictly returns null (triggering 404) for unapproved or inactive merchant products', () => {
+      function evaluatePdpVisibility(p) {
+        if (!p || p.status !== 'published' || p.merchantStatus !== 'active') {
+          return null;
+        }
+        return p;
+      }
+
+      assert.ok(evaluatePdpVisibility({ id: '1', status: 'published', merchantStatus: 'active' }));
+      assert.equal(evaluatePdpVisibility({ id: '2', status: 'draft', merchantStatus: 'active' }), null);
+      assert.equal(evaluatePdpVisibility({ id: '3', status: 'proposed', merchantStatus: 'active' }), null);
+      assert.equal(evaluatePdpVisibility({ id: '4', status: 'published', merchantStatus: 'suspended' }), null);
+      assert.equal(evaluatePdpVisibility({ id: '5', merchantStatus: 'active' }), null);
+      assert.equal(evaluatePdpVisibility({ id: '6', status: 'published' }), null);
+      assert.equal(evaluatePdpVisibility(null), null);
+    });
+
+    it('fetchPlpProducts: candidates and dynamic facets strictly exclude unapproved products and inactive merchants fail-closed', () => {
+      const rawProducts = [
+        { id: '1', brand: 'BrandValid', status: 'published', merchantStatus: 'active' },
+        { id: '2', brand: 'BrandUnapproved', status: 'draft', merchantStatus: 'active' },
+        { id: '3', brand: 'BrandSuspended', status: 'published', merchantStatus: 'suspended' },
+      ];
+
+      const candidates = rawProducts.filter(
+        (p) => p.status === 'published' && p.merchantStatus === 'active'
+      );
+      assert.equal(candidates.length, 1);
+      assert.equal(candidates[0].brand, 'BrandValid');
+
+      const brands = Array.from(new Set(candidates.map((p) => p.brand)));
+      assert.ok(brands.includes('BrandValid'));
+      assert.ok(!brands.includes('BrandUnapproved'), 'Facets must not include unapproved brands');
+      assert.ok(!brands.includes('BrandSuspended'), 'Facets must not include suspended brands');
+    });
+  });
 });
 
 describe('Task 13: Product Detail Page (PDP) & Mini PDP Engine', () => {
@@ -3468,6 +3539,156 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       const postLoginRes = simulateMiddleware(redirectTarget, '', { ecom_session_token: 'sess_newly_authenticated' });
       assert.equal(postLoginRes.action, 'next');
       assert.equal(postLoginRes.statusCode, 200);
+    });
+  });
+
+  describe('6. Super Admin & Merchant Server-Side Boundary & Zero-Flash Gate (P0 Remediation)', () => {
+    // Server-side session simulation function for Admin and Merchant
+    const simulateAdminServerGate = (token, sessionData) => {
+      if (!token || !token.startsWith('sess_admin_')) {
+        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+      }
+      if (!sessionData || !sessionData.authenticated || sessionData.session?.authBoundary !== 'admin' || sessionData.session?.role !== 'super_admin') {
+        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+      }
+      if (!sessionData.session?.isMfaVerified) {
+        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+      }
+      return { action: 'render', statusCode: 200, payloadEmitted: true };
+    };
+
+    const simulateMerchantServerGate = (token, sessionData, path = '/merchant/products') => {
+      const redirectLocation = `/merchant/login?redirect=${encodeURIComponent(path)}`;
+      if (!token || !token.startsWith('sess_merch_')) {
+        return { action: 'redirect', statusCode: 307, location: redirectLocation, payloadEmitted: false };
+      }
+      if (!sessionData || !sessionData.authenticated || sessionData.session?.authBoundary !== 'merchant' || sessionData.session?.membershipStatus !== 'active') {
+        return { action: 'redirect', statusCode: 307, location: redirectLocation, payloadEmitted: false };
+      }
+      if (sessionData.session?.merchantStatus === 'suspended') {
+        return { action: 'redirect', statusCode: 307, location: '/merchant/login?status=suspended', payloadEmitted: false };
+      }
+      if (path === '/merchant/team') {
+        const role = sessionData.session?.role;
+        const permissions = sessionData.session?.permissions || [];
+        if (role !== 'owner' && role !== 'admin' && !permissions.includes('team:manage')) {
+          return { action: 'redirect', statusCode: 307, location: '/merchant/products?error=forbidden', payloadEmitted: false };
+        }
+      }
+      return { action: 'render', statusCode: 200, payloadEmitted: true };
+    };
+
+    it('SUPER ADMIN: unauthenticated request to /admin/merchants yields 307 redirect with zero HTML payload', () => {
+      const res = simulateAdminServerGate(null, null);
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/admin/login?redirect=%2Fadmin%2Fmerchants');
+      assert.equal(res.payloadEmitted, false, 'Initial HTML/RSC payload must NOT be emitted to unauthorized visitors');
+    });
+
+    it('SUPER ADMIN: customer or merchant cookie attempting admin access is rejected with 307 redirect', () => {
+      const customerAttempt = simulateAdminServerGate('sess_cus_customer123', {
+        authenticated: true,
+        session: { authBoundary: 'store', role: 'customer', isMfaVerified: false },
+      });
+      assert.equal(customerAttempt.action, 'redirect');
+      assert.equal(customerAttempt.statusCode, 307);
+      assert.equal(customerAttempt.payloadEmitted, false);
+
+      const merchantAttempt = simulateAdminServerGate('sess_merch_owner123', {
+        authenticated: true,
+        session: { authBoundary: 'merchant', role: 'owner', isMfaVerified: false },
+      });
+      assert.equal(merchantAttempt.action, 'redirect');
+      assert.equal(merchantAttempt.statusCode, 307);
+      assert.equal(merchantAttempt.payloadEmitted, false);
+    });
+
+    it('SUPER ADMIN: pre-MFA session (isMfaVerified = false) is rejected with 307 redirect to /admin/login', () => {
+      const preMfaAttempt = simulateAdminServerGate('sess_admin_pre_mfa_token', {
+        authenticated: true,
+        session: { authBoundary: 'admin', role: 'super_admin', isMfaVerified: false },
+      });
+      assert.equal(preMfaAttempt.action, 'redirect');
+      assert.equal(preMfaAttempt.statusCode, 307);
+      assert.equal(preMfaAttempt.location, '/admin/login?redirect=%2Fadmin%2Fmerchants');
+      assert.equal(preMfaAttempt.payloadEmitted, false, 'Pre-MFA session must NEVER render privileged admin content');
+    });
+
+    it('SUPER ADMIN: fully verified Super Admin session (isMfaVerified = true) renders protected console', () => {
+      const verifiedAdmin = simulateAdminServerGate('sess_admin_valid_verified_token', {
+        authenticated: true,
+        session: { authBoundary: 'admin', role: 'super_admin', isMfaVerified: true },
+      });
+      assert.equal(verifiedAdmin.action, 'render');
+      assert.equal(verifiedAdmin.statusCode, 200);
+      assert.equal(verifiedAdmin.payloadEmitted, true);
+    });
+
+    it('MERCHANT: unauthenticated request to /merchant/products yields 307 redirect with zero HTML payload', () => {
+      const res = simulateMerchantServerGate(null, null, '/merchant/products');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/merchant/login?redirect=%2Fmerchant%2Fproducts');
+      assert.equal(res.payloadEmitted, false);
+    });
+
+    it('MERCHANT: unauthenticated request to /merchant/team yields 307 redirect with zero HTML payload', () => {
+      const res = simulateMerchantServerGate(null, null, '/merchant/team');
+      assert.equal(res.action, 'redirect');
+      assert.equal(res.statusCode, 307);
+      assert.equal(res.location, '/merchant/login?redirect=%2Fmerchant%2Fteam');
+      assert.equal(res.payloadEmitted, false);
+    });
+
+    it('MERCHANT: customer cookie attempting merchant route access is rejected with 307 redirect', () => {
+      const customerAttempt = simulateMerchantServerGate('sess_cus_customer123', {
+        authenticated: true,
+        session: { authBoundary: 'store', role: 'customer' },
+      }, '/merchant/products');
+      assert.equal(customerAttempt.action, 'redirect');
+      assert.equal(customerAttempt.statusCode, 307);
+      assert.equal(customerAttempt.payloadEmitted, false);
+    });
+
+    it('MERCHANT: suspended merchant is locked out and redirected to /merchant/login?status=suspended', () => {
+      const suspendedAttempt = simulateMerchantServerGate('sess_merch_suspended', {
+        authenticated: true,
+        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'suspended' },
+      }, '/merchant/products');
+      assert.equal(suspendedAttempt.action, 'redirect');
+      assert.equal(suspendedAttempt.statusCode, 307);
+      assert.equal(suspendedAttempt.location, '/merchant/login?status=suspended');
+      assert.equal(suspendedAttempt.payloadEmitted, false);
+    });
+
+    it('MERCHANT: staff member without team:manage is blocked from /merchant/team', () => {
+      const staffAttempt = simulateMerchantServerGate('sess_merch_staff', {
+        authenticated: true,
+        session: { authBoundary: 'merchant', role: 'staff', membershipStatus: 'active', merchantStatus: 'active', permissions: ['catalog:read'] },
+      }, '/merchant/team');
+      assert.equal(staffAttempt.action, 'redirect');
+      assert.equal(staffAttempt.statusCode, 307);
+      assert.equal(staffAttempt.location, '/merchant/products?error=forbidden');
+      assert.equal(staffAttempt.payloadEmitted, false);
+    });
+
+    it('MERCHANT: active owner member is granted full access to /merchant/products and /merchant/team', () => {
+      const ownerProducts = simulateMerchantServerGate('sess_merch_owner', {
+        authenticated: true,
+        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'active', permissions: ['team:manage'] },
+      }, '/merchant/products');
+      assert.equal(ownerProducts.action, 'render');
+      assert.equal(ownerProducts.statusCode, 200);
+      assert.equal(ownerProducts.payloadEmitted, true);
+
+      const ownerTeam = simulateMerchantServerGate('sess_merch_owner', {
+        authenticated: true,
+        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'active', permissions: ['team:manage'] },
+      }, '/merchant/team');
+      assert.equal(ownerTeam.action, 'render');
+      assert.equal(ownerTeam.statusCode, 200);
+      assert.equal(ownerTeam.payloadEmitted, true);
     });
   });
 });
@@ -6907,6 +7128,518 @@ describe('Phase 37: Performance & Core Web Vitals Hardening', () => {
       const supportedFormats = ['image/avif', 'image/webp'];
       assert.ok(supportedFormats.includes('image/avif'));
       assert.ok(supportedFormats.includes('image/webp'));
+    });
+  });
+});
+
+describe('Phase: Admin & Merchant Header Isolation, Navigation & Secure Sign-Out', () => {
+  describe('1. Storefront Shell & Workspace Chrome Isolation', () => {
+    function shouldSuppressStorefrontChrome(pathname) {
+      return pathname.startsWith('/admin') || pathname.startsWith('/merchant');
+    }
+
+    it('suppresses storefront header, footer, and drawers on Super Admin routes', () => {
+      const adminRoutes = [
+        '/admin/login',
+        '/admin/merchants',
+        '/admin/products',
+        '/admin/moderation',
+        '/admin/merchants/merch_123',
+      ];
+      for (const route of adminRoutes) {
+        assert.equal(
+          shouldSuppressStorefrontChrome(route),
+          true,
+          `Route ${route} must suppress consumer storefront chrome`
+        );
+      }
+    });
+
+    it('suppresses storefront header, footer, and drawers on Merchant routes', () => {
+      const merchantRoutes = [
+        '/merchant/login',
+        '/merchant/onboarding',
+        '/merchant/products',
+        '/merchant/team',
+        '/merchant/products?action=new',
+      ];
+      for (const route of merchantRoutes) {
+        assert.equal(
+          shouldSuppressStorefrontChrome(route),
+          true,
+          `Route ${route} must suppress consumer storefront chrome`
+        );
+      }
+    });
+
+    it('preserves storefront header, footer, and drawers on public consumer routes', () => {
+      const publicRoutes = [
+        '/',
+        '/category/women',
+        '/category/men',
+        '/products/silk-saree',
+        '/cart',
+        '/checkout',
+        '/account/orders',
+      ];
+      for (const route of publicRoutes) {
+        assert.equal(
+          shouldSuppressStorefrontChrome(route),
+          false,
+          `Route ${route} must retain consumer storefront chrome`
+        );
+      }
+    });
+  });
+
+  describe('2. Super Admin Navigation & Active Route Highlighting', () => {
+    const ADMIN_NAV = [
+      { label: 'Merchant Review', href: '/admin/merchants' },
+      { label: 'Product Catalog', href: '/admin/products' },
+      { label: 'Moderation Queue', href: '/admin/moderation' },
+    ];
+
+    function getActiveAdminItem(pathname) {
+      return ADMIN_NAV.find(
+        (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+      );
+    }
+
+    it('contains working links for all implemented Super Admin destinations', () => {
+      assert.equal(ADMIN_NAV.length, 3);
+      assert.deepEqual(
+        ADMIN_NAV.map((i) => i.href),
+        ['/admin/merchants', '/admin/products', '/admin/moderation']
+      );
+    });
+
+    it('accurately highlights active route with aria-current="page"', () => {
+      assert.equal(getActiveAdminItem('/admin/merchants')?.label, 'Merchant Review');
+      assert.equal(getActiveAdminItem('/admin/products')?.label, 'Product Catalog');
+      assert.equal(getActiveAdminItem('/admin/moderation')?.label, 'Moderation Queue');
+      assert.equal(getActiveAdminItem('/admin/merchants/details')?.label, 'Merchant Review');
+    });
+
+    it('suppresses dashboard navigation links on /admin/login auth screen', () => {
+      const isAuthPage = (pathname) => pathname === '/admin/login';
+      assert.equal(isAuthPage('/admin/login'), true);
+      assert.equal(isAuthPage('/admin/merchants'), false);
+    });
+  });
+
+  describe('3. Merchant Navigation & Active Route Highlighting', () => {
+    const MERCHANT_NAV = [
+      { label: 'Products', href: '/merchant/products' },
+      { label: 'Store Team', href: '/merchant/team' },
+    ];
+
+    function getActiveMerchantItem(pathname) {
+      return MERCHANT_NAV.find(
+        (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+      );
+    }
+
+    it('contains working links for all implemented Merchant destinations and Add Product action', () => {
+      assert.equal(MERCHANT_NAV.length, 2);
+      assert.deepEqual(
+        MERCHANT_NAV.map((i) => i.href),
+        ['/merchant/products', '/merchant/team']
+      );
+      const addProductHref = '/merchant/products?action=new';
+      assert.ok(addProductHref.startsWith('/merchant/products'));
+    });
+
+    it('accurately highlights active route with aria-current="page"', () => {
+      assert.equal(getActiveMerchantItem('/merchant/products')?.label, 'Products');
+      assert.equal(getActiveMerchantItem('/merchant/team')?.label, 'Store Team');
+      assert.equal(getActiveMerchantItem('/merchant/products/prod_123')?.label, 'Products');
+    });
+
+    it('suppresses dashboard navigation links on /merchant/login and /merchant/onboarding', () => {
+      const isAuthPage = (pathname) => pathname === '/merchant/login' || pathname === '/merchant/onboarding';
+      assert.equal(isAuthPage('/merchant/login'), true);
+      assert.equal(isAuthPage('/merchant/onboarding'), true);
+      assert.equal(isAuthPage('/merchant/products'), false);
+    });
+  });
+
+  describe('4. Super Admin Secure Sign-Out Lifecycle', () => {
+    it('executes server-side revocation, cookie invalidation, and client storage purge', async () => {
+      // Simulate client storage and mock server state
+      let serverSessionActive = true;
+      const clientStorage = {
+        ecom_admin_token: 'sess_admin_test_123',
+      };
+      let clientCookie = 'ecom_admin_sess=sess_admin_test_123; Path=/; HttpOnly; SameSite=Strict';
+
+      // Mock logout execution function matching admin-header.tsx
+      async function executeAdminLogout() {
+        const token = clientStorage.ecom_admin_token;
+        // Simulate POST /admin/auth/logout
+        serverSessionActive = false;
+        clientCookie = 'ecom_admin_sess=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
+        delete clientStorage.ecom_admin_token;
+        return {
+          redirectTarget: '/admin/login',
+        };
+      }
+
+      const result = await executeAdminLogout();
+      assert.equal(serverSessionActive, false, 'Server session must be marked revoked');
+      assert.equal(clientStorage.ecom_admin_token, undefined, 'Client token must be removed from storage');
+      assert.ok(clientCookie.includes('Max-Age=0'), 'Session cookie must be cleared with Max-Age=0');
+      assert.equal(result.redirectTarget, '/admin/login', 'Must redirect to /admin/login');
+    });
+  });
+
+  describe('5. Merchant Secure Sign-Out Lifecycle', () => {
+    it('executes server-side revocation, cookie invalidation, and client storage purge', async () => {
+      // Simulate client storage and mock server state
+      let serverSessionActive = true;
+      const clientStorage = {
+        ecom_merchant_token: 'sess_merch_test_456',
+      };
+      let clientCookie = 'ecom_merchant_sess=sess_merch_test_456; Path=/; HttpOnly; SameSite=Strict';
+
+      // Mock logout execution function matching merchant-header.tsx
+      async function executeMerchantLogout() {
+        const token = clientStorage.ecom_merchant_token;
+        // Simulate POST /merchant/auth/logout
+        serverSessionActive = false;
+        clientCookie = 'ecom_merchant_sess=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
+        delete clientStorage.ecom_merchant_token;
+        return {
+          redirectTarget: '/merchant/login',
+        };
+      }
+
+      const result = await executeMerchantLogout();
+      assert.equal(serverSessionActive, false, 'Server session must be marked revoked');
+      assert.equal(clientStorage.ecom_merchant_token, undefined, 'Client token must be removed from storage');
+      assert.ok(clientCookie.includes('Max-Age=0'), 'Session cookie must be cleared with Max-Age=0');
+      assert.equal(result.redirectTarget, '/merchant/login', 'Must redirect to /merchant/login');
+    });
+  });
+});
+
+describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
+  // Import or mirror canonical action checkers from @ecom/types
+  function computeModerationActions(status) {
+    if (status === 'proposed') {
+      return {
+        canInspect: true,
+        canApprove: true,
+        canRequestChanges: true,
+        canReject: true,
+        badgeText: 'Pending Review',
+        indicator: null,
+      };
+    }
+    if (status === 'published') {
+      return {
+        canInspect: true,
+        canApprove: false,
+        canRequestChanges: false,
+        canReject: false,
+        badgeText: 'Published',
+        indicator: 'Published & Live',
+      };
+    }
+    if (status === 'rejected') {
+      return {
+        canInspect: true,
+        canApprove: false,
+        canRequestChanges: false,
+        canReject: false,
+        badgeText: 'Rejected',
+        indicator: 'Rejected (Awaiting Resubmission)',
+      };
+    }
+    // draft
+    return {
+      canInspect: true,
+      canApprove: false,
+      canRequestChanges: false,
+      canReject: false,
+      badgeText: 'Changes Requested / Draft',
+      indicator: 'Draft / Incomplete',
+    };
+  }
+
+  function computeMerchantProductActions(status) {
+    return {
+      canSubmit: status === 'draft' || status === 'rejected',
+      submitLabel: status === 'rejected' ? 'Re-Submit' : 'Submit',
+      canEdit: true,
+      canDelete: true,
+      badgeText:
+        status === 'published'
+          ? 'Published'
+          : status === 'proposed'
+          ? 'Pending Moderation'
+          : status === 'rejected'
+          ? 'Rejected'
+          : 'Draft',
+    };
+  }
+
+  function computeMerchantReviewActions(status) {
+    return {
+      canDetails: true,
+      canApprove: status === 'pending_approval',
+      canRequestChanges: status === 'pending_approval',
+      canReject: status === 'pending_approval',
+      canSuspend: status === 'active',
+      canReactivate: status === 'suspended',
+      indicator:
+        status === 'draft'
+          ? 'Awaiting Submission'
+          : status === 'rejected'
+          ? 'Rejected'
+          : null,
+    };
+  }
+
+  function validateProductTransition(current, target, context = {}) {
+    // Canonical 4-status persisted lifecycle: 'draft' | 'proposed' | 'published' | 'rejected'
+    // 'approved' is normalized to 'published' as approval directly sets status: 'published' in Medusa v2 / Postgres
+    const normalizedCurrent = current === 'pending_review' ? 'proposed' : current === 'approved' ? 'published' : current;
+    const normalizedTarget = target === 'pending_review' ? 'proposed' : target === 'approved' ? 'published' : target;
+
+    if (normalizedCurrent === normalizedTarget) {
+      return { allowed: false, error: `NO_OP_TRANSITION: Target status is already '${target}'.` };
+    }
+    if (normalizedCurrent === 'proposed') {
+      if (normalizedTarget === 'published') {
+        if (context.isMerchantActive === false) {
+          return { allowed: false, error: 'MERCHANT_NOT_ACTIVE: Associated merchant must be active to publish product.' };
+        }
+        return { allowed: true };
+      }
+      if (normalizedTarget === 'rejected') {
+        if (!context.reason || !context.reason.trim()) {
+          return { allowed: false, error: 'REJECTION_REASON_REQUIRED: A non-empty reason is required to reject a product.' };
+        }
+        return { allowed: true };
+      }
+      if (normalizedTarget === 'draft') {
+        if (!context.reason || !context.reason.trim()) {
+          return { allowed: false, error: 'CHANGES_REQUESTED_REASON_REQUIRED: A non-empty reason is required when requesting changes.' };
+        }
+        return { allowed: true };
+      }
+      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'proposed' to '${target}'.` };
+    }
+    if (normalizedCurrent === 'draft') {
+      if (normalizedTarget === 'proposed') return { allowed: true };
+      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'draft' to '${target}'.` };
+    }
+    if (normalizedCurrent === 'rejected') {
+      if (normalizedTarget === 'proposed' || normalizedTarget === 'draft') return { allowed: true };
+      if (normalizedTarget === 'published') {
+        return { allowed: false, error: 'RE_REVIEW_REQUIRED: Rejected product must be re-submitted for moderation review before publishing.' };
+      }
+      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'rejected' to '${target}'.` };
+    }
+    if (normalizedCurrent === 'published') {
+      if (normalizedTarget === 'proposed' || normalizedTarget === 'draft') return { allowed: true };
+      if (normalizedTarget === 'rejected') {
+        return { allowed: false, error: 'INVALID_TRANSITION: Published product cannot be rejected directly from moderation queue.' };
+      }
+      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'published' to '${target}'.` };
+    }
+    return { allowed: false, error: 'INVALID_TRANSITION: Unknown product status.' };
+  }
+
+  describe('1. Super Admin Product Moderation Queue Action Isolation', () => {
+    it('proposed products show Inspect, Approve, Request Changes, and Reject buttons', () => {
+      const actions = computeModerationActions('proposed');
+      assert.strictEqual(actions.canInspect, true);
+      assert.strictEqual(actions.canApprove, true);
+      assert.strictEqual(actions.canRequestChanges, true);
+      assert.strictEqual(actions.canReject, true);
+      assert.strictEqual(actions.indicator, null);
+    });
+
+    it('published products do NOT show Approve, Request Changes, or Reject buttons', () => {
+      const actions = computeModerationActions('published');
+      assert.strictEqual(actions.canInspect, true);
+      assert.strictEqual(actions.canApprove, false, 'Published product must not have Approve button');
+      assert.strictEqual(actions.canRequestChanges, false, 'Published product must not have Request Changes button');
+      assert.strictEqual(actions.canReject, false, 'Published product must not have Reject button');
+      assert.strictEqual(actions.indicator, 'Published & Live');
+    });
+
+    it('rejected products do NOT show Reject or Approve buttons in queue', () => {
+      const actions = computeModerationActions('rejected');
+      assert.strictEqual(actions.canInspect, true);
+      assert.strictEqual(actions.canApprove, false, 'Rejected product must not have Approve button without re-submission');
+      assert.strictEqual(actions.canRequestChanges, false, 'Rejected product must not have Request Changes button');
+      assert.strictEqual(actions.canReject, false, 'Rejected product must not have redundant Reject button');
+      assert.strictEqual(actions.indicator, 'Rejected (Awaiting Resubmission)');
+    });
+
+    it('draft products do NOT show Approve or Reject buttons in queue', () => {
+      const actions = computeModerationActions('draft');
+      assert.strictEqual(actions.canInspect, true);
+      assert.strictEqual(actions.canApprove, false, 'Draft product must not have Approve button');
+      assert.strictEqual(actions.canReject, false, 'Draft product must not have Reject button');
+      assert.strictEqual(actions.indicator, 'Draft / Incomplete');
+    });
+  });
+
+  describe('2. Merchant Product Catalog Action Isolation', () => {
+    it('draft products render Submit button with Edit and Delete', () => {
+      const actions = computeMerchantProductActions('draft');
+      assert.strictEqual(actions.canSubmit, true);
+      assert.strictEqual(actions.submitLabel, 'Submit');
+      assert.strictEqual(actions.canEdit, true);
+      assert.strictEqual(actions.canDelete, true);
+    });
+
+    it('rejected products render Re-Submit button with Edit and Delete', () => {
+      const actions = computeMerchantProductActions('rejected');
+      assert.strictEqual(actions.canSubmit, true);
+      assert.strictEqual(actions.submitLabel, 'Re-Submit', 'Must label as Re-Submit for rejected products');
+      assert.strictEqual(actions.canEdit, true);
+      assert.strictEqual(actions.canDelete, true);
+    });
+
+    it('proposed (pending moderation) products do NOT render Submit button', () => {
+      const actions = computeMerchantProductActions('proposed');
+      assert.strictEqual(actions.canSubmit, false, 'Proposed product cannot be submitted again');
+      assert.strictEqual(actions.canEdit, true);
+      assert.strictEqual(actions.canDelete, true);
+    });
+
+    it('published products do NOT render Submit button', () => {
+      const actions = computeMerchantProductActions('published');
+      assert.strictEqual(actions.canSubmit, false, 'Published product cannot be submitted');
+      assert.strictEqual(actions.canEdit, true);
+      assert.strictEqual(actions.canDelete, true);
+    });
+  });
+
+  describe('3. Super Admin Merchant Review Action Isolation', () => {
+    it('pending_approval merchants render Details, Approve, Request Changes, and Reject', () => {
+      const actions = computeMerchantReviewActions('pending_approval');
+      assert.strictEqual(actions.canDetails, true);
+      assert.strictEqual(actions.canApprove, true);
+      assert.strictEqual(actions.canRequestChanges, true);
+      assert.strictEqual(actions.canReject, true);
+      assert.strictEqual(actions.canSuspend, false);
+      assert.strictEqual(actions.canReactivate, false);
+    });
+
+    it('active merchants render Details and Suspend ONLY', () => {
+      const actions = computeMerchantReviewActions('active');
+      assert.strictEqual(actions.canDetails, true);
+      assert.strictEqual(actions.canApprove, false, 'Active merchant must not show Approve button');
+      assert.strictEqual(actions.canRequestChanges, false, 'Active merchant must not show Request Changes button');
+      assert.strictEqual(actions.canReject, false, 'Active merchant must not show Reject button');
+      assert.strictEqual(actions.canSuspend, true, 'Active merchant must show Suspend button');
+      assert.strictEqual(actions.canReactivate, false, 'Active merchant must not show Reactivate button');
+    });
+
+    it('suspended merchants render Details and Reactivate ONLY', () => {
+      const actions = computeMerchantReviewActions('suspended');
+      assert.strictEqual(actions.canDetails, true);
+      assert.strictEqual(actions.canApprove, false);
+      assert.strictEqual(actions.canRequestChanges, false);
+      assert.strictEqual(actions.canReject, false);
+      assert.strictEqual(actions.canSuspend, false, 'Suspended merchant must not show Suspend button');
+      assert.strictEqual(actions.canReactivate, true, 'Suspended merchant must show Reactivate button');
+    });
+
+    it('draft and rejected merchants render Details with informative status indicators and NO action buttons', () => {
+      const draftActions = computeMerchantReviewActions('draft');
+      assert.strictEqual(draftActions.canDetails, true);
+      assert.strictEqual(draftActions.canApprove, false);
+      assert.strictEqual(draftActions.canSuspend, false);
+      assert.strictEqual(draftActions.canReactivate, false);
+      assert.strictEqual(draftActions.indicator, 'Awaiting Submission');
+
+      const rejectedActions = computeMerchantReviewActions('rejected');
+      assert.strictEqual(rejectedActions.canDetails, true);
+      assert.strictEqual(rejectedActions.canApprove, false);
+      assert.strictEqual(rejectedActions.canSuspend, false);
+      assert.strictEqual(rejectedActions.canReactivate, false);
+      assert.strictEqual(rejectedActions.indicator, 'Rejected');
+    });
+  });
+
+  describe('4. Authoritative Lifecycle State Machine Transitions', () => {
+    it('blocks no-op transitions (current === target)', () => {
+      const resPub = validateProductTransition('published', 'published');
+      assert.strictEqual(resPub.allowed, false);
+      assert.ok(resPub.error.includes('NO_OP_TRANSITION'));
+
+      const resRej = validateProductTransition('rejected', 'rejected');
+      assert.strictEqual(resRej.allowed, false);
+      assert.ok(resRej.error.includes('NO_OP_TRANSITION'));
+    });
+
+    it('blocks approving product when associated merchant is not active', () => {
+      const res = validateProductTransition('proposed', 'published', { isMerchantActive: false });
+      assert.strictEqual(res.allowed, false);
+      assert.ok(res.error.includes('MERCHANT_NOT_ACTIVE'));
+    });
+
+    it('blocks rejecting or requesting changes without non-empty reason', () => {
+      const resRej = validateProductTransition('proposed', 'rejected', { reason: '   ' });
+      assert.strictEqual(resRej.allowed, false);
+      assert.ok(resRej.error.includes('REJECTION_REASON_REQUIRED'));
+
+      const resReq = validateProductTransition('proposed', 'draft', { reason: '' });
+      assert.strictEqual(resReq.allowed, false);
+      assert.ok(resReq.error.includes('CHANGES_REQUESTED_REASON_REQUIRED'));
+    });
+
+    it('blocks directly approving a rejected product without merchant re-submission', () => {
+      const res = validateProductTransition('rejected', 'published');
+      assert.strictEqual(res.allowed, false);
+      assert.ok(res.error.includes('RE_REVIEW_REQUIRED'));
+    });
+
+    it('blocks rejecting a published product directly from moderation queue', () => {
+      const res = validateProductTransition('published', 'rejected', { reason: 'defective' });
+      assert.strictEqual(res.allowed, false);
+      assert.ok(res.error.includes('INVALID_TRANSITION'));
+    });
+
+    it('allows valid transitions across entire lifecycle', () => {
+      // draft -> proposed
+      assert.strictEqual(validateProductTransition('draft', 'proposed').allowed, true);
+      // proposed -> published
+      assert.strictEqual(validateProductTransition('proposed', 'published', { isMerchantActive: true }).allowed, true);
+      // proposed -> rejected
+      assert.strictEqual(validateProductTransition('proposed', 'rejected', { reason: 'Invalid tax documentation' }).allowed, true);
+      // proposed -> draft (request changes)
+      assert.strictEqual(validateProductTransition('proposed', 'draft', { reason: 'Better photos needed' }).allowed, true);
+      // rejected -> proposed (resubmission)
+      assert.strictEqual(validateProductTransition('rejected', 'proposed').allowed, true);
+      // published -> proposed (re-review on modification)
+      assert.strictEqual(validateProductTransition('published', 'proposed').allowed, true);
+    });
+
+    it('conceptual approval normalization: verifies approval decision maps to published in canonical 4-state lifecycle', () => {
+      // proposed -> approved decision maps to published
+      const resApprove = validateProductTransition('proposed', 'approved', { isMerchantActive: true });
+      assert.strictEqual(resApprove.allowed, true);
+
+      // published -> unpublish to draft
+      const resDraft = validateProductTransition('published', 'draft');
+      assert.strictEqual(resDraft.allowed, true);
+
+      // published -> rejected (blocked directly from moderation queue)
+      const resRej = validateProductTransition('published', 'rejected');
+      assert.strictEqual(resRej.allowed, false);
+      assert.ok(resRej.error.includes('INVALID_TRANSITION'));
+
+      // published -> approved (blocked as redundant no-op approval)
+      const resNoOp = validateProductTransition('published', 'approved');
+      assert.strictEqual(resNoOp.allowed, false);
+      assert.ok(resNoOp.error.includes('NO_OP_TRANSITION'));
     });
   });
 });

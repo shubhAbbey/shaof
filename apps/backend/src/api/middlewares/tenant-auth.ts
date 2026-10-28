@@ -21,6 +21,16 @@ export type TenantRouteHandler = (
   res: MedusaResponse
 ) => Promise<void>;
 
+export function isTestMockAllowed(): boolean {
+  if (process.env.NODE_ENV === 'test') return true;
+  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development') return false;
+  if (process.execArgv.some((a) => a.includes('--test'))) return true;
+  if (process.argv.some((arg) => arg.includes('--test') || arg.endsWith('.test.js') || arg.endsWith('.test.ts'))) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Resolves session token to an AuthenticatedSessionDto.
  * Supports:
@@ -43,112 +53,116 @@ export async function resolveSessionFromToken(token: string | null): Promise<Aut
     return await MerchantAuthEngine.resolveSession(token);
   }
 
-  // 2. JSON string test tokens
-  if (token.startsWith('{') && token.endsWith('}')) {
-    try {
-      return JSON.parse(token);
-    } catch {
-      return null;
-    }
-  }
-
-  // 3. Base64 encoded JSON session tokens
-  if (token.startsWith('ey') || token.startsWith('sess_b64_')) {
-    try {
-      const b64 = token.startsWith('sess_b64_') ? token.substring(9) : token;
-      const json = Buffer.from(b64, 'base64').toString('utf-8');
-      if (json.startsWith('{') && json.endsWith('}')) {
-        return JSON.parse(json);
+  // ONLY permit simulated / test token formats in automated test environment
+  if (isTestMockAllowed()) {
+    // 3. JSON string test tokens
+    if (token.startsWith('{') && token.endsWith('}')) {
+      try {
+        return JSON.parse(token);
+      } catch {
+        return null;
       }
-    } catch {
-      // Fall through to next parser
+    }
+
+    // 4. Base64 encoded JSON session tokens
+    if (token.startsWith('ey') || token.startsWith('sess_b64_')) {
+      try {
+        const b64 = token.startsWith('sess_b64_') ? token.substring(9) : token;
+        const json = Buffer.from(b64, 'base64').toString('utf-8');
+        if (json.startsWith('{') && json.endsWith('}')) {
+          return JSON.parse(json);
+        }
+      } catch {
+        // Fall through to next parser
+      }
+    }
+
+    // 5. Prefix-based simulated session tokens (strictly test runners only)
+    if (token.startsWith('admin_token:') || token.startsWith('admin_token_')) {
+      const id = token.startsWith('admin_token:') ? token.substring(12) : token.substring(12);
+      return {
+        userId: id.startsWith('usr_') ? id : 'usr_admin_' + id,
+        actorType: 'super_admin',
+        authBoundary: 'admin',
+        role: 'super_admin',
+        isMfaVerified: true,
+      };
+    }
+
+    if (token.startsWith('merchant_token:') || token.startsWith('merchant_token_')) {
+      const isColon = token.startsWith('merchant_token:');
+      const delimiter = isColon ? ':' : token.includes(':') ? ':' : token.includes('#') ? '#' : '_';
+      const rest = token.substring(15);
+      const parts = rest.split(delimiter);
+      const userId = parts[0] || 'usr_merchant';
+      const merchantId = parts[1] || 'merch_default';
+      const role = (parts[2] as any) || 'owner';
+      const membershipStatus = (parts[3] as any) || 'active';
+      const merchantStatus = (parts[4] as any) || 'active';
+      return {
+        userId,
+        merchantId,
+        actorType: 'merchant_user',
+        authBoundary: 'merchant',
+        membershipStatus,
+        merchantStatus,
+        role,
+        permissions:
+          role === 'owner'
+            ? [
+                'catalog:read',
+                'catalog:write',
+                'catalog:delete',
+                'inventory:read',
+                'inventory:adjust',
+                'orders:read',
+                'orders:fulfill',
+                'returns:read',
+                'returns:process',
+                'financials:view',
+                'financials:payout',
+                'team:manage',
+                'settings:manage',
+              ]
+            : role === 'admin'
+            ? [
+                'catalog:read',
+                'catalog:write',
+                'catalog:delete',
+                'inventory:read',
+                'inventory:adjust',
+                'orders:read',
+                'orders:fulfill',
+                'returns:read',
+                'returns:process',
+                'team:manage',
+              ]
+            : role === 'manager'
+            ? [
+                'catalog:read',
+                'catalog:write',
+                'inventory:read',
+                'inventory:adjust',
+                'orders:read',
+                'orders:fulfill',
+                'returns:read',
+              ]
+            : ['catalog:read', 'orders:read', 'orders:fulfill'],
+      };
+    }
+
+    if (token.startsWith('customer_token:') || token.startsWith('customer_token_') || token.startsWith('sess_')) {
+      const isPrefix = token.startsWith('customer_token:') || token.startsWith('customer_token_');
+      const id = isPrefix ? token.substring(15) : token.substring(token.indexOf('_') + 1);
+      return {
+        userId: id.startsWith('cus_') ? id : 'cus_' + id,
+        actorType: 'customer',
+        authBoundary: 'store',
+      };
     }
   }
 
-  // 4. Prefix-based simulated session tokens
-  if (token.startsWith('admin_token:') || token.startsWith('admin_token_')) {
-    const id = token.startsWith('admin_token:') ? token.substring(12) : token.substring(12);
-    return {
-      userId: id.startsWith('usr_') ? id : 'usr_admin_' + id,
-      actorType: 'super_admin',
-      authBoundary: 'admin',
-      role: 'super_admin',
-      isMfaVerified: true,
-    };
-  }
-
-  if (token.startsWith('merchant_token:') || token.startsWith('merchant_token_')) {
-    const isColon = token.startsWith('merchant_token:');
-    const delimiter = isColon ? ':' : token.includes(':') ? ':' : token.includes('#') ? '#' : '_';
-    const rest = token.substring(15);
-    const parts = rest.split(delimiter);
-    const userId = parts[0] || 'usr_merchant';
-    const merchantId = parts[1] || 'merch_default';
-    const role = (parts[2] as any) || 'owner';
-    const membershipStatus = (parts[3] as any) || 'active';
-    const merchantStatus = (parts[4] as any) || 'active';
-    return {
-      userId,
-      merchantId,
-      actorType: 'merchant_user',
-      authBoundary: 'merchant',
-      membershipStatus,
-      merchantStatus,
-      role,
-      permissions:
-        role === 'owner'
-          ? [
-              'catalog:read',
-              'catalog:write',
-              'catalog:delete',
-              'inventory:read',
-              'inventory:adjust',
-              'orders:read',
-              'orders:fulfill',
-              'returns:read',
-              'returns:process',
-              'financials:view',
-              'financials:payout',
-              'team:manage',
-              'settings:manage',
-            ]
-          : role === 'admin'
-          ? [
-              'catalog:read',
-              'catalog:write',
-              'catalog:delete',
-              'inventory:read',
-              'inventory:adjust',
-              'orders:read',
-              'orders:fulfill',
-              'returns:read',
-              'returns:process',
-              'team:manage',
-            ]
-          : role === 'manager'
-          ? [
-              'catalog:read',
-              'catalog:write',
-              'inventory:read',
-              'inventory:adjust',
-              'orders:read',
-              'orders:fulfill',
-              'returns:read',
-            ]
-          : ['catalog:read', 'orders:read', 'orders:fulfill'],
-    };
-  }
-
-  if (token.startsWith('customer_token:') || token.startsWith('customer_token_') || token.startsWith('sess_')) {
-    const isPrefix = token.startsWith('customer_token:') || token.startsWith('customer_token_');
-    const id = isPrefix ? token.substring(15) : token.substring(token.indexOf('_') + 1);
-    return {
-      userId: id.startsWith('cus_') ? id : 'cus_' + id,
-      actorType: 'customer',
-      authBoundary: 'store',
-    };
-  }
-
+  // In development and production, fabricated test tokens are rejected
   return null;
 }
 
@@ -165,13 +179,31 @@ export async function resolveSessionFromToken(token: string | null): Promise<Aut
  */
 export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRouteHandler) {
   return async (req: MedusaRequest, res: MedusaResponse): Promise<void> => {
-    // 1. Extract token from Authorization header or Cookie
+    // 0. CORS preflight and headers for cross-origin browser requests
+    const origin = (req.headers['origin'] as string) || '';
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, Accept, X-Requested-With'
+      );
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+
+    // 1. Extract token from Authorization header or Cookie (boundary-aware to prevent multi-cookie collisions)
     const authHeader =
       (req.headers['authorization'] as string) || (req.headers['Authorization'] as string);
     const cookieHeader = (req.headers['cookie'] as string) || (req.headers['Cookie'] as string);
     const extracted = BackendMarketplaceGuard.extractAuthToken(
       { authorization: authHeader },
-      cookieHeader
+      cookieHeader,
+      options.boundary
     );
 
     if (!extracted.token) {
@@ -297,8 +329,9 @@ export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRou
       }
     }
 
-    // 6. Assert MFA verification if required
-    if (options.requireMfa && !session.isMfaVerified) {
+    // 6. Assert MFA verification if required (Mandatory for Super Admin boundary by default)
+    const requiresMfa = options.requireMfa ?? (options.boundary === 'admin');
+    if (requiresMfa && !session.isMfaVerified) {
       res.status(403).json({
         success: false,
         error: 'MFA_REQUIRED',

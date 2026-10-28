@@ -40,6 +40,47 @@ export const medusaCorePaths: Record<string, OpenApiPathItem> = {
     },
   },
 
+  '/store/products/{id}': {
+    get: {
+      tags: ['Medusa Core Standard — Products'],
+      summary: 'Retrieve Store Product (Medusa Core)',
+      description:
+        'Standard Medusa v2 store endpoint returning single published product by ID, fail-closed for suspended merchants.',
+      operationId: 'medusaCoreGetProduct',
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Product ID' },
+      ],
+      responses: {
+        '200': {
+          description: 'Medusa core product retrieval response',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  product: { $ref: '#/components/schemas/ProductDto' },
+                },
+              },
+            },
+          },
+        },
+        '404': {
+          description: 'Product not found or fails catalog visibility policy',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
   '/store/carts': {
     post: {
       tags: ['Medusa Core Standard — Cart'],

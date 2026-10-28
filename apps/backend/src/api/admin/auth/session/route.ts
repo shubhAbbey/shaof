@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { resolveSessionFromToken } from '../../../middlewares/tenant-auth';
 
+export const AUTHENTICATE = false;
+
 /**
  * GET /admin/auth/session
  * Returns the currently active Super Admin session, validating sliding expiry and revocation status.

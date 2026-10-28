@@ -5,6 +5,8 @@ import {
 } from '../../../../../modules/auth/super-admin-auth-engine';
 import { resolveSessionFromToken } from '../../../../middlewares/tenant-auth';
 
+export const AUTHENTICATE = false;
+
 /**
  * POST /admin/auth/mfa/verify
  * Verifies TOTP code or backup scratch code during:
@@ -216,30 +218,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       userAgent,
     });
 
-    // Elevate active session
-    let token = activeSessionToken;
-    let sessionRecord: any = null;
-    if (token) {
-      sessionRecord = await SuperAdminAuthEngine.resolveSession(token);
-      if (sessionRecord) {
-        sessionRecord.isMfaVerified = true;
-        await SuperAdminAuthEngine.renewStepUp(token);
-      }
-    } else {
-      sessionRecord = await SuperAdminAuthEngine.createSession({
+    // Elevate active session with mandatory session rotation on MFA completion
+    const newSession = await SuperAdminAuthEngine.rotateSessionOnMfaSuccess(
+      activeSessionToken,
+      {
         userId: user.id,
         email: user.email,
-        isMfaVerified: true,
         ip,
         userAgent,
-      });
-      token = sessionRecord.token;
-    }
+      }
+    );
+    const token = newSession.token;
+    const sessionRecord = await SuperAdminAuthEngine.resolveSession(token);
 
     const isProduction = process.env.NODE_ENV === 'production';
     res.setHeader(
       'Set-Cookie',
-      `ecom_admin_sess=${token}; Path=/admin; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
+      `ecom_admin_sess=${token}; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
         SuperAdminAuthEngine.SESSION_ABSOLUTE_TTL_MS / 1000
       }`
     );
@@ -368,42 +363,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     });
   }
 
-  // Complete session promotion or creation
-  let finalToken: string;
-  let finalSession: any;
-
-  if (activeSessionToken) {
-    finalSession = await SuperAdminAuthEngine.resolveSession(activeSessionToken);
-    if (finalSession) {
-      finalSession.isMfaVerified = true;
-      await SuperAdminAuthEngine.renewStepUp(activeSessionToken);
-    }
-    finalToken = activeSessionToken;
-  } else {
-    const newSession = await SuperAdminAuthEngine.createSession({
+  // Complete session elevation with mandatory session rotation on MFA completion
+  const rotatedRecord = await SuperAdminAuthEngine.rotateSessionOnMfaSuccess(
+    activeSessionToken,
+    {
       userId: user.id,
       email: user.email,
-      isMfaVerified: true,
       ip,
       userAgent,
-    });
-    finalToken = newSession.token;
-    finalSession = {
-      userId: newSession.userId,
-      email: newSession.email,
-      role: 'super_admin',
-      authBoundary: 'admin',
-      actorType: 'super_admin',
-      isMfaVerified: true,
-      expiresAt: new Date(newSession.expiresAt).toISOString(),
-      lastMfaVerifiedAt: new Date(newSession.lastMfaVerifiedAt!).toISOString(),
-    };
-  }
+    }
+  );
+  const finalToken = rotatedRecord.token;
+  const finalSession = await SuperAdminAuthEngine.resolveSession(finalToken);
 
   const isProduction = process.env.NODE_ENV === 'production';
   res.setHeader(
     'Set-Cookie',
-    `ecom_admin_sess=${finalToken}; Path=/admin; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
+    `ecom_admin_sess=${finalToken}; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}; Max-Age=${
       SuperAdminAuthEngine.SESSION_ABSOLUTE_TTL_MS / 1000
     }`
   );

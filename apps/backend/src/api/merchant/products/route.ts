@@ -101,19 +101,29 @@ export const POST = requireTenantAuth(
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
 
+    // Self-Approval / Moderation Bypass Protection: Merchant products must always be created in 'draft' status
+    if (body.status && body.status !== 'draft') {
+      res.status(403).json({
+        success: false,
+        error: 'CANNOT_SELF_APPROVE',
+        message: 'New merchant products must be created in "draft" status. Submit for platform moderation to publish.',
+      });
+      return;
+    }
+
     const productModule: any = req.scope.resolve(Modules.PRODUCT);
     const remoteLink: any = req.scope.resolve(ContainerRegistrationKeys.REMOTE_LINK);
 
     let createdProduct: any;
 
     try {
-      // 1. Create product in Medusa Product Module
+      // 1. Create product in Medusa Product Module (strictly forced to 'draft')
       const [product] = await productModule.createProducts([
         {
           title,
           handle,
           description: body.description || '',
-          status: body.status || 'draft',
+          status: 'draft',
         },
       ]);
       createdProduct = product;

@@ -309,6 +309,68 @@ export const merchantOperationsPaths: Record<string, OpenApiPathItem> = {
     },
   },
 
+  '/merchant/products/{id}/submit': {
+    post: {
+      tags: ['Merchant Operations — Products & Catalog'],
+      summary: 'Submit Product for Platform Moderation',
+      description:
+        'Submits a draft or rejected product for Super Admin moderation review. Transitions status to proposed and records submission metadata. Requires catalog:write permission.',
+      operationId: 'merchantSubmitProductForModeration',
+      security: [{ MerchantCookieAuth: [] }, { MerchantBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          description: 'Product ID (prod_*)',
+          schema: { type: 'string' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Product submitted successfully',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'message', 'product'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  message: { type: 'string', example: 'Product submitted for platform moderation successfully.' },
+                  product: { $ref: '#/components/schemas/ProductDto' },
+                },
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Product already submitted or published',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
+        '403': {
+          description: 'Forbidden (Not owner or missing permission)',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
+        '404': {
+          description: 'Product not found',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
+      },
+    },
+  },
+
   '/merchant/orders': {
     get: {
       tags: ['Merchant Operations — Orders'],

@@ -480,6 +480,35 @@ describe('M2-01: Backend Marketplace Ownership & Tenant Scoping Matrix', () => {
       assert.equal(extracted.transport, null);
       assert.equal(extracted.token, null);
     });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (merchant boundary)', () => {
+      const multiCookie = 'ecom_admin_sess=admin_123; ecom_merchant_sess=merch_456; ecom_session_token=store_789';
+      const extracted = BackendMarketplaceGuard.extractAuthToken({}, multiCookie, 'merchant');
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'merch_456');
+    });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (admin boundary)', () => {
+      const multiCookie = 'ecom_merchant_sess=merch_456; ecom_admin_sess=admin_123; ecom_session_token=store_789';
+      const extracted = BackendMarketplaceGuard.extractAuthToken({}, multiCookie, 'admin');
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'admin_123');
+    });
+
+    it('prioritizes boundary-specific cookie during multi-cookie collisions (store boundary)', () => {
+      const multiCookie = 'ecom_merchant_sess=merch_456; ecom_admin_sess=admin_123; ecom_session_token=store_789';
+      const extracted = BackendMarketplaceGuard.extractAuthToken({}, multiCookie, 'store');
+      assert.equal(extracted.transport, 'cookie');
+      assert.equal(extracted.token, 'store_789');
+    });
+
+    it('prioritizes Bearer authorization header over cookies regardless of boundary', () => {
+      const multiCookie = 'ecom_admin_sess=admin_123; ecom_merchant_sess=merch_456';
+      const headers = { authorization: 'Bearer explicit_bearer_token' };
+      const extracted = BackendMarketplaceGuard.extractAuthToken(headers, multiCookie, 'merchant');
+      assert.equal(extracted.transport, 'bearer');
+      assert.equal(extracted.token, 'explicit_bearer_token');
+    });
   });
 
   describe('11. Customer Store API Security Controls (M2-02 Verification)', () => {
@@ -785,7 +814,9 @@ describe('M2-01: Backend Marketplace Ownership & Tenant Scoping Matrix', () => {
         return record;
       };
 
-      (service as any).updateMerchants = async (id: string, data: any) => {
+      (service as any).updateMerchants = async (arg1: any, arg2?: any) => {
+        const id = typeof arg1 === 'string' ? arg1 : arg1?.id;
+        const data = typeof arg1 === 'string' ? arg2 : arg1;
         const existing = await (service as any).retrieveMerchant(id);
         const updated = { ...existing, ...data, updated_at: new Date() };
         merchants.set(id, updated);

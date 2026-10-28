@@ -3,21 +3,16 @@ import './globals.css';
 import { UiProvider } from '../providers/ui-provider';
 import { ToastProvider } from '../components/ui/toast';
 import { MiniPdpProvider } from '../context/mini-pdp-context';
-import { MiniPdpModal } from '../components/pdp/mini-pdp-modal';
-import { Header } from '../components/layout/header';
-import { Footer } from '../components/layout/footer';
+import { StorefrontShell } from '../components/layout/storefront-shell';
 import { constructMetadata } from '../lib/seo';
 import { SearchProvider } from '../context/search-context';
 
 import { fetchCmsNavigation, fetchCmsGlobalSettings } from '../lib/strapi-client';
 
 import { AuthProvider } from '../context/auth-context';
-import { AuthModal } from '../components/auth/auth-modal';
 import { CartProvider } from '../context/cart-context';
-import { CartDrawer } from '../components/cart/cart-drawer';
 import { WishlistProvider } from '../context/wishlist-context';
 import { AddressProvider } from '../context/address-context';
-import { AddressDrawer } from '../components/address/address-drawer';
 
 export const metadata: Metadata = constructMetadata();
 
@@ -43,13 +38,13 @@ export default async function RootLayout({
                   <AddressProvider>
                     <MiniPdpProvider>
                       <SearchProvider>
-                        <Header navigation={headerNav?.items} globalSettings={globalSettings} />
-                        <div className="flex-1">{children}</div>
-                        <Footer navigation={footerNav?.items} globalSettings={globalSettings} />
-                        <MiniPdpModal />
-                        <AuthModal />
-                        <CartDrawer />
-                        <AddressDrawer />
+                        <StorefrontShell
+                          headerNav={headerNav?.items}
+                          footerNav={footerNav?.items}
+                          globalSettings={globalSettings}
+                        >
+                          {children}
+                        </StorefrontShell>
                       </SearchProvider>
                     </MiniPdpProvider>
                   </AddressProvider>
