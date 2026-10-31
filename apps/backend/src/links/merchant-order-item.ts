@@ -9,5 +9,8 @@ import OrderModule from '@medusajs/medusa/order';
  */
 export default defineLink(
   MarketplaceModule.linkable.merchant,
-  OrderModule.linkable.orderLineItem
+  {
+    linkable: OrderModule.linkable.orderLineItem,
+    isList: true,
+  }
 );

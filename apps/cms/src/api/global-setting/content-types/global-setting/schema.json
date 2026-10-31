@@ -15,11 +15,11 @@
     "siteName": {
       "type": "string",
       "required": true,
-      "default": "EcomFashion"
+      "default": "Ateevra"
     },
     "siteTagline": {
       "type": "string",
-      "default": "India Modern Edit"
+      "default": "Made For Your Vibe"
     },
     "logo": {
       "type": "media",

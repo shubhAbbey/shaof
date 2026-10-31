@@ -1,25 +1,18 @@
 import React from 'react';
-import { Container, Section, BannerSkeleton, ProductCardSkeleton } from '../components/ui';
+import { Container } from '../components/ui';
+import { AteevraLoader } from '../components/ui/ateevra-loader';
 
 export default function Loading() {
   return (
-    <main className="min-h-screen bg-white">
-      <Container size="xl" className="py-6">
-        {/* Banner shimmer */}
-        <BannerSkeleton className="mb-8" />
-
-        {/* Section title shimmer */}
-        <Section spacing="sm">
-          <div className="h-7 w-48 rounded-md bg-gray-200 animate-pulse mb-6" />
-
-          {/* Grid of product card shimmers */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4">
-            <ProductCardSkeleton />
-            <ProductCardSkeleton />
-            <ProductCardSkeleton />
-            <ProductCardSkeleton />
-          </div>
-        </Section>
+    <main className="min-h-[75vh] flex items-center justify-center bg-white">
+      <Container size="xl" className="py-16 flex flex-col items-center justify-center">
+        <AteevraLoader
+          size="xl"
+          variant="customer"
+          text="Loading Ateevra..."
+          subtext="Made For Your Vibe"
+          fadePulse={true}
+        />
       </Container>
     </main>
   );

@@ -13,6 +13,7 @@ import { Heading, Text } from '../../components/ui/typography';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Card } from '../../components/ui/card';
+import { AteevraLoader } from '../../components/ui/ateevra-loader';
 import { WishlistSkeleton } from '../../components/ui/skeleton';
 import { formatINR, cn } from '../../lib/utils';
 import type { WishlistItemDto } from '@ecom/types';
@@ -240,7 +241,7 @@ export default function WishlistPage() {
                     >
                       {isMoving ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <AteevraLoader size="xs" variant="customer" className="shrink-0" />
                           Moving to Bag...
                         </>
                       ) : item.inStock === false ? (

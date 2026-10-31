@@ -6,6 +6,7 @@ import { User, Phone, Mail, LogOut, ShoppingBag, ShieldCheck } from 'lucide-reac
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
 import { AccountSkeleton } from '../../components/ui/skeleton';
+import { AteevraLoader } from '../../components/ui/ateevra-loader';
 import { LoginForm } from '../../components/auth/login-form';
 import { useAuth } from '../../context/auth-context';
 
@@ -15,10 +16,13 @@ export default function AccountPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[75vh] py-10 bg-gray-50/30">
-        <Container size="lg">
-          <AccountSkeleton />
-        </Container>
+      <div className="min-h-[75vh] flex items-center justify-center bg-gray-50/30">
+        <AteevraLoader
+          size="lg"
+          variant="customer"
+          text="Loading your account..."
+          subtext="Connecting to Ateevra Profile"
+        />
       </div>
     );
   }

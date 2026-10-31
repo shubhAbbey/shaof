@@ -122,7 +122,7 @@ export class TwilioSmsProvider implements ISmsProvider {
       const body = new URLSearchParams({
         To: mobile,
         From: this.fromNumber,
-        Body: `Your EcomFashion verification code is ${otp}. Valid for 5 minutes.`,
+        Body: `Your Ateevra verification code is ${otp}. Valid for 5 minutes.`,
       });
 
       const res = await fetch(

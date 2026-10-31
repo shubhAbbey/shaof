@@ -58,8 +58,51 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     // 1. Transactionally register merchant, owner account, and membership in PostgreSQL
     const { merchant, user, member } = await MerchantAuthEngine.registerMerchant(payload);
 
+    // 2. Issue authenticated session token and cookie for immediate onboarding / application management
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+
+    let token: string | undefined;
+    let sessionData: any = undefined;
+    try {
+      const sessionRecord = await MerchantAuthEngine.createSession({
+        userId: user.id,
+        merchantId: merchant.id,
+        email: user.email,
+        role: user.role,
+        membershipStatus: user.membershipStatus,
+        merchantStatus: merchant.status,
+        ip,
+        userAgent,
+      });
+      token = sessionRecord.token;
+      sessionData = {
+        userId: sessionRecord.userId,
+        merchantId: sessionRecord.merchantId,
+        email: sessionRecord.email,
+        role: sessionRecord.role,
+        authBoundary: 'merchant',
+        actorType: 'merchant_user',
+        membershipStatus: sessionRecord.membershipStatus,
+        merchantStatus: sessionRecord.merchantStatus,
+        permissions: sessionRecord.permissions,
+        expiresAt: new Date(sessionRecord.expiresAt).toISOString(),
+      };
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.setHeader(
+        'Set-Cookie',
+        `ecom_merchant_sess=${sessionRecord.token}; Path=/; HttpOnly; SameSite=Strict${
+          isProduction ? '; Secure' : ''
+        }; Max-Age=${MerchantAuthEngine.SESSION_ABSOLUTE_TTL_MS / 1000}`
+      );
+    } catch (sessionErr: any) {
+      console.warn('[MERCHANT_REGISTER] Warning: Could not create immediate session:', sessionErr.message);
+    }
+
     res.status(201).json({
       success: true,
+      token,
       merchant: {
         id: merchant.id,
         name: merchant.name,
@@ -77,8 +120,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         role: user.role,
         status: user.membershipStatus,
       },
+      session: sessionData,
       message:
-        "Merchant onboarding application submitted successfully. Your store is in 'draft' status awaiting verification by platform staff.",
+        "Merchant draft account registered successfully in draft status. Complete your profile and tax identifiers, then submit your application for platform verification.",
     });
   } catch (err: any) {
     const message = err.message || 'Registration failed.';

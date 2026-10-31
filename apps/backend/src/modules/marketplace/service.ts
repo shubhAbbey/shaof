@@ -460,12 +460,31 @@ export default class MarketplaceModuleService extends MedusaService({
       };
     }
 
+    if (member.user_id !== userId || member.merchant_id !== merchantId) {
+      return {
+        valid: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Merchant membership identity mismatch. Access denied.',
+      };
+    }
+
     if (member.status !== 'active') {
       return {
         valid: false,
         statusCode: 403,
         error: 'FORBIDDEN',
         message: `Merchant membership is not active (current status: '${member.status}'). Access denied.`,
+      };
+    }
+
+    const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+    if (!member.role || !validRoles.includes(member.role as MerchantRole)) {
+      return {
+        valid: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: `Merchant membership has an invalid or unknown role ('${member.role}'). Access denied.`,
       };
     }
 

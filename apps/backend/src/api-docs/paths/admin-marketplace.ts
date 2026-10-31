@@ -828,4 +828,370 @@ export const adminMarketplacePaths: Record<string, OpenApiPathItem> = {
       },
     },
   },
+  '/admin/marketplace/inventory': {
+    get: {
+      tags: ['Super Admin — Inventory'],
+      summary: 'Platform-Wide Inventory Listing',
+      description:
+        'Retrieves marketplace inventory across all merchants with merchant metadata and optional merchant_id, location_id, search, and status filters.',
+      operationId: 'adminListInventory',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'merchant_id',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Filter stock by merchant ID',
+        },
+        {
+          name: 'location_id',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Filter stock by location ID',
+        },
+        {
+          name: 'status',
+          in: 'query',
+          schema: { type: 'string', enum: ['in_stock', 'low_stock', 'out_of_stock'] },
+          description: 'Filter by inventory status',
+        },
+        {
+          name: 'search',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Search SKU, title, or merchant name',
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Platform inventory items and summary',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'count', 'summary', 'inventory'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  count: { type: 'integer' },
+                  summary: { type: 'object' },
+                  inventory: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/inventory/locations': {
+    get: {
+      tags: ['Super Admin — Inventory'],
+      summary: 'List All Stock Locations with Merchants',
+      description: 'Lists all stock locations and their merchant assignments.',
+      operationId: 'adminListStockLocations',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Stock locations with assigned merchants',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'count', 'locations'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  count: { type: 'integer' },
+                  locations: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ['Super Admin — Inventory'],
+      summary: 'Assign Stock Location to Merchant',
+      description: 'Links a stock location to a merchant.',
+      operationId: 'adminAssignStockLocation',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['merchant_id', 'stock_location_id'],
+              properties: {
+                merchant_id: { type: 'string' },
+                stock_location_id: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Location assignment result',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'message'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/inventory/adjust': {
+    post: {
+      tags: ['Super Admin — Inventory'],
+      summary: 'Super Admin Stock Adjustment',
+      description: 'Super Admin stock adjustment across any location with platform audit logging.',
+      operationId: 'adminAdjustStock',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['inventory_item_id', 'location_id'],
+              properties: {
+                inventory_item_id: { type: 'string' },
+                location_id: { type: 'string' },
+                adjustment: { type: 'number' },
+                stocked_quantity: { type: 'number' },
+                reason: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Stock adjustment result',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'item'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  item: { type: 'object' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/orders': {
+    get: {
+      tags: ['Super Admin — Orders'],
+      summary: 'Platform-Wide Orders Listing',
+      description:
+        'Retrieves marketplace orders across all merchants with multi-seller attribution, customer details, and optional merchant_id, status, or search filters.',
+      operationId: 'adminListOrders',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'merchant_id',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Filter orders by merchant ID',
+        },
+        {
+          name: 'status',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Filter by order status',
+        },
+        {
+          name: 'search',
+          in: 'query',
+          schema: { type: 'string' },
+          description: 'Search by order ID, email, or item title',
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Platform orders list',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'count', 'orders'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  count: { type: 'integer' },
+                  orders: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/orders/{id}': {
+    get: {
+      tags: ['Super Admin — Orders'],
+      summary: 'Platform Order Detail',
+      description:
+        'Retrieves full platform order details including multi-seller line items, customer shipping address, and payment status.',
+      operationId: 'adminGetOrderDetail',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Order ID',
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Full order detail',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'order'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  order: { type: 'object' },
+                },
+              },
+            },
+          },
+        },
+        '404': {
+          description: 'Order not found',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/orders/{id}/fulfill': {
+    post: {
+      tags: ['Super Admin — Orders & Fulfillment'],
+      summary: 'Platform Super Admin Order Fulfillment',
+      description:
+        'Fulfills line items across any merchant in the specified order with full audit logging and advisory lock concurrency control.',
+      operationId: 'adminFulfillMarketplaceOrder',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Order ID',
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['items'],
+              properties: {
+                items: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    required: ['id', 'quantity'],
+                    properties: {
+                      id: { type: 'string' },
+                      quantity: { type: 'number', minimum: 1 },
+                    },
+                  },
+                },
+                carrier_name: { type: 'string', example: 'BlueDart' },
+                tracking_number: { type: 'string', example: 'BD987654321' },
+                notes: { type: 'string' },
+                status: { type: 'string', enum: ['fulfilled', 'shipped'], default: 'fulfilled' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Fulfillment successfully recorded',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'fulfillment'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  fulfillment: { type: 'object' },
+                },
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid items or quantity exceeded',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/admin/marketplace/orders/{id}/fulfillments': {
+    get: {
+      tags: ['Super Admin — Orders & Fulfillment'],
+      summary: 'Platform Order Fulfillments List',
+      description:
+        'Retrieves all fulfillments and items for the order across all merchants.',
+      operationId: 'adminListOrderFulfillments',
+      security: [{ AdminCookieAuth: [] }, { AdminBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Order ID',
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Platform order fulfillments',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['success', 'count', 'fulfillments'],
+                properties: {
+                  success: { type: 'boolean', const: true },
+                  count: { type: 'integer' },
+                  fulfillments: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };

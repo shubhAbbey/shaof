@@ -1,8 +1,8 @@
 # M2-08 Acceptance Report: Merchant Review and Approval
 
 **Phase:** M2-08 — Merchant Review and Approval  
-**Status:** IMPLEMENTED — AWAITING HUMAN ACCEPTANCE  
-**Date:** 2026-10-21  
+**Status:** ACCEPTED (Explicit Project Owner Approval)  
+**Date:** 2026-10-21 (Approved: 2026-10-28)  
 **Evaluator:** Ecom Marketplace Engineering Team  
 **Specification Reference:** 44-Phase Multi-Vendor Marketplace Specification (Phase M2-08)  
 **Branch:** `m2_08`  
@@ -106,6 +106,6 @@ Key test scenarios:
 
 ## 5. Gate Status
 
-**Phase M2-08 Gate Status:** `IMPLEMENTED — AWAITING HUMAN ACCEPTANCE`  
-All automated tests, typechecks, security invariants, and UI requirements have been verified.
-Proceeding to **Phase M2-09** implementation per coordinated master prompt authorization.
+**Phase M2-08 Gate Status:** `ACCEPTED`  
+**Approval Confirmation:** Explicit project owner authorization recorded on 2026-10-28.  
+All automated tests, typechecks, security invariants, and UI requirements have been verified and accepted.

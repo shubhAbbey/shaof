@@ -86,7 +86,7 @@ export class MedusaCustomerService {
     const phone = validation.isValid ? validation.normalized : payload.mobile;
 
     try {
-      const res = await fetch(`${MEDUSA_URL}/store/customers`, {
+      const res = await fetch(`${MEDUSA_URL}/store/customers/sync`, {
         method: 'POST',
         headers: getMedusaHeaders(),
         body: JSON.stringify({

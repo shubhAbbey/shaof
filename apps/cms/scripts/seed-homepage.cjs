@@ -61,12 +61,12 @@ async function seed() {
       title: 'Homepage',
       slug: 'homepage',
       pageType: 'homepage',
-      description: 'Official EcomFashion Storefront Homepage',
+      description: 'Official Ateevra Storefront Homepage',
       seo: {
-        metaTitle: 'EcomFashion | Premium Indian Ethnic & Western Wear',
+        metaTitle: 'Ateevra | Premium Indian Ethnic & Western Wear',
         metaDescription:
           'Discover handcrafted luxury ethnic kurtas, silk sarees, and modern western silhouettes with fast express delivery across India.',
-        canonicalUrl: 'https://ecomfashion.com',
+        canonicalUrl: 'https://ateevra.in',
       },
       sections: [
         {

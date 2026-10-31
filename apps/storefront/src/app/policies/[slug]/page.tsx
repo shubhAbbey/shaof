@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PolicyPageProps): Promise<Met
     };
   }
 
-  return constructCmsSeoMetadata(page.seo, `${page.title} | EcomFashion`);
+  return constructCmsSeoMetadata(page.seo, `${page.title} | Ateevra`);
 }
 
 export default async function PolicyPage({ params }: PolicyPageProps) {

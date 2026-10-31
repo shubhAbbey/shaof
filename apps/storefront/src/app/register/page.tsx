@@ -4,6 +4,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { sanitizeRedirectPath } from '@ecom/types';
 import { RegisterForm } from '../../components/auth/register-form';
+import { AteevraLoader } from '../../components/ui/ateevra-loader';
 
 function RegisterContent() {
   const searchParams = useSearchParams();
@@ -36,7 +37,7 @@ export default function RegisterPage() {
     <Suspense
       fallback={
         <div className="min-h-[70vh] flex items-center justify-center">
-          <div className="animate-pulse text-gray-400">Loading...</div>
+          <AteevraLoader size="lg" variant="customer" text="Loading..." subtext="Setting up Registration" />
         </div>
       }
     >

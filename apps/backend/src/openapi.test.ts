@@ -117,8 +117,8 @@ describe('OpenAPI 3.1 Specification & Documentation Suite', () => {
 
       assert.strictEqual(
         operationCount,
-        98,
-        `Expected exactly 98 documented operations (51 custom backend + 42 storefront BFF + 5 Medusa core reference), found ${operationCount}`
+        114,
+        `Expected exactly 114 documented operations (67 custom backend + 42 storefront BFF + 5 Medusa core reference), found ${operationCount}`
       );
     });
 

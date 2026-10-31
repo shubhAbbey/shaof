@@ -26,17 +26,17 @@ async function seedGlobalSettings() {
 
   try {
     const globalData = {
-      siteName: 'EcomFashion',
-      siteTagline: 'India Modern Edit',
+      siteName: 'Ateevra',
+      siteTagline: 'Made For Your Vibe',
       announcementText: 'Free Express Shipping across India on orders above ₹999 | Cash on Delivery Available',
       announcementLink: '/sale',
       freeShippingThreshold: 999,
-      footerAboutText: 'India premier modern fashion destination offering curated ethnic wear, contemporary western silhouettes, plus size edits, and artisanal textiles with seamless checkout and pan-India express delivery.',
+      footerAboutText: 'Ateevra is India’s premier modern fashion destination offering curated ethnic wear, contemporary western silhouettes, plus size edits, and artisanal textiles with seamless checkout and pan-India express delivery.',
       trendingSearches: ['Kurta Sets', 'Oversized T-Shirts', 'Floral Maxi Dresses', 'Linen Shirts', 'Embroidered Sarees', 'Cargo Pants'],
       defaultSeo: {
-        metaTitle: 'EcomFashion | Premium Indian Ethnic & Western Wear',
+        metaTitle: 'Ateevra | Premium Indian Ethnic & Western Wear',
         metaDescription: 'India-First fashion ecommerce destination for high-trend apparel, ethnic and modern collections with seamless checkout and COD.',
-        canonicalUrl: 'https://ecomfashion.com',
+        canonicalUrl: 'https://ateevra.in',
       },
       valuePropositions: [
         { title: 'Free Express Delivery', subtitle: 'On all orders above ₹999 across India', icon: 'truck' },

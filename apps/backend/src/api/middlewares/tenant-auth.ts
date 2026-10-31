@@ -3,6 +3,7 @@ import {
   AuthBoundary,
   AuthenticatedSessionDto,
   MarketplacePermission,
+  MerchantRole,
 } from '@ecom/types';
 import { BackendMarketplaceGuard } from '../../modules/marketplace/ownership-guard';
 import { MARKETPLACE_MODULE } from '../../modules/marketplace/index';
@@ -14,6 +15,7 @@ export interface TenantAuthOptions {
   requiredPermission?: MarketplacePermission;
   requireMfa?: boolean;
   requireStepUp?: boolean;
+  allowInactiveMerchant?: boolean;
 }
 
 export type TenantRouteHandler = (
@@ -93,10 +95,16 @@ export async function resolveSessionFromToken(token: string | null): Promise<Aut
       const isColon = token.startsWith('merchant_token:');
       const delimiter = isColon ? ':' : token.includes(':') ? ':' : token.includes('#') ? '#' : '_';
       const rest = token.substring(15);
+      if (!rest || rest.trim() === '') {
+        return null;
+      }
       const parts = rest.split(delimiter);
-      const userId = parts[0] || 'usr_merchant';
-      const merchantId = parts[1] || 'merch_default';
-      const role = (parts[2] as any) || 'owner';
+      if (parts.length < 2 || !parts[0] || !parts[1]) {
+        return null;
+      }
+      const userId = parts[0];
+      const merchantId = parts[1];
+      const role = parts[2] ? (parts[2] as any) : undefined;
       const membershipStatus = (parts[3] as any) || 'active';
       const merchantStatus = (parts[4] as any) || 'active';
       return {
@@ -253,17 +261,39 @@ export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRou
 
       // Assert active membership and account status from session claims
       if (session.membershipStatus || session.merchantStatus) {
-        const statusCheck = BackendMarketplaceGuard.assertMerchantActiveMembership({
-          membershipStatus: session.membershipStatus || 'active',
-          merchantStatus: session.merchantStatus || 'active',
-        });
-        if (!statusCheck.allowed) {
-          res.status(statusCheck.statusCode).json({
-            success: false,
-            error: statusCheck.error,
-            message: statusCheck.message,
+        if (!options.allowInactiveMerchant) {
+          const statusCheck = BackendMarketplaceGuard.assertMerchantActiveMembership({
+            membershipStatus: session.membershipStatus || 'active',
+            merchantStatus: session.merchantStatus || 'active',
           });
-          return;
+          if (!statusCheck.allowed) {
+            res.status(statusCheck.statusCode).json({
+              success: false,
+              error: statusCheck.error,
+              message: statusCheck.message,
+            });
+            return;
+          }
+        } else {
+          // Inactive merchant exception strictly applies ONLY to draft, pending_approval, and rejected onboarding
+          // 1. Membership MUST be active (suspended member cannot access onboarding or application)
+          if (session.membershipStatus && session.membershipStatus !== 'active') {
+            res.status(403).json({
+              success: false,
+              error: 'FORBIDDEN',
+              message: `Merchant membership is not active (current status: ${session.membershipStatus}). Access denied.`,
+            });
+            return;
+          }
+          // 2. Suspended merchant accounts are strictly blocked (never permit suspended store access)
+          if (session.merchantStatus && session.merchantStatus === 'suspended') {
+            res.status(403).json({
+              success: false,
+              error: 'FORBIDDEN',
+              message: 'Merchant account is suspended. Access denied.',
+            });
+            return;
+          }
         }
       }
 
@@ -291,25 +321,155 @@ export function requireTenantAuth(options: TenantAuthOptions, handler: TenantRou
       // Verify active membership with MarketplaceModuleService if resolvable
       try {
         const marketplaceService: any = req.scope?.resolve(MARKETPLACE_MODULE);
-        if (
-          marketplaceService &&
-          typeof marketplaceService.verifyActiveMembership === 'function'
-        ) {
-          const membershipCheck = await marketplaceService.verifyActiveMembership(
-            session.userId,
-            session.merchantId
-          );
-          if (!membershipCheck.valid) {
-            res.status(membershipCheck.statusCode).json({
-              success: false,
-              error: membershipCheck.error,
-              message: membershipCheck.message,
-            });
-            return;
+        if (marketplaceService) {
+          if (!options.allowInactiveMerchant) {
+            // Commercial routes: server-side active membership verification is mandatory
+            if (typeof marketplaceService.verifyActiveMembership !== 'function') {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'Merchant membership verification is unavailable. Access denied.',
+              });
+              return;
+            }
+
+            const membershipCheck = await marketplaceService.verifyActiveMembership(
+              session.userId,
+              session.merchantId
+            );
+
+            if (!membershipCheck || !membershipCheck.valid) {
+              res.status(membershipCheck?.statusCode || 403).json({
+                success: false,
+                error: membershipCheck?.error || 'FORBIDDEN',
+                message:
+                  membershipCheck?.message ||
+                  'Merchant membership is not active or verified. Access denied.',
+              });
+              return;
+            }
+          } else {
+            // Onboarding routes: verify merchant existence, eligible status, and member active status
+            if (typeof marketplaceService.retrieveMerchant !== 'function') {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'Merchant lookup is unavailable. Access denied.',
+              });
+              return;
+            }
+
+            let merchant: any;
+            try {
+              merchant = await marketplaceService.retrieveMerchant(session.merchantId);
+            } catch (mErr: any) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: `Failed to retrieve merchant record: ${mErr.message || 'Lookup error'}. Access denied.`,
+              });
+              return;
+            }
+
+            if (!merchant || !merchant.id) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: `Merchant record '${session.merchantId}' does not exist. Access denied.`,
+              });
+              return;
+            }
+
+            if (merchant.status === 'suspended') {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'Merchant account is suspended. Access denied.',
+              });
+              return;
+            }
+
+            const PERMITTED_ONBOARDING_STATUSES = ['draft', 'pending_approval', 'rejected', 'active'];
+            if (!PERMITTED_ONBOARDING_STATUSES.includes(merchant.status)) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: `Merchant account status '${merchant.status}' is not eligible for onboarding. Access denied.`,
+              });
+              return;
+            }
+
+            if (typeof marketplaceService.listMerchantMembers !== 'function') {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'Merchant membership verification is unavailable. Access denied.',
+              });
+              return;
+            }
+
+            let members: any[];
+            try {
+              members = await marketplaceService.listMerchantMembers({
+                merchant_id: session.merchantId,
+                user_id: session.userId,
+              });
+            } catch (memErr: any) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: `Failed to verify merchant membership: ${memErr.message || 'Lookup error'}. Access denied.`,
+              });
+              return;
+            }
+
+            if (!members || members.length === 0) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'No active merchant membership found for this user.',
+              });
+              return;
+            }
+
+            const member = members[0];
+            if (member.user_id !== session.userId || member.merchant_id !== session.merchantId) {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: 'Merchant membership identity mismatch. Access denied.',
+              });
+              return;
+            }
+
+            if (member.status !== 'active') {
+              res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN',
+                message: `Merchant membership is not active (current status: '${member.status}'). Access denied.`,
+              });
+              return;
+            }
+
+            // The effective role MUST derive from verified persisted membership, never from client or token
+            const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+            session.role = (validRoles.includes(member.role) ? member.role : '') as MerchantRole;
           }
+        } else if (options.allowInactiveMerchant || !isTestMockAllowed()) {
+          res.status(403).json({
+            success: false,
+            error: 'FORBIDDEN',
+            message: 'Marketplace service is unavailable. Cannot verify merchant membership.',
+          });
+          return;
         }
-      } catch {
-        // If marketplace service is not resolved from scope, rely on session membership status
+      } catch (authErr: any) {
+        res.status(403).json({
+          success: false,
+          error: 'FORBIDDEN',
+          message: 'Failed to verify merchant membership. Access denied.',
+        });
+        return;
       }
     }
 

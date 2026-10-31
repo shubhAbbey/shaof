@@ -44,8 +44,9 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
     setOpenGroupTitle((prev) => (prev === title ? null : title));
   };
 
-  const siteName = globalSettings?.siteName || 'EcomFashion';
-  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
+  const siteName = globalSettings?.siteName || 'Ateevra';
+  const siteTagline = globalSettings?.siteTagline || 'Made For Your Vibe';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : '/images/ateevra-logo-cropped.png';
 
   return (
     <Drawer
@@ -55,22 +56,14 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
       size="md"
       showCloseButton
       title={
-        <div className="flex items-center gap-2">
-          {logoUrl ? (
-            <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center shrink-0">
-              <img
-                src={logoUrl}
-                alt={globalSettings?.logo?.alternativeText || siteName}
-                className="h-full w-full object-contain"
-              />
-            </div>
-          ) : (
-            <div className="h-7 w-7 rounded-md bg-brand-600 flex items-center justify-center text-white text-xs font-black">
-              EF
-            </div>
-          )}
-          <span className="text-base font-black text-gray-900">
-            {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
+        <div className="flex flex-col items-start">
+          <img
+            src={logoUrl}
+            alt={globalSettings?.logo?.alternativeText || siteName}
+            className="h-6 w-auto object-contain"
+          />
+          <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase mt-0.5">
+            {siteTagline}
           </span>
         </div>
       }

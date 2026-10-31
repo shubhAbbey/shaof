@@ -48,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return constructCmsSeoMetadata(
     page?.seo,
-    page?.title || 'Mega Season Finale Sale | Up to 70% Off | EcomFashion'
+    page?.title || 'Mega Season Finale Sale | Up to 70% Off | Ateevra'
   );
 }
 

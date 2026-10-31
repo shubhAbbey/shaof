@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: BrandPlpProps): Promise<Metad
 
   if (products.length === 0) {
     return {
-      title: 'Brand Not Found | EcomFashion',
+      title: 'Brand Not Found | Ateevra',
       robots: { index: false, follow: false },
     };
   }

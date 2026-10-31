@@ -10,3 +10,5 @@ export default Module(MARKETPLACE_MODULE, {
 export * from './models/merchant';
 export * from './models/merchant-member';
 export * from './ownership-guard';
+export * from './inventory-service';
+export * from './fulfillment-service';

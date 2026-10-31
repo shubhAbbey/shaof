@@ -18,3 +18,4 @@ export * from './empty-state';
 export * from './error-state';
 export * from './horizontal-item-scroller';
 export * from './mobile-back-button';
+export * from './ateevra-loader';

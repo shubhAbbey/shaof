@@ -27,6 +27,7 @@ import {
 import { useSearch } from '../../hooks/use-search';
 import { StorefrontProduct } from '../../lib/commerce';
 import { cn } from '../../lib/utils';
+import { AteevraLoader } from '../ui/ateevra-loader';
 
 export const TRENDING_SEARCHES = [
   'Kurta Sets',
@@ -360,7 +361,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         {/* Right Loading Spinner or Clear Button */}
         <div className="absolute right-3.5 flex items-center gap-1.5">
           {isLoadingSuggestions && (
-            <Loader2 className="h-4 w-4 animate-spin text-brand-600" aria-label="Loading suggestions" />
+            <AteevraLoader size="xs" variant="customer" />
           )}
           {query && !isLoadingSuggestions && (
             <button

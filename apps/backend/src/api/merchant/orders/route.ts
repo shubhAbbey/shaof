@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { BackendMarketplaceGuard } from '../../../modules/marketplace/ownership-guard';
 import { requireTenantAuth } from '../../middlewares/tenant-auth';
 
+export const AUTHENTICATE = false;
+
 /**
  * GET /merchant/orders
  * Lists orders containing items for the authenticated merchant with strict line-item isolation.
@@ -13,11 +15,12 @@ import { requireTenantAuth } from '../../middlewares/tenant-auth';
  * - Requires 'orders:read' permission
  * - Authoritative monetary values derived from persisted order lines
  * - Guarantees zero cross-tenant data leakage (other sellers' lines/totals are completely excluded)
+ * - Minimizes customer PII exposure to necessary delivery context
  */
 export const GET = requireTenantAuth(
   { boundary: 'merchant', requiredPermission: 'orders:read' },
-  async (req, res): Promise<void> => {
-    const merchantId = req.tenantContext.merchantId!;
+  async (req: MedusaRequest, res: MedusaResponse): Promise<void> => {
+    const merchantId = (req as any).tenantContext.merchantId!;
 
     try {
       const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY);
@@ -28,6 +31,8 @@ export const GET = requireTenantAuth(
           'display_id',
           'status',
           'created_at',
+          'currency_code',
+          'shipping_address.*',
           'items.id',
           'items.order_id',
           'items.product_id',
@@ -38,8 +43,22 @@ export const GET = requireTenantAuth(
           'items.total',
           'items.fulfillment_status',
           'items.merchant.*',
+          'items.detail.*',
         ],
       });
+
+      // Also fetch product-to-merchant links as a fallback for lines without direct link
+      const { data: productLinks } = await query.graph({
+        entity: 'merchant',
+        fields: ['id', 'products.id'],
+      }).catch(() => ({ data: [] }));
+
+      const productMerchantMap = new Map<string, string>();
+      for (const m of productLinks || []) {
+        for (const p of m.products || []) {
+          productMerchantMap.set(p.id, m.id);
+        }
+      }
 
       const scopedOrders: any[] = [];
 
@@ -47,7 +66,7 @@ export const GET = requireTenantAuth(
         // Resolve merchant links for each line item
         const mappedItems = (order.items || []).map((item: any) => ({
           ...item,
-          merchantId: item.merchant?.id || item.merchant_id || '',
+          merchantId: item.merchant?.id || item.merchant_id || productMerchantMap.get(item.product_id) || '',
         }));
 
         // Split order line items by merchant using BackendMarketplaceGuard
@@ -61,7 +80,16 @@ export const GET = requireTenantAuth(
 
         // Authoritative monetary calculation from persisted line item data
         const merchantSubtotal = merchantItems.reduce(
-          (sum, item) => sum + (item.total !== undefined ? item.total : ((item as any).unit_price ?? item.unitPrice ?? 0) * item.quantity),
+          (sum, item: any) => {
+            const qty = Number(item.detail?.quantity ?? item.quantity ?? 1);
+            const unitPrice = Number(item.unit_price ?? item.unitPrice ?? 0);
+            return (
+              sum +
+              (item.total !== undefined && item.total !== null
+                ? Number(item.total)
+                : unitPrice * qty)
+            );
+          },
           0
         );
 
@@ -70,18 +98,34 @@ export const GET = requireTenantAuth(
           display_id: order.display_id,
           status: order.status,
           created_at: order.created_at,
-          items: merchantItems.map((it: any) => ({
-            id: it.id,
-            order_id: it.order_id,
-            merchantId: it.merchantId,
-            product_id: it.product_id,
-            variant_id: it.variant_id,
-            title: it.title,
-            quantity: it.quantity,
-            unit_price: it.unit_price,
-            total: it.total !== undefined ? it.total : it.unit_price * it.quantity,
-            fulfillment_status: it.fulfillment_status,
-          })),
+          currency_code: order.currency_code || 'inr',
+          shipping_destination: order.shipping_address
+            ? {
+                city: order.shipping_address.city,
+                province: order.shipping_address.province,
+                postal_code: order.shipping_address.postal_code,
+                country_code: order.shipping_address.country_code,
+              }
+            : null,
+          items: merchantItems.map((it: any) => {
+            const qty = Number(it.detail?.quantity ?? it.quantity ?? 1);
+            const unitPrice = Number(it.unit_price ?? it.unitPrice ?? 0);
+            return {
+              id: it.id,
+              order_id: it.order_id,
+              merchantId: it.merchantId,
+              product_id: it.product_id,
+              variant_id: it.variant_id,
+              title: it.title,
+              quantity: qty,
+              unit_price: unitPrice,
+              total:
+                it.total !== undefined && it.total !== null
+                  ? Number(it.total)
+                  : unitPrice * qty,
+              fulfillment_status: it.fulfillment_status,
+            };
+          }),
           item_count: merchantItems.length,
           merchant_subtotal: merchantSubtotal,
         });

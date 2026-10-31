@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Store, Package, Users, PlusCircle, LogOut, Menu, X } from 'lucide-react';
+import { Store, Package, Users, PlusCircle, LogOut, Menu, X, Boxes, ShoppingBag } from 'lucide-react';
 
 interface MerchantNavItem {
   label: string;
@@ -13,6 +13,8 @@ interface MerchantNavItem {
 
 const MERCHANT_NAV_ITEMS: MerchantNavItem[] = [
   { label: 'Products', href: '/merchant/products', icon: Package },
+  { label: 'Inventory', href: '/merchant/inventory', icon: Boxes },
+  { label: 'Orders', href: '/merchant/orders', icon: ShoppingBag },
   { label: 'Store Team', href: '/merchant/team', icon: Users },
 ];
 
@@ -79,16 +81,18 @@ export function MerchantHeader() {
     <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Workspace Title */}
+          {/* Logo & Workspace Title (No device before Ateevra logo) */}
           <div className="flex items-center space-x-3">
             <Link
               href={isAuthPage ? '/merchant/login' : '/merchant/products'}
-              className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-orange-500 rounded-lg p-1"
+              className="flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-orange-500 rounded-lg p-1"
+              aria-label="Ateevra Merchant Console"
             >
-              <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center font-black text-white text-sm tracking-wider shadow">
-                <Store className="w-4 h-4" />
-              </div>
-              <span className="font-extrabold text-lg tracking-tight text-slate-900">ATEEVRA</span>
+              <img
+                src="/images/ateevra-logo-cropped.png"
+                alt="Ateevra"
+                className="h-6 sm:h-7 w-auto object-contain"
+              />
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-800 uppercase tracking-wider">
                 Merchant
               </span>

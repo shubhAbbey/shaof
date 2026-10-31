@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { sanitizeRedirectPath } from '@ecom/types';
+import { AteevraLoader } from '../../../components/ui/ateevra-loader';
 
 function AdminLoginContent() {
   const searchParams = useSearchParams();
@@ -160,7 +161,17 @@ function AdminLoginContent() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-200 relative min-h-[380px]">
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 rounded-2xl p-6 text-center animate-fadeIn">
+            <AteevraLoader
+              size="lg"
+              variant="admin"
+              text="Authenticating Super Admin..."
+              subtext="Ateevra Central Administration Console"
+            />
+          </div>
+        )}
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-xl font-bold shadow-md">
             ⚡
@@ -322,7 +333,7 @@ export default function AdminLoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-          <div className="animate-pulse text-slate-400 text-sm">Loading admin console...</div>
+          <AteevraLoader size="lg" variant="admin" text="Loading admin console..." subtext="Ateevra Central Administration" />
         </div>
       }
     >

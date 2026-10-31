@@ -6,6 +6,7 @@ import { Container } from '../ui/container';
 import { Heading, Text } from '../ui/typography';
 import { Button } from '../ui/button';
 import { ProductCard } from '../sections/product-card';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { Loader2, Sparkles, AlertCircle } from 'lucide-react';
 
 export interface HomepageProductFeedProps {
@@ -163,7 +164,7 @@ export const HomepageProductFeed: React.FC<HomepageProductFeedProps> = ({
         {/* Mobile Loading Indicator (visible only on mobile during fetch) */}
         {isLoadingMore && (
           <div className="flex md:hidden items-center justify-center py-6 gap-2 text-brand-600">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <AteevraLoader size="xs" variant="customer" className="shrink-0" />
             <span className="text-xs font-semibold">Loading next styles...</span>
           </div>
         )}

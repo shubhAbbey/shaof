@@ -46,7 +46,7 @@ export async function generateMetadata({ params, searchParams }: CategoryPlpProp
       });
     }
     return {
-      title: 'Category Not Found | EcomFashion',
+      title: 'Category Not Found | Ateevra',
       robots: { index: false, follow: false },
     };
   }

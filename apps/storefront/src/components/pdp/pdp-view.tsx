@@ -12,6 +12,7 @@ import { Heading, Text } from '../ui/typography';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { MobileBackButton } from '../ui/mobile-back-button';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { ProductCard } from '../sections/product-card';
 import { HorizontalItemScroller } from '../ui/horizontal-item-scroller';
 import { formatINR } from '../../lib/utils';
@@ -243,7 +244,7 @@ export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] 
                 className="flex-1 font-bold text-base shadow-md hover:shadow-lg"
               >
                 {pdp.isAddingToCart ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <AteevraLoader size="xs" variant="white" className="mr-2 shrink-0" />
                 ) : (
                   <ShoppingBag className="h-5 w-5 mr-2" />
                 )}
@@ -275,7 +276,7 @@ export const PdpView: React.FC<PdpViewProps> = ({ product, relatedProducts = [] 
                 )}
               >
                 {pdp.isWishlisting ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+                  <AteevraLoader size="xs" variant="customer" className="shrink-0" />
                 ) : (
                   <Heart className={cn('h-5 w-5', pdp.isWishlisted && 'fill-brand-600')} />
                 )}

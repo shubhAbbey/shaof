@@ -27,13 +27,19 @@ export interface ProductLifecycleEvaluation {
 
 export interface SplitMerchantLineItem {
   lineItemId: string;
+  id?: string;
   orderId: string;
+  order_id?: string;
   merchantId: string;
+  merchant_id?: string;
   merchantName?: string;
   productId: string;
+  product_id?: string;
   variantId: string;
+  variant_id?: string;
   quantity: number;
   unitPrice: number;
+  unit_price?: number;
   total: number;
 }
 
@@ -135,6 +141,68 @@ export class BackendMarketplaceGuard {
   }
 
   /**
+   * Asserts whether a merchant has ownership of or authorized access to a stock location.
+   */
+  static assertMerchantStockLocationAccess(
+    sessionMerchantId: string | null | undefined,
+    locationMerchantId: string | null | undefined,
+    isSuperAdmin?: boolean
+  ): TenantOwnershipAssertion {
+    if (isSuperAdmin) {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    if (!sessionMerchantId || sessionMerchantId.trim() === '') {
+      return {
+        allowed: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'No active merchant session.',
+      };
+    }
+
+    if (!locationMerchantId || sessionMerchantId.trim() !== locationMerchantId.trim()) {
+      return {
+        allowed: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Access denied: You do not have access to this stock location.',
+      };
+    }
+
+    return { allowed: true, statusCode: 200 };
+  }
+
+  /**
+   * Evaluates inventory adjustment safety.
+   * Guarantees stock quantity does not drop below current active reservations or become negative.
+   */
+  static evaluateInventoryAdjustmentSafety(
+    currentStocked: number,
+    reservedQuantity: number,
+    adjustment: number
+  ): { canAdjust: boolean; reason?: string; resultingStocked?: number; availableQuantity?: number } {
+    const resultingStocked = currentStocked + adjustment;
+    if (resultingStocked < 0) {
+      return {
+        canAdjust: false,
+        reason: `INVALID_STOCK: Adjustment would result in negative stock quantity (${resultingStocked}).`,
+      };
+    }
+    if (resultingStocked < reservedQuantity) {
+      return {
+        canAdjust: false,
+        reason: `RESERVATION_CONFLICT: Cannot adjust stock below currently reserved quantity of ${reservedQuantity} units. Active customer orders would be affected.`,
+      };
+    }
+    return {
+      canAdjust: true,
+      resultingStocked,
+      availableQuantity: resultingStocked - reservedQuantity,
+    };
+  }
+
+  /**
    * Evaluates product lifecycle rules to prevent accidental data corruption or orphan records.
    * If historical orders or active stock exist, hard deletion is blocked; safe archiving is enforced.
    */
@@ -173,6 +241,62 @@ export class BackendMarketplaceGuard {
       canDelete: true,
       canArchive: true,
     };
+  }
+
+  /**
+   * Asserts whether a merchant is permitted to fulfill specific line items in an order.
+   * Prohibits cross-merchant fulfillment.
+   */
+  static assertMerchantFulfillmentAccess(
+    session: AuthenticatedSessionDto | null | undefined,
+    itemMerchantIds: string[]
+  ): IdentityAssertionResult {
+    if (!session || !session.userId) {
+      return {
+        allowed: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required. No active session token found.',
+      };
+    }
+
+    if (session.actorType === 'super_admin' || session.role === 'super_admin') {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    if (session.authBoundary !== 'merchant' || !session.merchantId) {
+      return {
+        allowed: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Merchant boundary session required.',
+      };
+    }
+
+    // Check permissions
+    const perms = (session.permissions || []) as string[];
+    if (perms.length > 0 && !perms.includes('*') && !perms.includes('orders:fulfill')) {
+      return {
+        allowed: false,
+        statusCode: 403,
+        error: 'FORBIDDEN',
+        message: 'Missing required permission: orders:fulfill.',
+      };
+    }
+
+    // Verify all items belong to caller merchant
+    for (const merchantId of itemMerchantIds) {
+      if (merchantId !== session.merchantId) {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'CROSS_TENANT_FULFILLMENT_FORBIDDEN: Cannot fulfill line items belonging to another merchant.',
+        };
+      }
+    }
+
+    return { allowed: true, statusCode: 200 };
   }
 
   /**

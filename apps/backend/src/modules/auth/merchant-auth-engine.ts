@@ -99,7 +99,7 @@ export interface IMerchantAuthStorageAdapter {
 export interface IMerchantIdentityStore {
   isHealthy(): Promise<boolean>;
   findUserByEmail(email: string): Promise<MerchantUser | null>;
-  findUserById(id: string): Promise<MerchantUser | null>;
+  findUserById(id: string, merchantId?: string): Promise<MerchantUser | null>;
   findMerchantById(id: string): Promise<MerchantRecord | null>;
   findMerchantByHandle(handle: string): Promise<MerchantRecord | null>;
   createMerchantWithAccount(
@@ -905,25 +905,48 @@ export class MedusaNativeMerchantIdentityStore implements IMerchantIdentityStore
     }
   }
 
-  async findUserById(id: string): Promise<MerchantUser | null> {
+  async findUserById(id: string, merchantId?: string): Promise<MerchantUser | null> {
     await this.ensureInitialized();
     if (!id) return null;
     try {
       const user = await this.userModule.retrieveUser(id);
       if (!user) return null;
 
+      const query: any = { user_id: user.id };
+      if (merchantId) {
+        query.merchant_id = merchantId;
+      }
       const members = await this.marketplaceModule.listMerchantMembers(
-        { user_id: user.id },
+        query,
         { take: 1 }
       );
       const member = members && members.length > 0 ? members[0] : null;
 
+      // When merchantId is requested, membership MUST match the requested merchant
+      if (merchantId && (!member || member.merchant_id !== merchantId)) {
+        return {
+          id: user.id,
+          email: user.email,
+          merchantId: '',
+          role: '' as MerchantRole,
+          membershipStatus: 'suspended' as MerchantMemberStatus,
+          createdAt: user.created_at ? new Date(user.created_at).toISOString() : new Date().toISOString(),
+          updatedAt: user.updated_at ? new Date(user.updated_at).toISOString() : new Date().toISOString(),
+        };
+      }
+
+      const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+      const rawRole = member?.role;
+      const role = (rawRole && validRoles.includes(rawRole as MerchantRole))
+        ? (rawRole as MerchantRole)
+        : ('' as MerchantRole);
+
       return {
         id: user.id,
         email: user.email,
-        merchantId: member?.merchant_id || user.metadata?.merchantId || '',
-        role: (member?.role || user.metadata?.role || 'owner') as MerchantRole,
-        membershipStatus: (member?.status || user.metadata?.membershipStatus || 'active') as MerchantMemberStatus,
+        merchantId: member ? member.merchant_id : '',
+        role,
+        membershipStatus: (member ? member.status : 'suspended') as MerchantMemberStatus,
         createdAt: user.created_at ? new Date(user.created_at).toISOString() : new Date().toISOString(),
         updatedAt: user.updated_at ? new Date(user.updated_at).toISOString() : new Date().toISOString(),
       };
@@ -1389,11 +1412,93 @@ export class InMemoryMerchantIdentityStore implements IMerchantIdentityStore {
     return this.users.get(email.trim().toLowerCase()) || null;
   }
 
-  async findUserById(id: string): Promise<MerchantUser | null> {
+  async findUserById(id: string, merchantId?: string): Promise<MerchantUser | null> {
+    let baseUser: MerchantUser | null = null;
     for (const u of this.users.values()) {
-      if (u.id === id) return u;
+      if (u.id === id) {
+        baseUser = u;
+        break;
+      }
     }
-    return null;
+    if (!baseUser) return null;
+
+    if (merchantId) {
+      let matchedMember: { id: string; merchantId: string; userId: string; role: MerchantRole; status: MerchantMemberStatus } | null = null;
+      for (const m of this.members.values()) {
+        if (m.userId === id && m.merchantId === merchantId) {
+          matchedMember = m;
+          break;
+        }
+      }
+
+      if (matchedMember) {
+        const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+        const rawRole = matchedMember.role;
+        const role = (rawRole && validRoles.includes(rawRole as MerchantRole))
+          ? (rawRole as MerchantRole)
+          : ('' as MerchantRole);
+
+        return {
+          ...baseUser,
+          merchantId: matchedMember.merchantId,
+          role,
+          membershipStatus: matchedMember.status,
+        };
+      }
+
+      // If members collection has records for this user but none matched requested merchantId, reject
+      let userHasOtherMemberships = false;
+      for (const m of this.members.values()) {
+        if (m.userId === id) {
+          userHasOtherMemberships = true;
+          break;
+        }
+      }
+      if (userHasOtherMemberships) {
+        return {
+          ...baseUser,
+          merchantId: '',
+          role: '' as MerchantRole,
+          membershipStatus: 'suspended',
+        };
+      }
+
+      // Fallback for tests/fixtures that seed baseUser directly without this.members
+      if (baseUser.merchantId && baseUser.merchantId === merchantId) {
+        const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+        const role = (baseUser.role && validRoles.includes(baseUser.role as MerchantRole))
+          ? (baseUser.role as MerchantRole)
+          : ('' as MerchantRole);
+        return {
+          ...baseUser,
+          role,
+        };
+      }
+
+      return {
+        ...baseUser,
+        merchantId: '',
+        role: '' as MerchantRole,
+        membershipStatus: 'suspended',
+      };
+    }
+
+    for (const m of this.members.values()) {
+      if (m.userId === id) {
+        const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+        const role = (m.role && validRoles.includes(m.role as MerchantRole))
+          ? (m.role as MerchantRole)
+          : ('' as MerchantRole);
+        return {
+          ...baseUser,
+          merchantId: m.merchantId,
+          role,
+          membershipStatus: m.status,
+        };
+      }
+    }
+
+    return baseUser;
   }
 
   async findMerchantById(id: string): Promise<MerchantRecord | null> {
@@ -1930,8 +2035,9 @@ export class MerchantAuthEngine {
           'returns:read',
         ];
       case 'staff':
-      default:
         return ['catalog:read', 'orders:read', 'orders:fulfill'];
+      default:
+        return [];
     }
   }
 
@@ -2092,8 +2198,8 @@ export class MerchantAuthEngine {
     return await MerchantAuthEngine.getIdentityStore().findUserByEmail(email);
   }
 
-  static async findUserById(id: string): Promise<MerchantUser | null> {
-    return await MerchantAuthEngine.getIdentityStore().findUserById(id);
+  static async findUserById(id: string, merchantId?: string): Promise<MerchantUser | null> {
+    return await MerchantAuthEngine.getIdentityStore().findUserById(id, merchantId);
   }
 
   static async updateUserPassword(userId: string, newPassword: string): Promise<void> {
@@ -2163,13 +2269,51 @@ export class MerchantAuthEngine {
     const session = await MerchantAuthEngine.getAdapter().getSession(token);
     if (!session) return null;
 
-    // Dynamically synchronize live merchant and member status from identity store if available
-    const liveUser = await MerchantAuthEngine.findUserById(session.userId);
-    const liveMerchant = await MerchantAuthEngine.findMerchantById(session.merchantId);
+    // Dynamically synchronize live merchant and member status from identity store
+    let liveUser: MerchantUser | null = null;
+    let liveMerchant: MerchantRecord | null = null;
+    try {
+      liveUser = await MerchantAuthEngine.findUserById(session.userId, session.merchantId);
+    } catch {
+      liveUser = null;
+    }
+    try {
+      liveMerchant = await MerchantAuthEngine.findMerchantById(session.merchantId);
+    } catch {
+      liveMerchant = null;
+    }
 
-    const membershipStatus = liveUser ? liveUser.membershipStatus : session.membershipStatus;
-    const merchantStatus = liveMerchant ? liveMerchant.status : session.merchantStatus;
-    const role = liveUser ? liveUser.role : session.role;
+    // A missing live user never validates membership.
+    // Membership is strictly valid ONLY if liveUser exists and liveUser.merchantId matches session.merchantId.
+    const isMemberOfSessionMerchant = Boolean(
+      liveUser && liveUser.merchantId && liveUser.merchantId === session.merchantId
+    );
+
+    // Membership status fails closed to 'suspended' if identity lookup fails, user is not a member of session merchant,
+    // or if either session or live membership is suspended.
+    const membershipStatus =
+      !isMemberOfSessionMerchant ||
+      !liveUser ||
+      session.membershipStatus === 'suspended' ||
+      liveUser.membershipStatus === 'suspended'
+        ? 'suspended'
+        : liveUser.membershipStatus;
+
+    // Merchant status fails closed to 'suspended' if session or live merchant is suspended, or live merchant is missing.
+    const merchantStatus =
+      session.merchantStatus === 'suspended' || !liveMerchant || liveMerchant.status === 'suspended'
+        ? 'suspended'
+        : liveMerchant.status;
+
+    // The effective role MUST derive exclusively from a verified, live membership
+    // matching the session merchant. Missing live user, missing membership, or invalid role -> NO ROLE ('').
+    // Session-role fallback is strictly prohibited.
+    const validRoles: MerchantRole[] = ['owner', 'admin', 'manager', 'staff'];
+    const role: MerchantRole =
+      isMemberOfSessionMerchant && liveUser && liveUser.role && validRoles.includes(liveUser.role)
+        ? liveUser.role
+        : ('' as MerchantRole);
+
     const permissions = MerchantAuthEngine.getPermissionsForRole(role);
 
     return {

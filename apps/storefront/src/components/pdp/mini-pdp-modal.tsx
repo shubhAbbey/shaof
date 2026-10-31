@@ -10,6 +10,7 @@ import { Dialog } from '../ui/dialog';
 import { Drawer } from '../ui/drawer';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { formatINR, cn } from '../../lib/utils';
 import { ShoppingBag, Zap, Heart, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 
@@ -132,7 +133,7 @@ const MiniPdpContent: React.FC<{
                   className="flex-1 font-bold"
                 >
                   {pdp.isAddingToCart ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    <AteevraLoader size="xs" variant="white" className="mr-1.5 shrink-0" />
                   ) : (
                     <ShoppingBag className="h-4 w-4 mr-1.5" />
                   )}
@@ -283,7 +284,7 @@ const MiniPdpContent: React.FC<{
               className="flex-1 font-bold"
             >
               {pdp.isAddingToCart ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <AteevraLoader size="xs" variant="white" className="mr-1 shrink-0" />
               ) : (
                 <ShoppingBag className="h-4 w-4 mr-1" />
               )}

@@ -96,8 +96,9 @@ export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) =>
   const aboutText = globalSettings?.footerAboutText ||
     "India's premier modern fashion destination offering curated ethnic wear, contemporary western silhouettes, plus size fits, and artisanal textiles with seamless checkout and pan-India express delivery.";
 
-  const siteName = globalSettings?.siteName || 'EcomFashion';
-  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
+  const siteName = globalSettings?.siteName || 'Ateevra';
+  const siteTagline = globalSettings?.siteTagline || 'Made For Your Vibe';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : '/images/ateevra-logo-cropped.png';
   const currentYear = new Date().getFullYear();
 
   const renderIcon = (iconName?: string) => {
@@ -154,22 +155,15 @@ export const Footer: React.FC<FooterProps> = ({ navigation, globalSettings }) =>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Brand Info (Col 1-2 on mobile, 1 on desktop) */}
           <div className="col-span-2 md:col-span-2 space-y-4">
-            <Link href="/" className="flex items-center gap-2">
-              {logoUrl ? (
-                <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-                  <img
-                    src={logoUrl}
-                    alt={globalSettings?.logo?.alternativeText || siteName}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center text-white text-sm font-black">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-              )}
-              <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
-                {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
+            {/* Ateevra Primary Brand Logo (No device before text) */}
+            <Link href="/" className="flex flex-col items-start focus:outline-none" aria-label="Ateevra - Made For Your Vibe">
+              <img
+                src={logoUrl}
+                alt={globalSettings?.logo?.alternativeText || siteName}
+                className="h-8 w-auto object-contain"
+              />
+              <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-1">
+                {siteTagline}
               </span>
             </Link>
             <p className="text-xs text-gray-500 leading-relaxed max-w-sm">

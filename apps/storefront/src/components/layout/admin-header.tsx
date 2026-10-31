@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Users, Package, ClipboardCheck, LogOut, Menu, X } from 'lucide-react';
+import { Shield, Users, Package, ClipboardCheck, LogOut, Menu, X, Boxes, ShoppingBag } from 'lucide-react';
 
 interface AdminNavItem {
   label: string;
@@ -15,6 +15,8 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Merchant Review', href: '/admin/merchants', icon: Users },
   { label: 'Product Catalog', href: '/admin/products', icon: Package },
   { label: 'Moderation Queue', href: '/admin/moderation', icon: ClipboardCheck },
+  { label: 'Inventory', href: '/admin/inventory', icon: Boxes },
+  { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
 ];
 
 export function AdminHeader() {
@@ -52,16 +54,18 @@ export function AdminHeader() {
     <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Workspace Title */}
+          {/* Logo & Workspace Title (No device before Ateevra logo) */}
           <div className="flex items-center space-x-3">
             <Link
               href={isAuthPage ? '/admin/login' : '/admin/merchants'}
-              className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1"
+              className="flex items-center space-x-3 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1"
+              aria-label="Ateevra Super Admin"
             >
-              <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-black text-white text-sm tracking-wider shadow">
-                <Shield className="w-4 h-4" />
-              </div>
-              <span className="font-extrabold text-lg tracking-tight text-white">ATEEVRA</span>
+              <img
+                src="/images/ateevra-logo-white.png"
+                alt="Ateevra"
+                className="h-6 sm:h-7 w-auto object-contain"
+              />
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-600/90 text-white uppercase tracking-wider">
                 Super Admin
               </span>

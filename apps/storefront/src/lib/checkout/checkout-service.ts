@@ -640,7 +640,7 @@ export class CheckoutService {
         id: orderId,
         displayId,
         customerId: customerId || cartCustomerId || 'guest',
-        email: cartEmail || `${customerId || 'guest'}@ecomfashion.in`,
+        email: cartEmail || `${customerId || 'guest'}@ateevra.in`,
         status: 'pending',
         fulfillmentStatus: 'not_fulfilled',
         paymentStatus: isCod ? 'awaiting' : 'captured',

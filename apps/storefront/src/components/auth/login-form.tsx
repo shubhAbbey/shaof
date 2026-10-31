@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/button';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
 import { useCart } from '../../context/cart-context';
@@ -173,11 +174,22 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative min-h-[300px]">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 rounded-2xl p-6 text-center transition-all animate-fadeIn">
+          <AteevraLoader
+            size="lg"
+            variant="customer"
+            text={step === 'otp' ? 'Signing you in...' : 'Connecting to Ateevra...'}
+            subtext={step === 'otp' ? 'Setting up your secure shopping session' : 'Verifying account details'}
+          />
+        </div>
+      )}
+
       {step === 'mobile' ? (
         <form onSubmit={handleRequestOtp} className="space-y-5 animate-fadeIn">
           <div className="text-center space-y-1.5 mb-6">
-            <h2 className="text-2xl font-bold tracking-tight text-gray-900">Welcome to EcomFashion</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">Welcome to Ateevra</h2>
             <p className="text-sm text-gray-500">Sign in with your mobile number to continue</p>
           </div>
 

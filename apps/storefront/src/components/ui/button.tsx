@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { AteevraLoader } from './ateevra-loader';
 import { cn } from '../../lib/utils';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -61,7 +61,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...props}
       >
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-current shrink-0" />}
+        {isLoading && (
+          <AteevraLoader
+            size={size === 'lg' ? 'sm' : 'xs'}
+            variant={variant === 'primary' || variant === 'danger' ? 'white' : 'customer'}
+            className="shrink-0"
+          />
+        )}
         {!isLoading && leftIcon && <span className="shrink-0">{leftIcon}</span>}
         {children}
         {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}

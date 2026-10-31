@@ -74,19 +74,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
   if (page?.seo) {
     return {
-      title: page.seo.metaTitle || 'EcomFashion | Premium Indian Ethnic & Western Wear',
+      title: page.seo.metaTitle || 'Ateevra | Made For Your Vibe',
       description:
         page.seo.metaDescription ||
         'Discover high quality fashion, ethnic kurtas, sarees, and modern western silhouettes with fast delivery across India.',
       alternates: {
-        canonical: page.seo.canonicalUrl || 'https://ecomfashion.com',
+        canonical: page.seo.canonicalUrl || 'https://ateevra.in',
       },
       robots: page.seo.preventIndexing ? { index: false, follow: false } : undefined,
     };
   }
 
   return {
-    title: 'EcomFashion | Premium Indian Ethnic & Western Wear',
+    title: 'Ateevra | Made For Your Vibe',
     description:
       'Discover high quality fashion, ethnic kurtas, sarees, and modern western silhouettes with fast delivery across India.',
   };

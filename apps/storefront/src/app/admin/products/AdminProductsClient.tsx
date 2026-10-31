@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { AteevraLoader } from '../../../components/ui/ateevra-loader';
 
 interface MerchantSummary {
   id: string;
@@ -373,7 +374,14 @@ function getAdminAuthHeaders(): Record<string, string> {
         {/* Table */}
         <div className="mt-6 bg-white shadow overflow-hidden rounded-lg border border-gray-200">
           {loading ? (
-            <div className="py-12 text-center text-gray-500 text-sm">Loading platform catalog...</div>
+            <div className="py-16 flex flex-col items-center justify-center">
+              <AteevraLoader
+                size="md"
+                variant="admin"
+                text="Loading platform catalog..."
+                subtext="Ateevra Super Admin Console"
+              />
+            </div>
           ) : filteredProducts.length === 0 ? (
             <div className="py-12 text-center text-gray-500 text-sm">
               No products found matching the criteria.

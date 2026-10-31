@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { Drawer } from '../ui/drawer';
 import { Button } from '../ui/button';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { useUi } from '../../providers/ui-provider';
 import { useCart } from '../../context/cart-context';
 import { formatINR } from '../../lib/utils';
@@ -98,9 +99,8 @@ export const CartDrawer: React.FC = () => {
       }
     >
       {isLoading ? (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
-          <p className="text-xs text-gray-400 font-medium">Loading your bag...</p>
+        <div className="py-16 flex flex-col items-center justify-center">
+          <AteevraLoader size="md" variant="customer" text="Loading your bag..." subtext="Ateevra Bag" />
         </div>
       ) : isEmpty ? (
         <div className="py-16 px-4 flex flex-col items-center justify-center text-center space-y-4">

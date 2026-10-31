@@ -65,7 +65,7 @@ export const PdpDetailsTabs: React.FC<PdpDetailsTabsProps> = ({ product }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 text-xs">
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Brand</span>
-              <span className="font-bold text-gray-900">{product.brand || product.metadata?.brand || 'EcomFashion'}</span>
+              <span className="font-bold text-gray-900">{product.brand || product.metadata?.brand || 'Ateevra'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-100">
               <span className="text-gray-500 font-medium">Category</span>

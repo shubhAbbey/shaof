@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/button';
+import { AteevraLoader } from '../ui/ateevra-loader';
 import { Input } from '../ui/input';
 import { OtpInput } from './otp-input';
 import { useAuth } from '../../context/auth-context';
@@ -192,12 +193,23 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative min-h-[340px]">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 rounded-2xl p-6 text-center transition-all animate-fadeIn">
+          <AteevraLoader
+            size="lg"
+            variant="customer"
+            text={step === 'otp' ? 'Creating your Ateevra account...' : 'Submitting registration...'}
+            subtext={step === 'otp' ? 'Welcome to Ateevra — Made For Your Vibe' : 'Sending 6-digit verification code'}
+          />
+        </div>
+      )}
+
       {step === 'form' ? (
         <form onSubmit={handleSubmitForm} className="space-y-4 animate-fadeIn">
           <div className="text-center space-y-1.5 mb-5">
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">Create Account</h2>
-            <p className="text-sm text-gray-500">Join EcomFashion for a tailored shopping experience</p>
+            <p className="text-sm text-gray-500">Join Ateevra for a tailored shopping experience</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

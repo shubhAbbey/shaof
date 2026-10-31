@@ -25,6 +25,7 @@ import {
 import { Container } from '../../components/ui/container';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { AteevraLoader } from '../../components/ui/ateevra-loader';
 import { useCart } from '../../context/cart-context';
 import { useAuth } from '../../context/auth-context';
 import { useAddress } from '../../context/address-context';
@@ -265,7 +266,7 @@ export default function CheckoutPage() {
             key: rzpOrder.keyId,
             amount: rzpOrder.amount,
             currency: rzpOrder.currency || 'INR',
-            name: 'EcomFashion MVP',
+            name: 'Ateevra MVP',
             description: `Order Checkout (${itemCount} items)`,
             order_id: rzpOrder.id,
             prefill: {
@@ -748,7 +749,7 @@ export default function CheckoutPage() {
                 >
                   {isProcessing ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <AteevraLoader size="xs" variant="white" className="shrink-0" />
                       Processing Order...
                     </span>
                   ) : paymentMethod === 'razorpay' ? (

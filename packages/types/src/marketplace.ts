@@ -781,6 +781,48 @@ export interface MixedOrderMerchantGroup {
   fulfillmentStatus: LineItemFulfillmentStatus;
 }
 
+export interface MerchantFulfillOrderDto {
+  items: Array<{ id: string; quantity: number }>;
+  tracking_number?: string;
+  trackingNumber?: string;
+  carrier_name?: string;
+  carrierName?: string;
+  notes?: string;
+  status?: 'fulfilled' | 'shipped';
+}
+
+export interface MerchantFulfillmentItemDto {
+  id: string;
+  lineItemId: string;
+  quantity: number;
+  title?: string;
+  sku?: string;
+}
+
+export interface MerchantFulfillmentDetailDto {
+  id: string;
+  orderId: string;
+  merchantId: string;
+  merchantName?: string;
+  status: LineItemFulfillmentStatus;
+  trackingNumber?: string;
+  carrierName?: string;
+  notes?: string;
+  items: MerchantFulfillmentItemDto[];
+  packedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  canceledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FulfillmentOperationResultDto {
+  success: boolean;
+  fulfillment: MerchantFulfillmentDetailDto;
+  message?: string;
+}
+
 // ==========================================
 // 4. Stock Location & Inventory Scoping
 // ==========================================
@@ -790,6 +832,95 @@ export interface StockLocationOwnershipDto {
   merchantId: string;
   name: string;
   isDefault?: boolean;
+}
+
+export interface MerchantInventoryItemDto {
+  id: string;
+  inventoryItemId: string | null;
+  inventory_item_id?: string | null;
+  sku: string;
+  productId: string;
+  product_id?: string;
+  productTitle: string;
+  product_title?: string;
+  variantId: string;
+  variant_id?: string;
+  variantTitle: string;
+  variant_title?: string;
+  merchantId?: string;
+  merchant_id?: string;
+  locationId: string | null;
+  location_id?: string | null;
+  locationName: string;
+  location_name?: string;
+  stockedQuantity: number;
+  stocked_quantity?: number;
+  reservedQuantity: number;
+  reserved_quantity?: number;
+  availableQuantity: number;
+  available_quantity?: number;
+  lowStockThreshold?: number;
+  low_stock_threshold?: number;
+  isLowStock: boolean;
+  is_low_stock?: boolean;
+  updatedAt?: string;
+  updated_at?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface InventorySummaryDto {
+  totalSkus: number;
+  total_items?: number;
+  inStockCount: number;
+  in_stock_count?: number;
+  lowStockCount: number;
+  low_stock_count?: number;
+  outOfStockCount: number;
+  out_of_stock_count?: number;
+  totalStockedUnits?: number;
+  total_stocked_units?: number;
+}
+
+export interface InventoryAdjustmentDto {
+  inventoryItemId: string;
+  inventory_item_id?: string;
+  locationId: string;
+  location_id?: string;
+  adjustment?: number;
+  newQuantity?: number;
+  stocked_quantity?: number;
+  reason: string;
+  idempotencyKey?: string;
+  idempotency_key?: string;
+}
+
+export interface InventoryAdjustmentResultDto {
+  success: boolean;
+  id?: string;
+  inventoryItemId: string;
+  inventory_item_id?: string;
+  locationId: string;
+  location_id?: string;
+  previousQuantity: number;
+  previous_stocked_quantity?: number;
+  newQuantity: number;
+  stocked_quantity?: number;
+  reserved_quantity?: number;
+  adjustment: number;
+  availableQuantity: number;
+  available_quantity?: number;
+  isLowStock: boolean;
+  is_low_stock?: boolean;
+  reason: string;
+  adjustedAt: string;
+  adjustedBy: string;
+}
+
+export interface InventoryAdjustmentSafetyResult {
+  canAdjust: boolean;
+  reason?: string;
+  resultingStocked?: number;
+  availableQuantity?: number;
 }
 
 // ==========================================
@@ -920,6 +1051,85 @@ export class MarketplaceOwnershipGuard {
       statusCode: 403,
       error: 'FORBIDDEN',
       message: 'Access denied: Invalid actor type for merchant resource.',
+    };
+  }
+
+  /**
+   * Asserts whether a requesting tenant context has read or mutation access to a stock location.
+   */
+  static assertStockLocationAccess(
+    tenant: TenantContext | null | undefined,
+    locationMerchantId: string | null | undefined
+  ): OwnershipAssertionResult {
+    if (!tenant || !tenant.userId) {
+      return {
+        allowed: false,
+        statusCode: 401,
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required. No active session token found.',
+      };
+    }
+
+    if (tenant.actorType === 'super_admin' || tenant.isSuperAdmin) {
+      return { allowed: true, statusCode: 200 };
+    }
+
+    if (tenant.actorType === 'merchant_user') {
+      if (!tenant.merchantId || tenant.merchantId.trim() === '') {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'Access denied: Merchant user is not linked to an active merchant.',
+        };
+      }
+
+      if (!locationMerchantId || tenant.merchantId.trim() !== locationMerchantId.trim()) {
+        return {
+          allowed: false,
+          statusCode: 403,
+          error: 'FORBIDDEN',
+          message: 'Access denied: You do not have access to this stock location.',
+        };
+      }
+
+      return { allowed: true, statusCode: 200 };
+    }
+
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: 'FORBIDDEN',
+      message: 'Access denied: Invalid actor type for stock location.',
+    };
+  }
+
+  /**
+   * Evaluates inventory adjustment safety.
+   * Guarantees stock quantity does not drop below current active reservations or become negative.
+   */
+  static evaluateInventoryAdjustmentSafety(
+    currentStocked: number,
+    reservedQuantity: number,
+    adjustment: number
+  ): InventoryAdjustmentSafetyResult {
+    const resultingStocked = currentStocked + adjustment;
+    if (resultingStocked < 0) {
+      return {
+        canAdjust: false,
+        reason: `INVALID_STOCK: Adjustment would result in negative stock quantity (${resultingStocked}).`,
+      };
+    }
+    if (resultingStocked < reservedQuantity) {
+      return {
+        canAdjust: false,
+        reason: `RESERVATION_CONFLICT: Cannot adjust stock below currently reserved quantity of ${reservedQuantity} units. Active customer orders would be affected.`,
+      };
+    }
+    return {
+      canAdjust: true,
+      resultingStocked,
+      availableQuantity: resultingStocked - reservedQuantity,
     };
   }
 

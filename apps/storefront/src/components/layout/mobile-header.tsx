@@ -29,8 +29,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
 
   const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
-  const siteName = globalSettings?.siteName || 'EcomFashion';
-  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
+  const siteName = globalSettings?.siteName || 'Ateevra';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : '/images/ateevra-logo-cropped.png';
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-xs md:hidden">
@@ -49,22 +49,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-base font-black tracking-tight text-brand-600 truncate max-w-[160px]"
+            className="flex items-center focus:outline-none"
+            aria-label="Ateevra - Made For Your Vibe"
           >
-            {logoUrl ? (
-              <div className="h-6 w-6 rounded overflow-hidden flex items-center justify-center shrink-0">
-                <img
-                  src={logoUrl}
-                  alt={globalSettings?.logo?.alternativeText || siteName}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-            ) : (
-              <div className="h-6 w-6 rounded bg-brand-600 flex items-center justify-center text-white shrink-0">
-                <Sparkles className="h-3.5 w-3.5" />
-              </div>
-            )}
-            <span className="truncate">{siteName}</span>
+            <img
+              src={logoUrl}
+              alt={globalSettings?.logo?.alternativeText || siteName}
+              className="h-6 w-auto max-w-[140px] object-contain"
+            />
           </Link>
         </div>
 

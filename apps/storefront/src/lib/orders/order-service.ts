@@ -76,7 +76,7 @@ export class OrderService {
       paymentStatus: mo.payment_status || 'not_paid',
       fulfillmentStatus: mo.fulfillment_status || 'not_fulfilled',
       customerId: custId,
-      email: mo.email || `${custId}@ecomfashion.in`,
+      email: mo.email || `${custId}@ateevra.in`,
       currencyCode: mo.currency_code?.toUpperCase() || 'INR',
       summary: {
         total: mo.total || 0,

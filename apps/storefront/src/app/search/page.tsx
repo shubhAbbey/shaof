@@ -33,14 +33,14 @@ export async function generateMetadata({ searchParams = {} }: SearchPageProps): 
 
   if (!q) {
     return constructMetadata({
-      title: 'Search Fashion Catalog | EcomFashion',
+      title: 'Search Fashion Catalog | Ateevra',
       description: 'Search our extensive collection of premium ethnic wear, kurtas, dresses, sarees, and modern fashion online.',
       canonicalUrl: '/search',
     });
   }
 
   return constructMetadata({
-    title: `Search results for "${q}" | EcomFashion`,
+    title: `Search results for "${q}" | Ateevra`,
     description: `Explore top-rated styles, pure fabrics, and latest fashion matching "${q}" with fast delivery and COD available across India.`,
     canonicalUrl: `/search?q=${encodeURIComponent(q)}`,
   });

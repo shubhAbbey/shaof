@@ -30,7 +30,7 @@ export interface ServerEnvConfig extends PublicEnvConfig {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'EcomFashion';
+const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'Ateevra';
 const MEDUSA_BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || 'http://localhost:9000';
 const MEDUSA_INTERNAL_URL =
   typeof window === 'undefined'

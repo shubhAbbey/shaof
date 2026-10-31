@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AteevraLoader } from '../../../components/ui/ateevra-loader';
 
 interface MerchantLifecycleEvent {
   fromStatus: string;
@@ -345,8 +346,13 @@ function getAdminAuthHeaders(): Record<string, string> {
         {/* Merchant Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           {loading ? (
-            <div className="p-12 text-center text-slate-400 text-sm">
-              Loading merchant review queue...
+            <div className="p-16 flex flex-col items-center justify-center">
+              <AteevraLoader
+                size="md"
+                variant="admin"
+                text="Loading merchant review queue..."
+                subtext="Ateevra Super Admin Console"
+              />
             </div>
           ) : merchants.length === 0 ? (
             <div className="p-12 text-center text-slate-500 text-sm">

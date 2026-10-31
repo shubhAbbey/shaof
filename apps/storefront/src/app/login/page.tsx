@@ -4,6 +4,7 @@ import React, { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { sanitizeRedirectPath } from '@ecom/types';
 import { LoginForm } from '../../components/auth/login-form';
+import { AteevraLoader } from '../../components/ui/ateevra-loader';
 
 function LoginContent() {
   const searchParams = useSearchParams();
@@ -34,7 +35,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-[70vh] flex items-center justify-center">
-          <div className="animate-pulse text-gray-400">Loading...</div>
+          <AteevraLoader size="lg" variant="customer" text="Loading..." subtext="Connecting to Ateevra" />
         </div>
       }
     >

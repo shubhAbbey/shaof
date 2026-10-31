@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { AteevraLoader } from '../../../components/ui/ateevra-loader';
 
 interface ModerationProduct {
   id: string;
@@ -267,7 +268,14 @@ function getAdminAuthHeaders(): Record<string, string> {
         {/* Queue Table */}
         <div className="mt-6 bg-white shadow overflow-hidden rounded-lg border border-gray-200">
           {loading ? (
-            <div className="py-12 text-center text-gray-500 text-sm">Loading moderation queue...</div>
+            <div className="py-16 flex flex-col items-center justify-center">
+              <AteevraLoader
+                size="md"
+                variant="admin"
+                text="Loading moderation queue..."
+                subtext="Ateevra Super Admin Console"
+              />
+            </div>
           ) : queue.length === 0 ? (
             <div className="py-12 text-center text-gray-500 text-sm">
               No products found in the moderation queue matching status &quot;{statusFilter}&quot;.

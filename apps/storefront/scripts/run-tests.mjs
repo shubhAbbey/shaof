@@ -1187,12 +1187,12 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
       }
 
       const canonicalUrl = getCanonicalPdpUrl(
-        'https://www.ecomfashion.com',
+        'https://www.ateevra.in',
         'chanderi-silk-anarkali-suit'
       );
       assert.equal(
         canonicalUrl,
-        'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit'
+        'https://www.ateevra.in/product/chanderi-silk-anarkali-suit'
       );
       assert.equal(canonicalUrl.includes('localhost'), false);
       assert.equal(canonicalUrl.includes('?'), false);
@@ -1204,12 +1204,12 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
       }
 
       const canonicalUrl = getCanonicalPdpUrl(
-        'https://www.ecomfashion.com',
+        'https://www.ateevra.in',
         'embroidered-kurta-&-dupatta-set'
       );
       assert.equal(
         canonicalUrl,
-        'https://www.ecomfashion.com/product/embroidered-kurta-%26-dupatta-set'
+        'https://www.ateevra.in/product/embroidered-kurta-%26-dupatta-set'
       );
     });
 
@@ -1232,7 +1232,7 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
       const sharePayload = {
         title: 'Chanderi Silk Anarkali Suit',
         text: 'Explore Chanderi Silk Anarkali Suit on Gulmohar',
-        url: 'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit',
+        url: 'https://www.ateevra.in/product/chanderi-silk-anarkali-suit',
       };
 
       // When navigator.share exists:
@@ -1245,7 +1245,7 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
       await mockNavigator.clipboard.writeText(sharePayload.url);
       assert.equal(
         clipboardText,
-        'https://www.ecomfashion.com/product/chanderi-silk-anarkali-suit'
+        'https://www.ateevra.in/product/chanderi-silk-anarkali-suit'
       );
     });
   });
@@ -1253,11 +1253,11 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
   describe('3. Centralized Configuration & Environment Separation', () => {
     it('centralizes environment access and segregates public vs server-only variables', () => {
       const mockEnv = {
-        siteUrl: 'https://www.ecomfashion.com',
+        siteUrl: 'https://www.ateevra.in',
         siteName: 'Gulmohar Fashion',
-        medusaUrl: 'https://api.ecomfashion.com',
+        medusaUrl: 'https://api.ateevra.in',
         medusaPublishableKey: 'pk_live_key_123',
-        strapiUrl: 'https://cms.ecomfashion.com',
+        strapiUrl: 'https://cms.ateevra.in',
         nodeEnv: 'production',
         isDevelopment: false,
         isProduction: true,
@@ -1265,9 +1265,9 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
         strapiApiToken: undefined, // client context
       };
 
-      assert.equal(mockEnv.siteUrl, 'https://www.ecomfashion.com');
-      assert.equal(mockEnv.medusaUrl, 'https://api.ecomfashion.com');
-      assert.equal(mockEnv.strapiUrl, 'https://cms.ecomfashion.com');
+      assert.equal(mockEnv.siteUrl, 'https://www.ateevra.in');
+      assert.equal(mockEnv.medusaUrl, 'https://api.ateevra.in');
+      assert.equal(mockEnv.strapiUrl, 'https://cms.ateevra.in');
       assert.equal(mockEnv.isProduction, true);
       assert.equal(mockEnv.strapiApiToken, undefined);
     });
@@ -1275,7 +1275,7 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
     it('resolves centralized API endpoint routes without hardcoded duplicate strings', () => {
       const mockApiConfig = {
         medusa: {
-          baseUrl: 'https://api.ecomfashion.com',
+          baseUrl: 'https://api.ateevra.in',
           endpoints: {
             products: '/store/products',
             productByHandle: (handle) => `/store/products?handle=${encodeURIComponent(handle)}`,
@@ -1283,14 +1283,14 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
           },
         },
         cms: {
-          baseUrl: 'https://cms.ecomfashion.com',
+          baseUrl: 'https://cms.ateevra.in',
           endpoints: {
             pages: '/api/pages',
             pageBySlug: (slug) => `/api/pages?filters[slug][$eq]=${encodeURIComponent(slug)}`,
           },
         },
         storefront: {
-          baseUrl: 'https://www.ecomfashion.com',
+          baseUrl: 'https://www.ateevra.in',
           internalApi: {
             productDetail: (handle) => `/api/products/${encodeURIComponent(handle)}`,
           },
@@ -1868,22 +1868,22 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
         const trimmed = (q || '').trim();
         if (!trimmed) {
           return {
-            title: 'Search Fashion Catalog | EcomFashion',
+            title: 'Search Fashion Catalog | Ateevra',
             canonicalUrl: '/search',
           };
         }
         return {
-          title: `Search results for "${trimmed}" | EcomFashion`,
+          title: `Search results for "${trimmed}" | Ateevra`,
           canonicalUrl: `/search?q=${encodeURIComponent(trimmed)}`,
         };
       };
 
       const metaWithQuery = generateMeta('chikankari kurta');
-      assert.equal(metaWithQuery.title, 'Search results for "chikankari kurta" | EcomFashion');
+      assert.equal(metaWithQuery.title, 'Search results for "chikankari kurta" | Ateevra');
       assert.equal(metaWithQuery.canonicalUrl, '/search?q=chikankari%20kurta');
 
       const metaEmpty = generateMeta('');
-      assert.equal(metaEmpty.title, 'Search Fashion Catalog | EcomFashion');
+      assert.equal(metaEmpty.title, 'Search Fashion Catalog | Ateevra');
       assert.equal(metaEmpty.canonicalUrl, '/search');
     });
 
@@ -6233,7 +6233,7 @@ describe('Tasks 25-27: Checkout Orchestration, Razorpay & COD', () => {
     regionId: 'reg_in',
     currencyCode: 'INR',
     customerId: 'cust_test_01',
-    email: 'test@ecomfashion.in',
+    email: 'test@ateevra.in',
     items: [
       {
         id: 'item_01',

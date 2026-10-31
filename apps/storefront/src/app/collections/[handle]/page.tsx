@@ -33,7 +33,7 @@ export async function generateMetadata({ params, searchParams }: CollectionPlpPr
 
   if (!collection) {
     return {
-      title: 'Collection Not Found | EcomFashion',
+      title: 'Collection Not Found | Ateevra',
       robots: { index: false, follow: false },
     };
   }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { AteevraLoader } from '../../../components/ui/ateevra-loader';
 
 interface SessionInfo {
   userId: string;
@@ -103,13 +104,17 @@ export default function MerchantLoginPage() {
       // Login succeeded at the identity level. Check merchant account status
       const session: SessionInfo = data.session;
 
-      if (session.merchantStatus === 'draft' || session.merchantStatus === 'pending_approval') {
-        setAccountStatusNotice({
-          type: session.merchantStatus === 'draft' ? 'draft' : 'pending',
-          message:
-            "Your store application is currently in 'draft' status. Commercial features (products, orders, fulfillment) remain restricted until verified by platform staff.",
-        });
-        setIsSubmitting(false);
+      // Store auth session token in browser sessionStorage / local state for client requests if needed
+      if (data.token) {
+        try {
+          sessionStorage.setItem('ecom_merchant_token', data.token);
+        } catch {}
+      }
+
+      // Check merchant status
+      if (session.merchantStatus === 'draft' || session.merchantStatus === 'pending_approval' || session.merchantStatus === 'rejected') {
+        // Redirect to onboarding application view where seller can view status, complete profile, or submit/resubmit
+        window.location.href = '/merchant/onboarding';
         return;
       }
 
@@ -123,16 +128,6 @@ export default function MerchantLoginPage() {
         return;
       }
 
-      if (session.merchantStatus === 'rejected') {
-        setAccountStatusNotice({
-          type: 'rejected',
-          message:
-            'This merchant store application was rejected by platform administration.',
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
       if (session.membershipStatus !== 'active') {
         setAccountStatusNotice({
           type: 'membership_inactive',
@@ -141,13 +136,6 @@ export default function MerchantLoginPage() {
         });
         setIsSubmitting(false);
         return;
-      }
-
-      // Store auth session token in browser sessionStorage / local state for client requests if needed
-      if (data.token) {
-        try {
-          sessionStorage.setItem('ecom_merchant_token', data.token);
-        } catch {}
       }
 
       // Redirect to target or merchant products
@@ -239,7 +227,17 @@ export default function MerchantLoginPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-      <div className="max-w-md w-full bg-white p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-100">
+      <div className="max-w-md w-full bg-white p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-100 relative min-h-[380px]">
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 rounded-2xl p-6 text-center animate-fadeIn">
+            <AteevraLoader
+              size="lg"
+              variant="merchant"
+              text="Signing into Merchant Hub..."
+              subtext="Connecting to Ateevra Merchant Portal"
+            />
+          </div>
+        )}
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3 font-bold text-xl">
             🏪

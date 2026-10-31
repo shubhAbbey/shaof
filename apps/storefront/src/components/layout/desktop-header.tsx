@@ -38,9 +38,9 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
 
   const categories = navigation && navigation.length > 0 ? navigation : (NAVIGATION_CATEGORIES as unknown as CmsCategoryNavItemDto[]);
   const announcementText = globalSettings?.announcementText || 'Free Express Shipping across India on orders above ₹999 | Cash on Delivery Available';
-  const siteTagline = globalSettings?.siteTagline || 'India Modern Edit';
-  const siteName = globalSettings?.siteName || 'EcomFashion';
-  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : null;
+  const siteTagline = globalSettings?.siteTagline || 'Made For Your Vibe';
+  const siteName = globalSettings?.siteName || 'Ateevra';
+  const logoUrl = globalSettings?.logo?.url ? getStrapiMediaUrl(globalSettings.logo.url) : '/images/ateevra-logo-cropped.png';
 
   const handleCategoryHover = (index: number) => {
     setActiveCategoryIndex(index);
@@ -86,29 +86,18 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
       {/* 2. Main Brand & Search Bar */}
       <div className="border-b border-gray-100 py-3.5">
         <Container size="xl" className="flex items-center justify-between gap-8">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0 group">
-            {logoUrl ? (
-              <div className="h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-                <img
-                  src={logoUrl}
-                  alt={globalSettings?.logo?.alternativeText || siteName}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-            ) : (
-              <div className="h-9 w-9 rounded-lg bg-brand-600 flex items-center justify-center text-white shadow-xs group-hover:bg-brand-700 transition-colors">
-                <Sparkles className="h-5 w-5" />
-              </div>
-            )}
-            <div className="flex flex-col">
-              <span className="text-xl font-black tracking-tight text-gray-900 leading-none">
-                {siteName.slice(0, 4)}<span className="text-brand-600">{siteName.slice(4)}</span>
-              </span>
-              <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">
-                {siteTagline}
-              </span>
+          {/* Ateevra Primary Brand Logo (No device before text) */}
+          <Link href="/" className="flex flex-col items-start shrink-0 group focus:outline-none" aria-label="Ateevra - Made For Your Vibe">
+            <div className="h-8 md:h-9 flex items-center">
+              <img
+                src={logoUrl}
+                alt={globalSettings?.logo?.alternativeText || siteName}
+                className="h-7 md:h-8 w-auto object-contain transition-opacity group-hover:opacity-90"
+              />
             </div>
+            <span className="text-[9px] md:text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-0.5 m-auto">
+              {siteTagline}
+            </span>
           </Link>
 
           {/* Desktop Search Bar */}

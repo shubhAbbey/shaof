@@ -9,5 +9,8 @@ import StockLocationModule from '@medusajs/medusa/stock-location';
  */
 export default defineLink(
   MarketplaceModule.linkable.merchant,
-  StockLocationModule.linkable.stockLocation
+  {
+    linkable: StockLocationModule.linkable.stockLocation,
+    isList: true,
+  }
 );

@@ -3,12 +3,12 @@ export const SEED_PAGES = [
     title: 'Homepage',
     slug: 'homepage',
     pageType: 'homepage',
-    description: 'Official EcomFashion Storefront Homepage',
+    description: 'Official Ateevra Storefront Homepage',
     seo: {
-      metaTitle: 'EcomFashion | Premium Indian Ethnic & Western Wear',
+      metaTitle: 'Ateevra | Premium Indian Ethnic & Western Wear',
       metaDescription:
         'Discover handcrafted luxury ethnic kurtas, silk sarees, and modern western silhouettes with fast express delivery across India.',
-      canonicalUrl: 'https://ecomfashion.com',
+      canonicalUrl: 'https://ateevra.in',
     },
     sections: [
       {
@@ -76,10 +76,10 @@ export const SEED_PAGES = [
     pageType: 'sale_page',
     description: 'Flash discounts and clearance deals on Indian ethnic and western fashion',
     seo: {
-      metaTitle: 'Mega Season Finale Sale | Up to 70% Off | EcomFashion',
+      metaTitle: 'Mega Season Finale Sale | Up to 70% Off | Ateevra',
       metaDescription:
         'Explore extraordinary discounts up to 70% off on sarees, anarkalis, kurtis, dresses, and shirts. Fast delivery across India.',
-      canonicalUrl: 'https://ecomfashion.com/sale',
+      canonicalUrl: 'https://ateevra.in/sale',
     },
     sections: [
       {
@@ -119,10 +119,10 @@ export const SEED_PAGES = [
     pageType: 'campaign_page',
     description: 'Breezy organic linens and sun-kissed pastels for the summer season',
     seo: {
-      metaTitle: 'Summer Solstice Campaign 2026 | EcomFashion',
+      metaTitle: 'Summer Solstice Campaign 2026 | Ateevra',
       metaDescription:
         'Discover breathable organic cottons, flowy maxi silhouettes, and pastel hues handcrafted for warm summer days.',
-      canonicalUrl: 'https://ecomfashion.com/pages/summer-campaign-2026',
+      canonicalUrl: 'https://ateevra.in/pages/summer-campaign-2026',
     },
     sections: [
       {
@@ -158,10 +158,10 @@ export const SEED_PAGES = [
     pageType: 'landing_page',
     description: 'Curated royal festive kurtas with intricate zari embroidery',
     seo: {
-      metaTitle: 'Royal Festive Kurtas Edit | EcomFashion',
+      metaTitle: 'Royal Festive Kurtas Edit | Ateevra',
       metaDescription:
         'Explore opulent silk blends, intricate zari work, and royal festive kurtas tailored for special celebrations.',
-      canonicalUrl: 'https://ecomfashion.com/pages/festive-kurtas-edit',
+      canonicalUrl: 'https://ateevra.in/pages/festive-kurtas-edit',
     },
     sections: [
       {
@@ -182,15 +182,15 @@ export const SEED_PAGES = [
     ],
   },
   {
-    title: 'About EcomFashion — Our Heritage & Craft',
+    title: 'About Ateevra — Our Heritage & Craft',
     slug: 'about-us',
     pageType: 'brand_content_page',
-    description: 'The story behind EcomFashion, Indian craft heritage, and sustainable design',
+    description: 'The story behind Ateevra, Indian craft heritage, and sustainable design',
     seo: {
-      metaTitle: 'About Us | Our Story & Craft Heritage | EcomFashion',
+      metaTitle: 'About Us | Our Story & Craft Heritage | Ateevra',
       metaDescription:
-        'Learn about EcomFashion’s journey, ethical sourcing from Indian weavers, and our commitment to sustainable modern fashion.',
-      canonicalUrl: 'https://ecomfashion.com/pages/about-us',
+        'Learn about Ateevra’s journey, ethical sourcing from Indian weavers, and our commitment to sustainable modern fashion.',
+      canonicalUrl: 'https://ateevra.in/pages/about-us',
     },
     sections: [
       {
@@ -203,7 +203,7 @@ export const SEED_PAGES = [
       {
         __component: 'sections.rich-text',
         content:
-          '<h2>Our Craft Philosophy</h2><p>Founded in 2026, EcomFashion was born out of a deep reverence for India’s rich textile heritage. We collaborate directly with artisanal weaving clusters in Rajasthan, Gujarat, and Varanasi to bring you authentic, breathable fabrics crafted with integrity.</p><h3>Sustainable & Ethical Sourcing</h3><p>Every piece in our collection is crafted with zero-waste cutting techniques, natural botanical dyes, and fair-wage artisan partnerships.</p>',
+          '<h2>Our Craft Philosophy</h2><p>Founded in 2026, Ateevra was born out of a deep reverence for India’s rich textile heritage. We collaborate directly with artisanal weaving clusters in Rajasthan, Gujarat, and Varanasi to bring you authentic, breathable fabrics crafted with integrity.</p><h3>Sustainable & Ethical Sourcing</h3><p>Every piece in our collection is crafted with zero-waste cutting techniques, natural botanical dyes, and fair-wage artisan partnerships.</p>',
       },
       {
         __component: 'sections.promotional-cta',
@@ -222,15 +222,15 @@ export const SEED_PAGES = [
     pageType: 'policy_page',
     description: 'Privacy policy, data collection, cookies, and consumer rights',
     seo: {
-      metaTitle: 'Privacy Policy | EcomFashion',
+      metaTitle: 'Privacy Policy | Ateevra',
       metaDescription: 'Read our Privacy Policy and data protection commitments for all users across India.',
-      canonicalUrl: 'https://ecomfashion.com/policies/privacy-policy',
+      canonicalUrl: 'https://ateevra.in/policies/privacy-policy',
     },
     sections: [
       {
         __component: 'sections.rich-text',
         content:
-          '<h1>Privacy Policy</h1><p><strong>Last Updated: August 2026</strong></p><p>At EcomFashion, accessible from ecomfashion.com, one of our main priorities is the privacy of our visitors. This Privacy Policy document contains types of information that is collected and recorded by EcomFashion and how we use it.</p><h2>1. Information We Collect</h2><p>When you place an order, create an account, or subscribe to our newsletter, we collect personal information including name, email, phone number, shipping address, and payment preferences.</p><h2>2. How We Use Your Information</h2><p>We use the information we collect to process orders, manage deliveries, send order status updates, and improve customer experience.</p><h2>3. Payment Security & COD</h2><p>We do not store your credit card numbers or UPI PINs. All payment transactions are encrypted through PCI-DSS compliant payment gateways.</p>',
+          '<h1>Privacy Policy</h1><p><strong>Last Updated: August 2026</strong></p><p>At Ateevra, accessible from ateevra.in, one of our main priorities is the privacy of our visitors. This Privacy Policy document contains types of information that is collected and recorded by Ateevra and how we use it.</p><h2>1. Information We Collect</h2><p>When you place an order, create an account, or subscribe to our newsletter, we collect personal information including name, email, phone number, shipping address, and payment preferences.</p><h2>2. How We Use Your Information</h2><p>We use the information we collect to process orders, manage deliveries, send order status updates, and improve customer experience.</p><h2>3. Payment Security & COD</h2><p>We do not store your credit card numbers or UPI PINs. All payment transactions are encrypted through PCI-DSS compliant payment gateways.</p>',
       },
     ],
   },
