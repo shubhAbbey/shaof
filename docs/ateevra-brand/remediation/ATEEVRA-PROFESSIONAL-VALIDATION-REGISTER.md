@@ -25,19 +25,19 @@ This register establishes the **Five Professional Validation Gates** required pr
 | Gate| Professional Authority   | Focus Decision Areas  | Mandatory Sign-Off Deliverables  | Statutory Reference /    | Validation Gate Status  |
 | ID  | & Credentials Required   | & Technical Scope     | Prior to Production Activation   | Regulatory Standard      | & Blocking Action       |
 +----+--------------------------+-----------------------+----------------------------------+--------------------------+-------------------------+
-| G-CA| Statutory Chartered      | - ATEEVRA-OD-001      | 1. Certified Opinion on Sec 31   | - CGST Act, 2017 Sec 31  | PENDING OWNER           |
-|     | Accountant (FCA / ICWAI) | - ATEEVRA-OD-007      |    B2C / B2B direct tax invoice. | - Section 52 & 194-O     | APPOINTMENT             |
-|     |                          | - ATEEVRA-OD-026      | 2. Formal sign-off on non-       |   inapplicability opinion| (Blocks: Phase 2 Tax    |
-|     |                          | - ATEEVRA-OD-027      |    applicability of Sec 52 TCS.  | - Ind AS 2 (Inventories) |  Invoice Release)       |
-|     |                          |                       | 3. Ledger mapping for BOM        | - Ind AS 115 (Revenue)   |                         |
-|     |                          |                       |    capitalization & Ind AS 2 NRV.|                          |                         |
+| G-CA| Statutory Chartered      | - ATEEVRA-OD-001      | 1. Certified Opinion on Sec 31   | - CGST Act, 2017 Sec 31  | EXISTING ADVISOR        |
+|     | Accountant (FCA / ICWAI) | - ATEEVRA-OD-007      |    B2C / B2B direct tax invoice. | - Section 52 & 194-O     | IDENTIFIED / BRIEF      |
+|     |                          | - ATEEVRA-OD-026      | 2. Formal sign-off on non-       |   inapplicability opinion| COMPLETED; REVIEW       |
+|     |                          | - ATEEVRA-OD-027      |    applicability of Sec 52 TCS.  | - Ind AS 2 (Inventories) | PENDING (Blocks:        |
+|     |                          |                       | 3. Ledger mapping for BOM        | - Ind AS 115 (Revenue)   | Formal Ratification &   |
+|     |                          |                       |    capitalization & Ind AS 2 NRV.|                          | Phase 2 Invoice Release)|
 +----+--------------------------+-----------------------+----------------------------------+--------------------------+-------------------------+
-| G-LG| Corporate E-Commerce     | - ATEEVRA-OD-003      | 1. Storefront PDP Legal Metrology| - Legal Metrology Rules  | PENDING OWNER           |
-|     | Legal Counsel (Bar)      | - ATEEVRA-OD-010      |    compliance certificate.       |   2011 (Rule 6(10) E-Com)| APPOINTMENT             |
-|     |                          | - ATEEVRA-OD-014      | 2. Terms of Sale & Concierge     | - Consumer Protection    | (Blocks: Phase 3 Public |
-|     |                          | - ATEEVRA-OD-015      |    Return policy sign-off.       |   Rules 2020 (Direct Sel)|  Storefront Launch)     |
-|     |                          |                       | 3. DPDP Act 2023 Consent & Data  | - DPDP Act, 2023         |                         |
-|     |                          |                       |    Fiduciary Governance Charter. | - Trade Marks Act, 1999  |                         |
+| G-LG| Corporate E-Commerce     | - ATEEVRA-OD-003      | 1. Storefront PDP Legal Metrology| - Legal Metrology Rules  | EXISTING ADVISOR        |
+|     | Legal Counsel (Bar)      | - ATEEVRA-OD-010      |    compliance certificate.       |   2011 (Rule 6(10) E-Com)| IDENTIFIED / BRIEF      |
+|     |                          | - ATEEVRA-OD-014      | 2. Terms of Sale & Concierge     | - Consumer Protection    | COMPLETED; REVIEW       |
+|     |                          | - ATEEVRA-OD-015      |    Return policy sign-off.       |   Rules 2020 (Direct Sel)| PENDING (Blocks:        |
+|     |                          |                       | 3. DPDP Act 2023 Consent & Data  | - DPDP Act, 2023         | Formal Ratification &   |
+|     |                          |                       |    Fiduciary Governance Charter. | - Trade Marks Act, 1999  | Phase 3 Storefront)     |
 +----+--------------------------+-----------------------+----------------------------------+--------------------------+-------------------------+
 | G-QA| Textile Laboratory &     | - ATEEVRA-OD-002      | 1. Standardized AQL 2.5 sampling | - ISO 2859-1 (Level II)  | PENDING OWNER           |
 |     | Quality Assurance Expert | - ATEEVRA-OD-011      |    inspection protocol.          | - ISO 105-C06 (Washing)  | APPOINTMENT             |

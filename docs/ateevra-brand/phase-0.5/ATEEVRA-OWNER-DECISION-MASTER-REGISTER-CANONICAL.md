@@ -20,8 +20,8 @@ This register provides the untruncated, verbatim canonical titles, domains, auth
 +-----+-----------------------------------------------------------------------+----------+----------+-----------------------+-------------------+
 | ID  | Full Canonical Decision Title                                         | Domain   | Status   | Required Gate         | Related ADRs      |
 +-----+-----------------------------------------------------------------------+----------+----------+-----------------------+-------------------+
-| 001 | Direct First-Party Luxury Brand Commercial Model & Seller of Record   | Domain A | PROPOSED | Gate G-CA / Gate G-LG | ADR-001           |
-| 002 | Product Sourcing, Atelier Contracting & Private Label Strategy        | Domain B | PROPOSED | Gate G-QA             | ADR-002           |
+| 001 | Direct First-Party Luxury Brand Commercial Model & Seller of Record   | Domain A | PROPOSED*| Gate G-CA / Gate G-LG | ADR-001           |
+| 002 | Product Sourcing, Atelier Contracting & Private Label Strategy        | Domain B | PROPOSED*| Gate G-QA / Gate G-SUP | ADR-002           |
 | 003 | Luxury Catalog Architecture, HSN Codes & Legal Metrology              | Domain C | PROPOSED | Gate G-LG             | ADR-003, ADR-005  |
 | 004 | Value-Based Luxury Pricing Architecture & Price Integrity             | Domain D | PROPOSED | Gate G-CA             | ADR-001, ADR-007  |
 | 005 | Promotional Discipline, VIP Previews & Floor Price Protection         | Domain D | PROPOSED | Gate G-CA             | ADR-005           |
@@ -35,11 +35,11 @@ This register provides the untruncated, verbatim canonical titles, domains, auth
 | 013 | Private Client Styling Dossier & VIP Clienteling Program              | Domain H | PROPOSED | Internal Luxury       | ADR-006           |
 | 014 | Client Data Protection, DPDP Act 2023 Compliance & PII Masking        | Domain I | PROPOSED | Gate G-LG             | ADR-006           |
 | 015 | Brand Protection, Trademark Enforcement & Grey Market Defenses        | Domain J | PROPOSED | Gate G-LG             | ADR-001           |
-| 016 | Headless Commerce Architecture: Medusa v2.19, Strapi v5 & Next.js 15  | Domain K | PROPOSED | Gate G-ARCH           | ADR-003, ADR-004  |
+| 016 | Headless Commerce Architecture: Medusa v2.19, Strapi v5 & Next 14     | Domain K | PROPOSED | Gate G-ARCH           | ADR-003, ADR-004  |
 | 017 | Decoupling Marketplace Multi-Vendor Links & Commercial Mode Gate      | Domain K | PROPOSED | Gate G-ARCH           | ADR-004           |
 | 018 | Internal Admin Panel Architecture, 6 Corporate Roles & TOTP MFA       | Domain L | PROPOSED | Gate G-SEC            | ADR-006           |
 | 019 | Dual-Authorization Financial Thresholds & Immutable Audit Logs        | Domain L | PROPOSED | Gate G-SEC            | ADR-006           |
-| 020 | Luxury Storefront Visual Identity, Preserved Assets & Next.js 15 ISR   | Domain M | PROPOSED | Internal UX           | ADR-003, ADR-005  |
+| 020 | Luxury Storefront Visual Identity, Preserved Assets & Next.js 14 ISR  | Domain M | PROPOSED | Internal UX           | ADR-003, ADR-005  |
 | 021 | Frictionless Single-Page Luxury Checkout Architecture                  | Domain M | PROPOSED | Internal UX           | ADR-005           |
 | 022 | B2B Atelier Supplier Qualification, Tech Packs & Ethical Audits       | Domain N | PROPOSED | Gate G-QA             | ADR-002           |
 | 023 | Purchase Order Milestone Financing & Advance Payment Risk Mitigation  | Domain N | PROPOSED | Gate G-CA             | ADR-002, ADR-007  |
@@ -50,6 +50,8 @@ This register provides the untruncated, verbatim canonical titles, domains, auth
 | 028 | 16-Week Phased Rollout, Quality Gates & Independent Validation        | Dom. Q-U | PROPOSED | All 5 Gates           | ADR-001, ADR-004  |
 +-----+-----------------------------------------------------------------------+----------+----------+-----------------------+-------------------+
 ```
+*Note on OD-001: Owner Direction Captured on 2026-11-05 (Option A — Pure First-Party D2C Luxury Brand under single corporate entity with segregated operations/accounting; formal ratification pending Gate G-CA and Gate G-LG).*  
+*Note on OD-002: Owner Direction Captured on 2026-11-05 (Option D — Category Hybrid Sourcing combining custom contract manufacturing for core apparel, finished-product purchasing for selected categories with authorized branding, and category-level flexibility; factory CapEx excluded; preliminary allocations; quantitative modeling required prior to commercial approval; see [ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md)).*
 
 ---
 
@@ -61,15 +63,17 @@ This register provides the untruncated, verbatim canonical titles, domains, auth
 - **Business Scope:** Commercial positioning and legal Seller of Record (SOR) structure for ATEEVRA fashion sales transactions.
 - **Strategic Options:** Option A: Pure First-Party D2C Luxury Brand (RECOMMENDED; Tenant ID: `ATEEVRA_CORP`); Option B: Consignment / Agency Concession Model; Option C: Managed Luxury Marketplace.
 - **Dependencies:** None (Root Decision). Blocks: All downstream decisions (OD-002 through OD-028).
-- **Related ADRs:** [`ADR-001`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/architecture/ADR/ADR-001-first-party-commerce-domain-boundaries.md). **Required Gate:** `Gate G-CA` / `Gate G-LG`. **Status:** `PROPOSED`.
+- **Related ADRs:** [`ADR-001`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/architecture/ADR/ADR-001-first-party-commerce-domain-boundaries.md). **Required Gate:** `Gate G-CA` / `Gate G-LG`. **Status:** `PROPOSED (Owner Direction Captured: Option A — Awaiting Formal Ratification & Professional Gates; see [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md))`.
+- **Owner Direction Record (2026-11-05):** Option A (Pure First-Party Brand / Sole SOR) under one legal company operating both ATEEVRA and marketplace with segregated cost centers/accounting; ATEEVRA is priority #1; marketplace non-destruction enforced.
 
 ### `ATEEVRA-OD-002`: Product Sourcing, Atelier Contracting & Private Label Strategy
 - **Authoritative Path:** [`docs/ateevra-brand/owner-decisions/ATEEVRA-OD-002-sourcing-and-atelier-contracting.md`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/owner-decisions/ATEEVRA-OD-002-sourcing-and-atelier-contracting.md)
 - **Domain Mapping:** Domain B (Product Sourcing & Private Label Manufacturing)
 - **Business Scope:** Manufacturing and atelier contracting model to guarantee garment tailoring quality and capital efficiency.
-- **Strategic Options:** Option A: Contract Manufacturing with Certified Luxury Ateliers (RECOMMENDED); Option B: Fully Owned Vertical Manufacturing Facility; Option C: Ready-Made White-Label Sourcing.
+- **Strategic Options:** Option A: Contract Manufacturing with Certified Luxury Ateliers (Full-Package FOB); Option B: Contract CMT (Cut, Make, Trim) Job-Work; Option C: Ready-Made White-Label Sourcing; Option D: Category Hybrid Sourcing (Contract Manufacturing for Core Apparel + Finished-Product Purchasing for Selected Categories); Option E: Vertically Owned Manufacturing Facility.
 - **Dependencies:** Upstream: OD-001. Blocks: OD-003, OD-022, OD-023, OD-026.
-- **Related ADRs:** [`ADR-002`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/architecture/ADR/ADR-002-internal-brand-inventory-ownership.md). **Required Gate:** `Gate G-QA`. **Status:** `PROPOSED`.
+- **Related ADRs:** [`ADR-002`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/architecture/ADR/ADR-002-internal-brand-inventory-ownership.md). **Required Gate:** `Gate G-QA` / `Gate G-SUP`. **Status:** `PROPOSED (Owner Direction Captured: Option D — Category Hybrid Sourcing — Awaiting Quantitative Modeling, Professional Gates & Formal Ratification; see [ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md))`.
+- **Owner Direction Record (2026-11-05):** Option D (Category Hybrid Sourcing) selected as preferred strategy for continued deliberation. Combines custom contract manufacturing for core apparel, finished-product purchasing from qualified manufacturers for selected categories with authorized branding, and category-level sourcing flexibility (CMT, white-label, or finished purchase). Owned factory is excluded. Preliminary category allocations; requires quantitative modeling before commercial approval; zero supplier commitments authorized.
 
 ### `ATEEVRA-OD-003`: Luxury Catalog Architecture, HSN Codes & Legal Metrology
 - **Authoritative Path:** [`docs/ateevra-brand/owner-decisions/ATEEVRA-OD-003-catalog-and-legal-metrology.md`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/owner-decisions/ATEEVRA-OD-003-catalog-and-legal-metrology.md)

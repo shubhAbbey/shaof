@@ -30,7 +30,7 @@ The Project Owner is presented with the complete, structured decision dossier fo
 +-------------------+------------------------------------+----------+------------------+------------------+
 | Decision ID       | Decision Title                     | Options  | Status           | Required Gate    |
 +-------------------+------------------------------------+----------+------------------+------------------+
-| ATEEVRA-OD-001    | Direct First-Party Luxury Brand Commercial Model & Seller of Record | 3        | PROPOSED         | Gate G-CA / G-LG |
+| ATEEVRA-OD-001    | Direct First-Party Luxury Brand Commercial Model & Seller of Record | 3        | PROPOSED (Direction Captured) | Gate G-CA / G-LG |
 | ATEEVRA-OD-004    | Value-Based Luxury Pricing Architecture & Price Integrity | 3        | PROPOSED         | Gate G-CA        |
 | ATEEVRA-OD-005    | Promotional Discipline, VIP Previews & Floor Price Protection | 3        | PROPOSED         | Gate G-CA        |
 | ATEEVRA-OD-013    | Private Client Styling Dossier & VIP Clienteling Program | 2        | PROPOSED         | Internal Luxury  |
@@ -46,6 +46,7 @@ The Project Owner is presented with the complete, structured decision dossier fo
   - **Option C: Curated Multi-Vendor Luxury Marketplace.** Third-party designer brands sell on ATEEVRA's platform under marketplace terms. High SKU scale but dilutes brand equity and triggers Section 52 TCS compliance.
 - **Trade-Offs & Financial Impact:** Option A requires ₹45L–₹60L working capital inventory commitment but yields 70.9% gross margin and full brand control.
 - **Downstream Blocking:** Blocks ALL downstream decisions.
+- **Owner Direction Captured (2026-11-05):** The Project Owner selected **Option A — Pure First-Party D2C Luxury Brand (Sole Seller of Record)** under a **single legal company operating both ATEEVRA and the existing marketplace** with strict operational and accounting segregation (distinct cost centers, ledgers, P&L; joint statutory corporate liability). Formal ratification remains pending required professional gates (Gate G-CA and Gate G-LG). ATEEVRA brand is designated the first business priority, with non-destructive preservation of existing marketplace capabilities. Refer to [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
 
 ### 2.2 `ATEEVRA-OD-004`: Value-Based Luxury Pricing Architecture & Price Integrity
 - **Dilemma:** Pricing methodology across core apparel categories (tailored blazers, silk shirts, wool trousers).
@@ -85,7 +86,7 @@ The Project Owner is presented with the complete, structured decision dossier fo
 +-------------------+------------------------------------+----------+------------------+------------------+
 | Decision ID       | Decision Title                     | Options  | Status           | Required Gate    |
 +-------------------+------------------------------------+----------+------------------+------------------+
-| ATEEVRA-OD-002    | Product Sourcing, Atelier Contracting & Private Label Strategy | 3        | PROPOSED         | Gate G-QA        |
+| ATEEVRA-OD-002    | Product Sourcing, Atelier Contracting & Private Label Strategy | 5        | PROPOSED (Direction Captured) | Gate G-QA / G-SUP |
 | ATEEVRA-OD-003    | Luxury Catalog Architecture, HSN Codes & Legal Metrology | 3        | PROPOSED         | Gate G-LG        |
 | ATEEVRA-OD-011    | Post-Return Triage, Ozone Sanitation & Restocking Governance | 2        | PROPOSED         | Gate G-QA / G-LG |
 | ATEEVRA-OD-022    | B2B Atelier Supplier Qualification, Tech Packs & Ethical Audits | 2        | PROPOSED         | Gate G-QA        |
@@ -96,9 +97,13 @@ The Project Owner is presented with the complete, structured decision dossier fo
 ### 3.1 `ATEEVRA-OD-002`: Product Sourcing, Atelier Contracting & Private Label Strategy
 - **Dilemma:** Production methodology for ATEEVRA's luxury apparel.
 - **Evaluated Options:**
-  - **Option A (Recommended): Certified Contract Ateliers under Cut-Make-Trim (CMT) & Full-Package Sourcing.** Partner with 3–5 specialized export-grade garment manufacturers in Bengaluru and Mumbai. ATEEVRA controls fabric procurement and technical packs; ateliers provide artisan cut and sew.
-  - **Option B: Fully Owned Vertical Manufacturing Facility.** Purchasing heavy machinery, specialized sewing units, and employing a full factory workforce. Unviable for launch (demands ₹5Cr+ capital expenditure and massive operational overhead).
-  - **Option C: Ready-Made White-Label Sourcing.** Buying existing garment blanks from wholesale markets and stitching ATEEVRA neck labels. Destroys luxury fit, fabric exclusivity, and brand integrity.
+  - **Option A: Certified Contract Ateliers under Full-Package FOB.** Partner with specialized luxury garment ateliers to produce garments to custom Tech Packs. Atelier procures fabric and trims; ATEEVRA pays on PO milestones.
+  - **Option B: Contract CMT (Cut, Make, Trim) Job-Work Manufacturing.** ATEEVRA procures fabrics directly from primary mills; ateliers provide labor and assembly. Requires carrying raw fabric inventory buffer.
+  - **Option C: Finished-Product White-Label Sourcing.** Buying existing garment blanks from wholesale markets and stitching ATEEVRA neck labels. Destroys luxury fit, fabric exclusivity, and brand integrity.
+  - **Option D (Owner Direction): Category Hybrid Sourcing.** Custom contract manufacturing for core apparel (blazers, trousers, shirts) combined with finished-product purchasing from qualified manufacturers for selected categories (accessories, accents) with authorized ATEEVRA luxury branding, preserving category-level flexibility.
+  - **Option E: Fully Owned Vertical Manufacturing Facility.** Purchasing heavy machinery, specialized sewing units, and employing a full factory workforce. Unviable for launch (demands ₹1.5+ Cr capital expenditure, ₹20L lease deposit, and ₹27.3L/month fixed OpEx).
+- **Trade-Offs & Financial Impact:** Option D eliminates ₹1.545 Cr factory CapEx while optimizing working capital across SKU tiers, delivering high sartorial control on core tailoring and lean procurement on accessories.
+- **Owner Direction Captured (2026-11-05):** The Project Owner selected **Option D — Category Hybrid Sourcing** as the preferred strategy for continued deliberation. The model combines custom contract manufacturing for core apparel, finished-product purchasing from qualified manufacturers for selected categories with authorized ATEEVRA branding, and category-level flexibility (FOB, CMT, white-label, or finished purchase). An owned factory is explicitly excluded. Preliminary category allocations; requires quantitative modeling before commercial approval (category-wise BOMs, landed costs, quotation requirements, MOQs, lead times, quality controls, and working capital); zero supplier appointments or PO commitments authorized. Formal ratification remains pending completion of modeling and professional gates (Gates G-QA, G-SUP, G-LG, G-CA). Refer to [ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
 
 ### 3.2 `ATEEVRA-OD-003`: Luxury Catalog Architecture, HSN Codes & Legal Metrology
 - **Dilemma:** Product detail page (PDP) specification depth and regulatory metrology declarations.

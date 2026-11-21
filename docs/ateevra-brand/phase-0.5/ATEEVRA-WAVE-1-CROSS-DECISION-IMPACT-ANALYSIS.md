@@ -106,7 +106,7 @@ The sourcing architecture chosen in OD-002 determines how corporate capital is d
 | Sourcing Choice (OD-002)   | Balance Sheet Asset (OD-001)| Working Capital & Cash Timing (OD-027)       |
 +----------------------------+-----------------------------+----------------------------------------------+
 | **Option A: Contract FOB** | Finished Goods Inventory    | Milestone Financing (30/40/30): Cash outflow |
-| **[RECOMMENDED]**          | capitalized at True Landed  | staggered over 75-day production cycle.      |
+|                            | capitalized at True Landed  | staggered over 75-day production cycle.      |
 |                            | Cost under Ind AS 2.        | Capital efficiency: ~₹16L funds ₹65L GMV.    |
 +----------------------------+-----------------------------+----------------------------------------------+
 | **Option B: Contract CMT** | Raw Material + WIP +        | Multi-vendor cash outflows: 100% fabric cash |
@@ -115,13 +115,17 @@ The sourcing architecture chosen in OD-002 determines how corporate capital is d
 | **Option C: White-Label**  | Off-the-shelf Finished Stock| Short-term commercial trade credit (30 days);|
 |                            | at wholesale purchase cost. | Low initial cash, but poor margin and brand. |
 +----------------------------+-----------------------------+----------------------------------------------+
+| **Option D: Category**     | Finished Goods (Core + Acc) | Blended Cash Flow: Staggered advances for    |
+| **Hybrid Sourcing**        | + Raw Material / WIP buffer | core tailoring (30/40/30) + commercial credit|
+| **[OWNER DIRECTION]**      | where appropriate.          | for finished accents. High flexibility.      |
++----------------------------+-----------------------------+----------------------------------------------+
 | **Option E: Owned Factory**| Property, Plant & Equipment | Massive upfront CapEx (₹1.5+ Cr) + recurring |
 |                            | (PP&E) + Heavy Fixed Labor. | monthly fixed burn (₹27.3L/mo) regardless    |
 |                            |                             | of sales volume. High insolvency risk.       |
 +----------------------------+-----------------------------+----------------------------------------------+
 ```
 
-- **Working Capital Synergy:** Selecting Option A (Contract FOB) in OD-002 perfectly complements Option A in OD-001. ATEEVRA gains full legal ownership of its luxury inventory without committing millions to fixed factory machinery.
+- **Working Capital Synergy:** Selecting Option D (Category Hybrid Sourcing) in OD-002 combines custom contract manufacturing for core tailored apparel with finished-product purchasing for complementary categories (accessories, accents), optimizing capital efficiency across SKU tiers without incurring factory CapEx. Option D requires quantitative modeling (category BOMs, landed costs, MOQs, lead times, and working capital simulation) before commercial approval.
 
 ---
 
@@ -263,8 +267,8 @@ The analysis demonstrates that there is a single coherent, optimal path through 
 |   1. OD-001 — SELECT OPTION A (Pure First-Party D2C Luxury Brand — Direct Seller of Record)             |
 |      -> Establishes luxury prestige, 100% gross revenue recognition under Ind AS 115, and single SOR.   |
 |                                                                                                         |
-|   2. OD-002 — SELECT OPTION A (Certified Contract Atelier B2B Manufacturing — Full Package FOB)         |
-|      -> Delivers master-tailored garments to custom tech packs without multi-crore factory CapEx.      |
+|   2. OD-002 — OWNER DIRECTION: OPTION D (Category Hybrid Sourcing Strategy)                             |
+|      -> Custom contract manufacturing for core apparel + finished purchasing for selected categories.   |
 |                                                                                                         |
 |   3. OD-007 — SELECT OPTION A (Direct Section 31 Tax Invoicing, Deactivated TCS & Full ITC Offset)     |
 |      -> Perfectly matches OD-001's legal reality; maximizes working capital via full ITC recovery.     |
@@ -291,3 +295,30 @@ All four Wave 1 Owner Deliberation Dossiers are prepared and submitted for Proje
 - `docs/ateevra-brand/phase-0.5/ATEEVRA-OD-017-OWNER-DELIBERATION-DOSSIER.md`
 
 All four decisions remain strictly in **`PROPOSED`** status. Software implementation, database changes, and Git commits remain strictly barred until the Project Owner provides formal deliberation selections.
+
+### 6.1 Owner Strategic Alignment on OD-001 (Captured 2026-11-05)
+
+On 2026-11-05, the Project Owner deliberated on OD-001 and selected **Option A — Pure First-Party D2C Luxury Brand (Sole Seller of Record)** under a **single legal entity operating both ATEEVRA and the existing marketplace** (with separate cost centers, ledgers, and P&L; joint corporate liability). The Owner specifically mandated that ATEEVRA brand is the #1 priority, while existing marketplace capabilities must be preserved non-destructively.
+
+This direction provides strategic clarity for the Wave 1 cluster:
+- It confirms that **OD-002** should proceed under first-party brand ownership with direct inventory control.
+- It confirms that **OD-007** should proceed under direct Section 31 tax invoicing (Option A).
+- It confirms that **OD-017** must implement the non-destructive synthetic corporate tenant model (ATEEVRA_CORP) without removing, damaging, or disabling marketplace code or schemas.
+
+**Governance Status:** OD-001 retains status **PROPOSED (Direction Captured)**. Formal ratification remains pending completion of statutory reviews (Gate G-CA and Gate G-LG). All four Wave 1 decisions remain strictly PROPOSED, and the implementation stop condition remains active. Cross-reference: [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
+### 6.2 Owner Strategic Alignment on OD-002 (Captured 2026-11-05)
+
+On 2026-11-05, the Project Owner deliberated on OD-002 and selected **Option D — Category Hybrid Sourcing** as the preferred sourcing strategy for continued deliberation. The business model combines:
+1. Custom contract manufacturing for core apparel using ATEEVRA's designs, specifications, and quality requirements.
+2. Purchasing finished products from qualified manufacturers for selected categories, with authorized ATEEVRA branding.
+3. Category-level flexibility to select contract manufacturing, CMT, authorized white-label, or finished-product purchasing where commercially and operationally appropriate.
+4. Capital expenditure for an owned factory (Option E) is explicitly excluded.
+
+**Important Qualifications:**
+- Owner direction for continued deliberation, not formal OD-002 ratification.
+- Previously suggested category allocations are preliminary and must not be recorded as final approvals.
+- Option D must be quantitatively modeled before commercial approval (category-wise BOMs, landed-cost comparisons, supplier quotation requirements under `Gate G-SUP`, MOQ analysis, lead times, quality controls under `Gate G-QA`, and working-capital simulation).
+- Strict separation between verified supplier quotations and unverified financial model assumptions. Currently, zero binding quotes exist.
+
+**Governance Status:** OD-002 retains status **`PROPOSED (Direction Captured)`**. Formal ratification remains pending quantitative modeling and professional gate clearances (`Gate G-QA`, `Gate G-SUP`, `Gate G-LG`, `Gate G-CA`). All four Wave 1 decisions remain strictly PROPOSED, and the implementation stop condition remains active. Cross-reference: [`ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).

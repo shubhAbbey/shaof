@@ -21,11 +21,11 @@ To ensure institutional credibility, legal compliance, and operational excellenc
 +--------------------------+-----------------------+----------------------------------+-------------------------+
 | Professional Authority   | Focus Domain Scope    | Key Verification Deliverables    | Validation Status       |
 +--------------------------+-----------------------+----------------------------------+-------------------------+
-| Statutory Chartered      | Direct Invoicing &    | - Section 31 Tax Invoice format  | PENDING_OWNER_SELECTION |
+| Statutory Chartered      | Direct Invoicing &    | - Section 31 Tax Invoice format  | ADVISOR_IDENTIFIED_REV_PEND |
 | Accountant (FCA / ICWAI) | Accounting Ledgers    | - ITC offset mechanics           |                         |
 |                          |                       | - Ind AS 2 Inventory Valuation   |                         |
 +--------------------------+-----------------------+----------------------------------+-------------------------+
-| Corporate E-Commerce     | Consumer Protection & | - Legal Metrology PDP checks     | PENDING_OWNER_SELECTION |
+| Corporate E-Commerce     | Consumer Protection & | - Legal Metrology PDP checks     | ADVISOR_IDENTIFIED_REV_PEND |
 | Legal Counsel (Bar)      | Data Privacy          | - Consumer Protection 2020 Rules |                         |
 |                          |                       | - DPDP Act 2023 consent policy   |                         |
 +--------------------------+-----------------------+----------------------------------+-------------------------+
@@ -53,3 +53,4 @@ To ensure institutional credibility, legal compliance, and operational excellenc
 
 ---
 *End of Document `ATEEVRA-ACC-VAL-001`. Authorized for Compliance Register Management.*
+

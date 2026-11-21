@@ -4,7 +4,7 @@
 **Canonical Title:** Direct First-Party Luxury Brand Commercial Model & Seller of Record  
 **Domain Mapping:** Domain A (Commercial Model & Seller of Record)  
 **Functional Cluster:** Cluster 1 (Commercial Model & Corporate Tax Architecture)  
-**Current Governance Status:** PROPOSED (Pending Owner Direction / Selection)  
+**Current Governance Status:** PROPOSED (Owner Direction Captured: Option A — Awaiting Formal Ratification & Professional Gates)  
 **Phase 0.5 Deliberation Wave:** Wave 1 (Foundational Commercial & Tax Baseline)  
 **Date of Deliberation Dossier:** 2026-11-05  
 **Auditor / Preparer:** Principal Enterprise Architect, Luxury Brand Strategist & Policy Governance Specialist  
@@ -333,3 +333,40 @@ The formal validation gates required prior to operational launch are:
 | Full Name:        ________________________________________                                              |
 +=========================================================================================================+
 `
+
+---
+
+## 20. Consolidated Owner Direction Record (Captured 2026-11-05)
+
+On 2026-11-05, the Project Owner deliberated on ATEEVRA-OD-001 and provided explicit strategic directions, formally recorded in [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
+### 20.1 Summary of Captured Owner Directions
+
+1. **Commercial Model:** **Option A — Pure First-Party D2C Luxury Brand (Sole Seller of Record)**.
+
+   - ATEEVRA operates as an independent luxury brand with 1P ownership, direct retail pricing, inventory responsibility, direct consumer sales, luxury fulfillment/returns, and full statutory Seller-of-Record obligations.
+
+2. **Corporate & Legal Entity Structure:** **One Legal Company Operating Both Businesses (Dual Business Lines with Segregated Operations & Accounting)**.
+
+   - *Business Line 1:* ATEEVRA (First-Party Luxury Fashion Brand).
+
+   - *Business Line 2:* Existing Marketplace (Independent Platform Business).
+
+   - *Operational & Accounting Segregation:* Distinct cost centers, isolated inventory ledgers, segregated revenue/expense tracking, separate P&L statements.
+
+   - *Corporate Reality:* Single legal entity with unified corporate liability, requiring professional review by practicing Chartered Accountant (Gate G-CA) and Corporate Legal Counsel (Gate G-LG).
+
+3. **Business Priority & Non-Destruction Mandate:**
+
+   - ATEEVRA luxury brand is the **first business priority**.
+
+   - The existing marketplace platform must continue to exist and operate independently.
+
+   - **Crucial Rule:** ATEEVRA development **must NOT silently remove, damage, migrate, overwrite, or disable existing marketplace functionality**.
+
+### 20.2 Governance Invariant
+
+- **Status:** **PROPOSED (Direction Captured)**. Formal ratification remains pending until professional validation gates (Gate G-CA and Gate G-LG) are formally cleared and documented.
+
+- **Zero-Code Stop Condition:** Strictly ACTIVE. No code, schema, migration, or configuration changes (COMMERCE_MODE) may be implemented.
+

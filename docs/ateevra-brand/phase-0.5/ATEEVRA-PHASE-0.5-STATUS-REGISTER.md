@@ -31,7 +31,7 @@ This register provides the authoritative real-time tracking mechanism for **Phas
 +-----+---------------------------------------------------------------+----------+----------+--------------------+--------------+---------------+
 | ID  | Full Canonical Decision Title                                 | Cluster  | Status   | Selected Option    | Approval Date| Primary Gate  |
 +-----+---------------------------------------------------------------+----------+----------+--------------------+--------------+---------------+
-| 001 | Direct First-Party Luxury Brand Commercial Model & SOR        | Domain A | PROPOSED | PENDING SELECTION  | PENDING      | Gate G-CA/G-LG|
+| 001 | Direct First-Party Luxury Brand Commercial Model & SOR        | Domain A | PROPOSED | DIRECTION: OPT A   | PENDING RATIF| Gate G-CA/G-LG|
 | 002 | Product Sourcing, Atelier Contracting & Private Label Strategy| Domain B | PROPOSED | PENDING SELECTION  | PENDING      | Gate G-QA     |
 | 003 | Luxury Catalog Architecture, HSN Codes & Legal Metrology      | Domain C | PROPOSED | PENDING SELECTION  | PENDING      | Gate G-LG     |
 | 004 | Value-Based Luxury Pricing Architecture & Price Integrity     | Domain D | PROPOSED | PENDING SELECTION  | PENDING      | Gate G-CA     |
@@ -74,6 +74,19 @@ This register provides the authoritative real-time tracking mechanism for **Phas
 
 *This audit log records decisions as they are formally ratified in writing by the Project Owner during Phase 0.5.*
 
+### 3.1 Owner Direction Intake Log (Pre-Ratification Strategic Alignment)
+
+*The following strategic directions were formally recorded during owner deliberation. These indicate strategic intent but remain in PROPOSED status until professional gates are satisfied.*
+
+- **2026-11-05 — OD-001 (Direct First-Party Luxury Brand Commercial Model & Seller of Record):**
+  - **Direction Captured:** **Option A — Pure First-Party D2C Luxury Brand (Sole Seller of Record)**.
+  - **Corporate Model:** One legal company operating both ATEEVRA (1P luxury brand) and the existing marketplace with segregated cost centers, ledgers, and P&L (joint corporate liability).
+  - **Business Priority:** ATEEVRA brand is priority #1; existing marketplace must continue without silent removal, damage, or disabling.
+  - **Governance Status:** PROPOSED (Direction Captured). Formal ratification pending Gate G-CA and Gate G-LG.
+  - **Reference Record:** [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
+### 3.2 Formal Owner Decision Ratification Log
+
 ```
 +---------------------------------------------------------------------------------------------------------+
 |                                    FORMAL OWNER DECISION RATIFICATION LOG                               |
@@ -105,17 +118,17 @@ This register provides the authoritative real-time tracking mechanism for **Phas
 ```
 +---------------------------------------------------------------------------------------------------------+
 |                                  PROFESSIONAL VALIDATION GATES TRACKER                                  |
-+--------+--------------------------+-----------------------+---------------------+-----------------------+
-| Gate   | Specialist Domain        | Commissioning Status  | Lead Authority      | Target Clearance Date |
-+--------+--------------------------+-----------------------+---------------------+-----------------------+
-| G-CA   | Chartered Accountancy    | BRIEF PREPARED        | Statutory FCA Firm  | Phase 0.5 (Sprint B)  |
-| G-LG   | Corporate & Labour Legal | BRIEF PREPARED        | Corporate Law Firm  | Phase 0.5 (Sprint B)  |
-| G-QA   | Textile Testing Lab      | BRIEF PREPARED        | NABL Accredited Lab | Phase 0.5 (Sprint B)  |
-| G-LO   | Logistics Operations     | BRIEF PREPARED        | Enterprise Freight  | Phase 0.5 (Sprint B)  |
-| G-SUP  | Sourcing & Commercial Ev.| BRIEF PREPARED        | Sourcing Specialist | Phase 0.5 (Sprint B)  |
-| G-ARCH | Architecture Validation  | BRIEF PREPARED        | Principal Architect | Phase 0.5 (Sprint B)  |
-| G-SEC  | Cybersecurity & Auditing | BRIEF PREPARED        | CERT-In Empaneled   | Phase 0.5 (Sprint B)  |
-+--------+--------------------------+-----------------------+---------------------+-----------------------+
++--------+--------------------------+----------------------------------+------------------------+----------------------------------+
+| Gate   | Specialist Domain        | Engagement & Review Status       | Lead Authority         | Validation State                 |
++--------+--------------------------+----------------------------------+------------------------+----------------------------------+
+| G-CA   | Chartered Accountancy    | ADVISOR IDENTIFIED / BRIEF READY | Existing CA Advisor | Review Pending (Opinion Pending) |
+| G-LG   | Corporate & Labour Legal | ADVISOR IDENTIFIED / BRIEF READY | Existing Legal Counsel | Review Pending (Opinion Pending) |
+| G-QA   | Textile Testing Lab      | BRIEF PREPARED / SEARCH REQUIRED | NABL Accredited Lab    | Pending Appointment (Sprint B)   |
+| G-LO   | Logistics Operations     | BRIEF PREPARED / SEARCH REQUIRED | Enterprise Freight     | Pending Appointment (Sprint B)   |
+| G-SUP  | Sourcing & Commercial Ev.| BRIEF PREPARED / RFQ IN PROGRESS | Sourcing Specialist    | Pending Evidence Intake          |
+| G-ARCH | Architecture Validation  | BRIEF PREPARED / TEST HARNESS    | Principal Architect    | Pending Decoupling Harness       |
+| G-SEC  | Cybersecurity & Auditing | BRIEF PREPARED / SEARCH REQUIRED | CERT-In Empaneled      | Pending Appointment (Sprint B)   |
++--------+--------------------------+----------------------------------+------------------------+----------------------------------+
 ```
 
 ---
@@ -159,3 +172,4 @@ $$\mathbf{PHASE\ 0.5\ STATUS:\ ACTIVE\ GOVERNANCE\ &\ PLANNING\ —\ CODE\ IMPLE
 
 ---
 *End of Document `ATEEVRA-P05-REG-001`. Formally Maintained for Live Phase 0.5 Governance Tracking.*
+

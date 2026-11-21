@@ -4,7 +4,7 @@
 **Canonical Title:** Product Sourcing, Atelier Contracting & Private Label Strategy  
 **Domain Mapping:** Domain B (Product Sourcing & Atelier Production)  
 **Functional Cluster:** Cluster 1 (Commercial Model & Corporate Tax Architecture)  
-**Current Governance Status:** `PROPOSED (Pending Owner Direction / Selection)`  
+**Current Governance Status:** `PROPOSED (Owner Direction Captured: Option D — Category Hybrid Sourcing — Awaiting Quantitative Modeling, Professional Gates & Formal Ratification; see ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md)`  
 **Phase 0.5 Deliberation Wave:** Wave 1 (Foundational Commercial & Tax Baseline)  
 **Date of Deliberation Dossier:** 2026-11-05  
 **Auditor / Preparer:** Principal Enterprise Architect, Luxury Brand Strategist & Sourcing Specialist  
@@ -355,3 +355,28 @@ The formal validation gates required prior to operational launch are:
 | Full Name:        ________________________________________                                              |
 +=========================================================================================================+
 ```
+
+---
+
+## 20. Consolidated Owner Direction Record (Captured 2026-11-05)
+
+On 2026-11-05, the Project Owner deliberated on ATEEVRA-OD-002 and provided explicit strategic directions, formally recorded in [`ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
+### 20.1 Summary of Captured Owner Directions
+1. **Preferred Sourcing Strategy:** **Option D — Category Hybrid Sourcing**.
+2. **Three Core Operational Pillars:**
+   - *Custom Contract Manufacturing for Core Apparel:* Bespoke fabrication of tailored blazers, trousers, shirts, and knitwear using ATEEVRA's proprietary designs, Tech Packs, pattern grading, and quality standards (AQL 2.5).
+   - *Finished-Product Purchasing for Selected Categories:* Direct procurement of finished products from qualified specialist manufacturers for complementary categories (accessories, pocket squares, ties, leather cardholders) with authorized ATEEVRA luxury branding.
+   - *Category-Level Sourcing Flexibility:* Commercial and operational autonomy by category to select contract manufacturing, CMT, authorized white-label, or finished purchase where commercially and operationally optimal.
+3. **Owned Factory Formally Excluded:** Building, purchasing, or operating an internal garment manufacturing factory (Option E) is explicitly excluded from the current direction. Zero factory CapEx and zero permanent factory lease/labor overhead.
+
+### 20.2 Important Qualifications & Pre-Commercial Requirements
+- **Deliberation Direction Only:** This instruction is an owner direction for continued structured deliberation, not formal OD-002 ratification.
+- **Preliminary Category Allocations:** Previously suggested category splits are illustrative only and are not final approvals.
+- **Quantitative Modeling Mandate:** Option D must be quantitatively modeled before commercial approval, including category-wise BOMs, landed-cost comparisons, supplier quotation requirements (`Gate G-SUP`), MOQ analysis, lead times, quality controls (`Gate G-QA`), and working-capital simulation.
+- **Evidentiary Standard:** Verified supplier quotations must be strictly distinguished from unverified financial model assumptions. Currently, zero binding supplier quotes exist in the repository.
+
+### 20.3 Governance Invariant
+- **Status:** **`PROPOSED (Owner Direction Captured)`**. Formal ratification remains pending until the quantitative modeling program is complete and professional validation gates (`Gate G-QA`, `Gate G-SUP`, `Gate G-LG`, `Gate G-CA`) are cleared.
+- **Authorization Boundaries:** Strictly active. Zero supplier appointment, zero contract commitments, zero purchase orders, zero advances, zero inventory spending, and zero codebase/schema modifications.
+

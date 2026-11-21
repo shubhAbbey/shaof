@@ -95,3 +95,12 @@ To maintain absolute documentation integrity across historical files while provi
 ## 4. Register Governance & Authority
 
 This Register is effective immediately across Phase 0.5. All forward-looking deliberation dossiers, quality gate reports, and readiness agendas shall use `G-SUP`, `G-ARCH`, and `G-SEC` exclusively, eliminating cross-domain confusion.
+
+
+---
+
+## 5. Live Advisor Allocation & Transmission Tracker (Updated 2026-11-05)
+
+- **Gate G-CA (Chartered Accountancy & Tax):** Existing advisor confirmed available by Project Owner (no external appointment needed). Engagement package [`ATEEVRA-G-CA-BRIEF-001`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-G-CA-PROFESSIONAL-VALIDATION-BRIEF.md) prepared. Formal review and written opinion pending.
+- **Gate G-LG (Corporate & Commercial Legal):** Existing advisor confirmed available by Project Owner (no external appointment needed). Engagement package [`ATEEVRA-G-LG-BRIEF-001`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-G-LG-PROFESSIONAL-VALIDATION-BRIEF.md) prepared. Formal review and written opinion pending.
+- **Submission Checklist:** Operational transmission procedures codified in [`ATEEVRA-PROFESSIONAL-SUBMISSION-CHECKLIST.md`](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-PROFESSIONAL-SUBMISSION-CHECKLIST.md).

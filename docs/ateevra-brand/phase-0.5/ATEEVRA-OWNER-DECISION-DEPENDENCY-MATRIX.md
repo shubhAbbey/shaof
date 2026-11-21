@@ -82,7 +82,7 @@ flowchart TD
 |     |                                                               | (Must be Ratified First)      | Decisions             | Wave & Gate     |
 +-----+---------------------------------------------------------------+-------------------------------+-----------------------+-----------------+
 | 001 | Direct First-Party Luxury Brand Commercial Model & SOR        | None (ROOT DECISION)          | OD-002 through OD-028 | Wave 1: G-CA/LG |
-| 002 | Product Sourcing, Atelier Contracting & Private Label Strategy| OD-001                        | OD-003, 022, 023, 026 | Wave 1: G-QA    |
+| 002 | Product Sourcing, Atelier Contracting & Private Label Strategy| OD-001                        | OD-003, 022, 023, 026 | Wave 1: G-QA/SUP|
 | 003 | Luxury Catalog Architecture, HSN Codes & Legal Metrology      | OD-001, OD-002                | OD-004, OD-020        | Wave 2: G-LG    |
 | 004 | Value-Based Luxury Pricing Architecture & Price Integrity     | OD-003, OD-026                | OD-005, OD-021, OD-027| Wave 3: G-CA    |
 | 005 | Promotional Discipline, VIP Previews & Floor Price Protection | OD-004                        | OD-021, OD-028        | Wave 3: G-CA    |
@@ -96,11 +96,11 @@ flowchart TD
 | 013 | Private Client Styling Dossier & VIP Clienteling Program      | OD-012, OD-014                | OD-018, OD-020        | Wave 3: Internal|
 | 014 | Client Data Protection, DPDP Act 2023 Compliance & PII Mask.  | OD-001                        | OD-018, OD-020        | Wave 2: G-LG    |
 | 015 | Brand Protection, Trademark Enforcement & Grey Market Def.    | OD-001                        | OD-003, OD-020        | Wave 2: G-LG    |
-| 016 | Headless Commerce Architecture: Medusa v2.19, Strapi & Next15 | OD-001, OD-017                | OD-018, OD-020, OD-021| Wave 2: G-ARCH  |
+| 016 | Headless Commerce Architecture: Medusa v2.19, Strapi & Next 14| OD-001, OD-017                | OD-018, OD-020, OD-021| Wave 2: G-ARCH  |
 | 017 | Decoupling Marketplace Multi-Vendor Links & Commercial Gate   | OD-001                        | OD-016, OD-018        | Wave 1: G-ARCH  |
 | 018 | Internal Admin Panel Architecture, 6 Corporate Roles & MFA    | OD-017                        | OD-019                | Wave 2: G-SEC   |
 | 019 | Dual-Authorization Financial Thresholds & Immutable Logs      | OD-018                        | OD-023, OD-025        | Wave 2: G-SEC   |
-| 020 | Luxury Storefront Visual Identity, Assets & Next.js 15 ISR    | OD-003, OD-016                | OD-021                | Wave 3: Internal|
+| 020 | Luxury Storefront Visual Identity, Assets & Next.js 14 ISR   | OD-003, OD-016                | OD-021                | Wave 3: Internal|
 | 021 | Frictionless Single-Page Luxury Checkout Architecture         | OD-006, OD-009, OD-020        | OD-028                | Wave 3: Internal|
 | 022 | B2B Atelier Supplier Qualification, Tech Packs & Ethical Audit| OD-002                        | OD-023, OD-026        | Wave 2: G-QA    |
 | 023 | Purchase Order Milestone Financing & Advance Risk Mitigation  | OD-019, OD-022                | OD-027                | Wave 3: G-CA    |
@@ -125,6 +125,24 @@ To make executive decision-making structured, the Project Owner should deliberat
 - `ATEEVRA-OD-017`: Decoupling Marketplace Multi-Vendor Links & Commercial Mode Gate
 *(These 4 foundational decisions establish the corporate entity, sourcing paradigm, tax status, and software isolation boundaries).*
 
+> [!NOTE]
+> **Owner Direction Captured on Root Decision OD-001 (2026-11-05):**
+> The Project Owner has selected **Option A — Pure First-Party D2C Luxury Brand (Sole Seller of Record)** under a **single legal entity operating both ATEEVRA and the existing marketplace** (with separate cost centers, ledgers, and P&L). This direction unblocks strategic alignment across the entire dependency graph:
+> - **OD-002 (Sourcing):** Confirms contract manufacturing (B2B FOB/CMT) under direct 1P brand ownership rather than merchant-consignment or platform aggregation.
+> - **OD-007 (Statutory Tax):** Directs direct Section 31 tax invoicing under corporate GSTIN and deactivation of Section 52 marketplace TCS.
+> - **OD-017 (Decoupling Gate):** Mandates non-destructive synthetic tenant isolation (ATEEVRA_CORP) ensuring the existing marketplace remains 100% operational and undamaged.
+>
+> OD-001 remains formally **PROPOSED (Direction Captured)** pending statutory clearance of Gate G-CA and Gate G-LG. Detailed record: [ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-001-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
+> [!NOTE]
+> **Owner Direction Captured on Sourcing Decision OD-002 (2026-11-05):**
+> The Project Owner has selected **Option D — Category Hybrid Sourcing** as the preferred sourcing strategy for continued deliberation:
+> - **Core Apparel:** Custom contract manufacturing (FOB / CMT) to proprietary ATEEVRA designs, Tech Packs, and quality specifications (AQL 2.5).
+> - **Selected Categories:** Purchasing finished products from qualified specialist manufacturers with authorized ATEEVRA luxury branding.
+> - **Operational Flexibility:** Category-level autonomy to select contract manufacturing, CMT, authorized white-label, or finished purchase where commercially optimal.
+> - **Owned Factory Excluded:** Capital expenditure for an owned factory (Option E) is explicitly excluded.
+> - **Governance State:** Formally **`PROPOSED (Owner Direction Captured)`** pending quantitative category modeling (BOMs, landed costs, quotation requirements, MOQs, lead times, quality controls, working capital), supplier quotations (`Gate G-SUP`), quality testing (`Gate G-QA`), and formal ratification. Zero commercial or supplier commitments authorized. Detailed record: [ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md](file:///C:/Users/Shubham/OneDrive/Desktop/ecom_mvp/docs/ateevra-brand/phase-0.5/ATEEVRA-OD-002-CONSOLIDATED-OWNER-DIRECTION-RECORD.md).
+
 ### Wave 2: Operational & Architecture Framework (Week 1, Days 3–5) — 12 Decisions
 - `ATEEVRA-OD-003`: Luxury Catalog Architecture, HSN Codes & Legal Metrology
 - `ATEEVRA-OD-006`: Enterprise Digital Payment Instruments & Gateway Fee Absorption
@@ -132,7 +150,7 @@ To make executive decision-making structured, the Project Owner should deliberat
 - `ATEEVRA-OD-009`: Express Air Logistics, Same-Day Dispatch & Delivery OTP Verification
 - `ATEEVRA-OD-014`: Client Data Protection, DPDP Act 2023 Compliance & Internal PII Masking
 - `ATEEVRA-OD-015`: Brand Protection, Trademark Enforcement & Grey Market Defenses
-- `ATEEVRA-OD-016`: Headless Commerce Architecture: Medusa v2.19, Strapi v5 & Next.js 15
+- `ATEEVRA-OD-016`: Headless Commerce Architecture: Medusa v2.19, Strapi v5 & Next 14
 - `ATEEVRA-OD-018`: Internal Admin Panel Architecture, 6 Corporate Roles & TOTP MFA
 - `ATEEVRA-OD-019`: Dual-Authorization Financial Thresholds & Immutable Audit Logs
 - `ATEEVRA-OD-022`: B2B Atelier Supplier Qualification, Tech Packs & Ethical Audits
@@ -157,3 +175,4 @@ To make executive decision-making structured, the Project Owner should deliberat
 
 ---
 *End of Document `ATEEVRA-P05-DEP-001`. Formally Established for Phase 0.5 Critical Path Sequencing.*
+
