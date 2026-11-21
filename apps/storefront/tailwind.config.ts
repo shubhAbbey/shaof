@@ -57,6 +57,44 @@ const config: Config = {
           warning: '#f59e0b',
           info: '#3b82f6',
         },
+        semantic: {
+          primary: 'var(--color-brand-primary)',
+          'primary-hover': 'var(--color-brand-primary-hover)',
+          'primary-active': 'var(--color-brand-primary-active)',
+          'brand-light': 'var(--color-brand-light)',
+          'brand-border': 'var(--color-brand-border)',
+          'surface-page': 'var(--color-surface-page)',
+          'surface-subtle': 'var(--color-surface-subtle)',
+          'surface-muted': 'var(--color-surface-muted)',
+          'surface-card': 'var(--color-surface-card)',
+          'text-primary': 'var(--color-text-primary)',
+          'text-secondary': 'var(--color-text-secondary)',
+          'text-muted': 'var(--color-text-muted)',
+          'text-disabled': 'var(--color-text-disabled)',
+          'text-inverse': 'var(--color-text-inverse)',
+          'border-subtle': 'var(--color-border-subtle)',
+          'border-default': 'var(--color-border-default)',
+          'border-strong': 'var(--color-border-strong)',
+          'border-control': 'var(--color-border-control)',
+          'border-control-hover': 'var(--color-border-control-hover)',
+          'status-success': 'var(--color-status-success)',
+          'status-error': 'var(--color-status-error)',
+          'status-warning': 'var(--color-status-warning)',
+          'focus-ring': 'var(--color-focus-ring)',
+        },
+      },
+      fontSize: {
+        hero: ['2.5rem', { lineHeight: '3.25rem', fontWeight: '700' }], // H1 40px / 52px Bold
+        section: ['1.75rem', { lineHeight: '2.25rem', fontWeight: '700' }], // H2 28px / 36px Bold
+        card: ['1.125rem', { lineHeight: '1.625rem', fontWeight: '600' }], // H3 18px / 26px Semibold
+        body: ['0.875rem', { lineHeight: '1.25rem', fontWeight: '400' }], // Body 14px / 20px Regular
+        caption: ['0.75rem', { lineHeight: '1.0rem', fontWeight: '400' }], // Caption 12px / 16px Regular
+      },
+      boxShadow: {
+        'soft-xs': '0 1px 2px 0 rgba(0, 0, 0, 0.04)',
+        'soft-sm': '0 2px 4px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+        'soft-md': '0 4px 12px 0 rgba(0, 0, 0, 0.08)',
+        'soft-lg': '0 12px 24px -4px rgba(0, 0, 0, 0.12)',
       },
       borderRadius: {
         none: '0',

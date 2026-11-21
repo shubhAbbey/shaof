@@ -6,13 +6,41 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
-    --primary: 346 84% 49%;
+    --primary: 341.5 75.5% 30.4%;
     --primary-foreground: 355 100% 97%;
     --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
     --border: 240 5.9% 90%;
-    --ring: 346 84% 49%;
+    --ring: 341.5 75.5% 30.4%;
     --radius: 0.5rem;
+
+    /* ATEEVRA Canonical Brand & Semantic Custom Properties (Phase P01) */
+    --color-brand-primary: #881337;
+    --color-brand-primary-hover: #70102e;
+    --color-brand-primary-active: #580c24;
+    --color-brand-light: #fff1f2;
+    --color-brand-border: #fecdd3;
+    --color-surface-page: #ffffff;
+    --color-surface-subtle: #f9fafb;
+    --color-surface-muted: #f3f4f6;
+    --color-surface-card: #ffffff;
+    --color-text-primary: #111827;
+    --color-text-secondary: #4b5563;
+    --color-text-muted: #6b7280;
+    --color-text-disabled: #9ca3af;
+    --color-text-inverse: #ffffff;
+    /* Decorative Structural Borders (Exempt under WCAG 2.2 SC 1.4.11) */
+    --color-border-subtle: #f3f4f6;
+    --color-border-default: #e5e7eb;
+    --color-border-strong: #d1d5db;
+
+    /* Essential Component & Form Control Boundaries (WCAG 2.2 SC 1.4.11 >= 3.0:1) */
+    --color-border-control: #6b7280;
+    --color-border-control-hover: #4b5563;
+    --color-status-success: #047857;
+    --color-status-error: #b91c1c;
+    --color-status-warning: #92400e;
+    --color-focus-ring: #881337;
   }
 
   * {
@@ -29,9 +57,9 @@
     overflow-x: hidden;
   }
 
-  /* Accessibility focus ring defaults */
+  /* Accessibility focus ring defaults (canonical ATEEVRA Burgundy #881337) */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-brand-900 ring-offset-2 ring-offset-white;
   }
 }
 

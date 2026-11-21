@@ -1,8 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -46,7 +52,12 @@ const NAVIGATION_CATEGORIES = [
   { id: 'men', handle: 'men', name: 'Men', href: '/category/men' },
   { id: 'curve-plus', handle: 'curve-plus', name: 'Curve + Plus', href: '/category/curve-plus' },
   { id: 'kids', handle: 'kids', name: 'Kids', href: '/category/kids' },
-  { id: 'home-living', handle: 'home-living', name: 'Home & Living', href: '/category/home-living' },
+  {
+    id: 'home-living',
+    handle: 'home-living',
+    name: 'Home & Living',
+    href: '/category/home-living',
+  },
   { id: 'beauty', handle: 'beauty', name: 'Beauty', href: '/category/beauty' },
   { id: 'sale', handle: 'sale', name: 'Sale', href: '/sale', badge: 'UP TO 70%' },
 ];
@@ -181,7 +192,9 @@ describe('Task 09: Homepage & CMS Section Rendering Architecture', () => {
       const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
 
       assert.ok(formatINR(price).includes('1,499') || formatINR(price).includes('1499'));
-      assert.ok(formatINR(originalPrice).includes('2,499') || formatINR(originalPrice).includes('2499'));
+      assert.ok(
+        formatINR(originalPrice).includes('2,499') || formatINR(originalPrice).includes('2499')
+      );
       assert.equal(discount, 40);
     });
   });
@@ -191,7 +204,12 @@ describe('Task 09: Homepage & CMS Section Rendering Architecture', () => {
       const sections = [
         { id: '1', __component: 'sections.hero', title: 'Hero' },
         { id: '2', __component: 'sections.category-tiles', title: 'Tiles' },
-        { id: '3', __component: 'sections.collection-carousel', title: 'Carousel', collectionHandle: 'festive' },
+        {
+          id: '3',
+          __component: 'sections.collection-carousel',
+          title: 'Carousel',
+          collectionHandle: 'festive',
+        },
         { id: '4', __component: 'sections.sale-banner', title: 'Sale' },
         { id: '5', __component: 'sections.product-grid', title: 'Grid' },
         { id: '6', __component: 'sections.promotional-cta', title: 'CTA' },
@@ -251,7 +269,9 @@ describe('Task 11: Core Product Listing Page (PLP) Engine', () => {
         { id: '2', title: 'Shirt', price: 1999, originalPrice: 1999, discountPercentage: 0 },
       ];
       const saleProducts = products.filter(
-        (p) => (p.discountPercentage && p.discountPercentage > 0) || (p.originalPrice && p.originalPrice > p.price)
+        (p) =>
+          (p.discountPercentage && p.discountPercentage > 0) ||
+          (p.originalPrice && p.originalPrice > p.price)
       );
       assert.equal(saleProducts.length, 1);
       assert.equal(saleProducts[0].id, '1');
@@ -273,7 +293,9 @@ describe('Task 11: Core Product Listing Page (PLP) Engine', () => {
       };
 
       assert.equal(product.hasMultipleVariants, true);
-      assert.ok(formatINR(product.price).includes('2,199') || formatINR(product.price).includes('2199'));
+      assert.ok(
+        formatINR(product.price).includes('2,199') || formatINR(product.price).includes('2199')
+      );
     });
   });
 
@@ -461,10 +483,7 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
 
     it('should combine multiple filter dimensions cleanly', () => {
       const filtered = MOCK_PRODUCTS.filter(
-        (p) =>
-          p.brand === 'Virasat Heritage' &&
-          p.sizes?.includes('M') &&
-          p.price <= 4000
+        (p) => p.brand === 'Virasat Heritage' && p.sizes?.includes('M') && p.price <= 4000
       );
       assert.equal(filtered.length, 1);
       assert.equal(filtered[0].id, 'prod_5');
@@ -561,7 +580,8 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
     });
 
     it('should deserialize query string into active filter state', () => {
-      const qs = 'brands=Virasat+Heritage%2CGulmohar+Jaipur&sizes=M%2CL&price_min=1500&sort=price_asc';
+      const qs =
+        'brands=Virasat+Heritage%2CGulmohar+Jaipur&sizes=M%2CL&price_min=1500&sort=price_asc';
       const searchParams = new URLSearchParams(qs);
 
       const brands = searchParams.get('brands')?.split(',') || [];
@@ -699,9 +719,18 @@ describe('Task 12: PLP Filtering, Sorting, Pagination & CMS Visibility', () => {
       }
 
       assert.ok(evaluatePdpVisibility({ id: '1', status: 'published', merchantStatus: 'active' }));
-      assert.equal(evaluatePdpVisibility({ id: '2', status: 'draft', merchantStatus: 'active' }), null);
-      assert.equal(evaluatePdpVisibility({ id: '3', status: 'proposed', merchantStatus: 'active' }), null);
-      assert.equal(evaluatePdpVisibility({ id: '4', status: 'published', merchantStatus: 'suspended' }), null);
+      assert.equal(
+        evaluatePdpVisibility({ id: '2', status: 'draft', merchantStatus: 'active' }),
+        null
+      );
+      assert.equal(
+        evaluatePdpVisibility({ id: '3', status: 'proposed', merchantStatus: 'active' }),
+        null
+      );
+      assert.equal(
+        evaluatePdpVisibility({ id: '4', status: 'published', merchantStatus: 'suspended' }),
+        null
+      );
       assert.equal(evaluatePdpVisibility({ id: '5', merchantStatus: 'active' }), null);
       assert.equal(evaluatePdpVisibility({ id: '6', status: 'published' }), null);
       assert.equal(evaluatePdpVisibility(null), null);
@@ -839,12 +868,17 @@ describe('Task 13: Product Detail Page (PDP) & Mini PDP Engine', () => {
       }
 
       const price = v.prices?.[0]?.amount || 1499;
-      const originalPrice = p.metadata?.original_price ? Number(p.metadata.original_price) : undefined;
-      const discount = originalPrice && originalPrice > price
-        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      const originalPrice = p.metadata?.original_price
+        ? Number(p.metadata.original_price)
         : undefined;
+      const discount =
+        originalPrice && originalPrice > price
+          ? Math.round(((originalPrice - price) / originalPrice) * 100)
+          : undefined;
 
-      const inStock = v.manage_inventory ? v.inventory_quantity > 0 || v.allow_backorder === true : true;
+      const inStock = v.manage_inventory
+        ? v.inventory_quantity > 0 || v.allow_backorder === true
+        : true;
 
       return {
         id: v.id,
@@ -1190,10 +1224,7 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
         'https://www.ateevra.in',
         'chanderi-silk-anarkali-suit'
       );
-      assert.equal(
-        canonicalUrl,
-        'https://www.ateevra.in/product/chanderi-silk-anarkali-suit'
-      );
+      assert.equal(canonicalUrl, 'https://www.ateevra.in/product/chanderi-silk-anarkali-suit');
       assert.equal(canonicalUrl.includes('localhost'), false);
       assert.equal(canonicalUrl.includes('?'), false);
     });
@@ -1243,10 +1274,7 @@ describe('Task 13.2: Mobile Navigation, PDP Sharing & Environment/Config Refacto
 
       // Fallback test when navigator.share throws or is missing:
       await mockNavigator.clipboard.writeText(sharePayload.url);
-      assert.equal(
-        clipboardText,
-        'https://www.ateevra.in/product/chanderi-silk-anarkali-suit'
-      );
+      assert.equal(clipboardText, 'https://www.ateevra.in/product/chanderi-silk-anarkali-suit');
     });
   });
 
@@ -1335,9 +1363,21 @@ describe('Task 14: Search Foundation', () => {
             query,
             suggestions: [
               { id: 'q1', title: query, type: 'query', query },
-              { id: 'p1', title: `${query} Shirt`, type: 'product', handle: `${query.toLowerCase()}-shirt` },
+              {
+                id: 'p1',
+                title: `${query} Shirt`,
+                type: 'product',
+                handle: `${query.toLowerCase()}-shirt`,
+              },
             ],
-            products: [{ id: 'prod_1', title: `${query} Shirt`, price: 1999, handle: `${query.toLowerCase()}-shirt` }],
+            products: [
+              {
+                id: 'prod_1',
+                title: `${query} Shirt`,
+                price: 1999,
+                handle: `${query.toLowerCase()}-shirt`,
+              },
+            ],
             categories: [{ id: 'cat_1', name: 'Shirts', handle: 'shirts' }],
             brands: ['Gulmohar Jaipur'],
             totalSuggestions: 2,
@@ -1347,13 +1387,25 @@ describe('Task 14: Search Foundation', () => {
           if (signal?.aborted) throw new Error('AbortError');
           return {
             query,
-            products: [{ id: 'prod_1', title: `${query} Shirt`, price: 1999, handle: `${query.toLowerCase()}-shirt` }],
+            products: [
+              {
+                id: 'prod_1',
+                title: `${query} Shirt`,
+                price: 1999,
+                handle: `${query.toLowerCase()}-shirt`,
+              },
+            ],
             totalCount: 1,
             hasMore: false,
             page: 1,
             limit: 24,
             offset: 0,
-            facets: { brands: [{ value: 'Gulmohar', label: 'Gulmohar', count: 1 }], sizes: [], colors: [], priceRange: { min: 1999, max: 1999 } },
+            facets: {
+              brands: [{ value: 'Gulmohar', label: 'Gulmohar', count: 1 }],
+              sizes: [],
+              colors: [],
+              priceRange: { min: 1999, max: 1999 },
+            },
           };
         },
       };
@@ -1380,11 +1432,29 @@ describe('Task 14: Search Foundation', () => {
         query: 'linen',
         suggestions: [
           { id: 'query_linen', title: 'linen', type: 'query', query: 'linen' },
-          { id: 'cat_men', title: 'in Men', type: 'category', categoryName: 'Men', categoryHandle: 'men', query: 'linen' },
-          { id: 'prod_1', title: 'Slim Fit Pure Linen Casual Shirt', type: 'product', handle: 'slim-fit-pure-linen-casual-shirt', price: 1899 },
+          {
+            id: 'cat_men',
+            title: 'in Men',
+            type: 'category',
+            categoryName: 'Men',
+            categoryHandle: 'men',
+            query: 'linen',
+          },
+          {
+            id: 'prod_1',
+            title: 'Slim Fit Pure Linen Casual Shirt',
+            type: 'product',
+            handle: 'slim-fit-pure-linen-casual-shirt',
+            price: 1899,
+          },
         ],
         products: [
-          { id: 'prod_1', title: 'Slim Fit Pure Linen Casual Shirt', price: 1899, handle: 'slim-fit-pure-linen-casual-shirt' },
+          {
+            id: 'prod_1',
+            title: 'Slim Fit Pure Linen Casual Shirt',
+            price: 1899,
+            handle: 'slim-fit-pure-linen-casual-shirt',
+          },
         ],
         categories: [{ id: 'men', name: 'Men', handle: 'men' }],
         brands: ['Virasat Heritage'],
@@ -1404,7 +1474,12 @@ describe('Task 14: Search Foundation', () => {
       const mockFullResult = {
         query: 'kurta',
         products: [
-          { id: 'prod_1', title: 'Handloom Cotton Kurta', price: 1499, handle: 'handloom-cotton-kurta' },
+          {
+            id: 'prod_1',
+            title: 'Handloom Cotton Kurta',
+            price: 1499,
+            handle: 'handloom-cotton-kurta',
+          },
           { id: 'prod_2', title: 'Silk Festive Kurta', price: 2999, handle: 'silk-festive-kurta' },
         ],
         totalCount: 2,
@@ -1414,7 +1489,10 @@ describe('Task 14: Search Foundation', () => {
         offset: 0,
         facets: {
           brands: [{ value: 'Gulmohar', label: 'Gulmohar', count: 2 }],
-          sizes: [{ value: 'M', label: 'M', count: 2 }, { value: 'L', label: 'L', count: 1 }],
+          sizes: [
+            { value: 'M', label: 'M', count: 2 },
+            { value: 'L', label: 'L', count: 1 },
+          ],
           colors: [{ value: 'Navy Blue', label: 'Navy Blue', count: 1 }],
           priceRange: { min: 1499, max: 2999 },
         },
@@ -1560,15 +1638,46 @@ describe('Task 15: Desktop Search Dropdown & Autocomplete UX', () => {
         if (!trimmed) return items;
 
         // 1. Direct query
-        items.push({ id: 'nav-query', type: 'query', title: trimmed, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        items.push({
+          id: 'nav-query',
+          type: 'query',
+          title: trimmed,
+          href: `/search?q=${encodeURIComponent(trimmed)}`,
+        });
         // 2. Categories
-        sugg.categories.forEach((cat) => items.push({ id: `nav-cat-${cat.handle}`, type: 'category', title: cat.name, href: `/category/${cat.handle}` }));
+        sugg.categories.forEach((cat) =>
+          items.push({
+            id: `nav-cat-${cat.handle}`,
+            type: 'category',
+            title: cat.name,
+            href: `/category/${cat.handle}`,
+          })
+        );
         // 3. Collections
-        sugg.collections.forEach((col) => items.push({ id: `nav-col-${col.handle}`, type: 'collection', title: col.title, href: `/collections/${col.handle}` }));
+        sugg.collections.forEach((col) =>
+          items.push({
+            id: `nav-col-${col.handle}`,
+            type: 'collection',
+            title: col.title,
+            href: `/collections/${col.handle}`,
+          })
+        );
         // 4. Products
-        sugg.products.forEach((prod) => items.push({ id: `nav-prod-${prod.id}`, type: 'product', title: prod.title, href: `/product/${prod.handle}` }));
+        sugg.products.forEach((prod) =>
+          items.push({
+            id: `nav-prod-${prod.id}`,
+            type: 'product',
+            title: prod.title,
+            href: `/product/${prod.handle}`,
+          })
+        );
         // 5. View All
-        items.push({ id: 'nav-view-all', type: 'view_all', title: `View all results for "${trimmed}"`, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        items.push({
+          id: 'nav-view-all',
+          type: 'view_all',
+          title: `View all results for "${trimmed}"`,
+          href: `/search?q=${encodeURIComponent(trimmed)}`,
+        });
 
         return items;
       };
@@ -1750,12 +1859,8 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
 
     it('surfaces matching category and collection quick chip links during mobile search', () => {
       const mockSuggestions = {
-        categories: [
-          { id: 'cat_1', name: 'Kurta & Kurti Sets', handle: 'women-kurta-sets' },
-        ],
-        collections: [
-          { id: 'col_1', title: 'Summer Meadow Collection', handle: 'summer-meadow' },
-        ],
+        categories: [{ id: 'cat_1', name: 'Kurta & Kurti Sets', handle: 'women-kurta-sets' }],
+        collections: [{ id: 'col_1', title: 'Summer Meadow Collection', handle: 'summer-meadow' }],
       };
 
       const categoryChips = mockSuggestions.categories.map((c) => ({
@@ -1795,17 +1900,32 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
       };
 
       // Case 1: Active query with 0 results -> ZSR
-      const zsrState = evaluateSearchState({ query: 'nonexistent999', products: [], error: null, isLoading: false });
+      const zsrState = evaluateSearchState({
+        query: 'nonexistent999',
+        products: [],
+        error: null,
+        isLoading: false,
+      });
       assert.equal(zsrState.isZsr, true);
       assert.equal(zsrState.isError, false);
 
       // Case 2: API error occurs -> NOT ZSR, but Error State
-      const errorState = evaluateSearchState({ query: 'kurta', products: [], error: '500 Server Error', isLoading: false });
+      const errorState = evaluateSearchState({
+        query: 'kurta',
+        products: [],
+        error: '500 Server Error',
+        isLoading: false,
+      });
       assert.equal(errorState.isZsr, false);
       assert.equal(errorState.isError, true);
 
       // Case 3: Empty query on initial landing -> Default Empty State
-      const emptyState = evaluateSearchState({ query: '', products: [], error: null, isLoading: false });
+      const emptyState = evaluateSearchState({
+        query: '',
+        products: [],
+        error: null,
+        isLoading: false,
+      });
       assert.equal(emptyState.isZsr, false);
       assert.equal(emptyState.isDefaultEmpty, true);
     });
@@ -1924,8 +2044,16 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
       currentProps = {
         query: 'chanderi',
         products: [
-          { id: 'prod_chanderi_1', title: 'Chanderi Silk Anarkali Suit', handle: 'chanderi-silk-anarkali' },
-          { id: 'prod_chanderi_2', title: 'Handwoven Chanderi Saree', handle: 'handwoven-chanderi-saree' },
+          {
+            id: 'prod_chanderi_1',
+            title: 'Chanderi Silk Anarkali Suit',
+            handle: 'chanderi-silk-anarkali',
+          },
+          {
+            id: 'prod_chanderi_2',
+            title: 'Handwoven Chanderi Saree',
+            handle: 'handwoven-chanderi-saree',
+          },
         ],
         totalCount: 2,
         contextParams: { q: 'chanderi' },
@@ -1961,7 +2089,10 @@ describe('Task 16: Mobile Search Page & ZSR', () => {
       // Fire 3 rapid search queries with inverted latency
       const p1 = simulateQuery('pajama', 80, []);
       const p2 = simulateQuery('chanderi', 50, [{ id: 'c1', title: 'Chanderi Suit' }]);
-      const p3 = simulateQuery('kurta', 20, [{ id: 'k1', title: 'Cotton Kurta' }, { id: 'k2', title: 'Silk Kurta' }]);
+      const p3 = simulateQuery('kurta', 20, [
+        { id: 'k1', title: 'Cotton Kurta' },
+        { id: 'k2', title: 'Silk Kurta' },
+      ]);
 
       await Promise.all([p1, p2, p3]);
 
@@ -2047,7 +2178,9 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
       const query = 'silk kurta';
       const terms = query.toLowerCase().split(' ');
       const matches = MOCK_COMMERCE_CATALOG.filter((p) =>
-        terms.every((t) => p.title.toLowerCase().includes(t) || p.categoryName.toLowerCase().includes(t))
+        terms.every(
+          (t) => p.title.toLowerCase().includes(t) || p.categoryName.toLowerCase().includes(t)
+        )
       );
 
       assert.equal(matches.length, 1);
@@ -2087,8 +2220,14 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
 
       const categories = Array.from(matchedCategoriesMap.values());
       assert.equal(categories.length, 2);
-      assert.ok(categories.some((c) => c.handle === 'women-kurta-sets' && c.href === '/category/women-kurta-sets'));
-      assert.ok(categories.some((c) => c.handle === 'women-kurtas' && c.href === '/category/women-kurtas'));
+      assert.ok(
+        categories.some(
+          (c) => c.handle === 'women-kurta-sets' && c.href === '/category/women-kurta-sets'
+        )
+      );
+      assert.ok(
+        categories.some((c) => c.handle === 'women-kurtas' && c.href === '/category/women-kurtas')
+      );
     });
   });
 
@@ -2159,7 +2298,9 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
 
       // Verify sale filtering contract
       const saleProducts = MOCK_COMMERCE_CATALOG.filter(
-        (p) => (p.discountPercentage && p.discountPercentage > 0) || (p.originalPrice && p.originalPrice > p.price)
+        (p) =>
+          (p.discountPercentage && p.discountPercentage > 0) ||
+          (p.originalPrice && p.originalPrice > p.price)
       );
       assert.equal(saleProducts.length, 4); // All mock products are on sale
     });
@@ -2171,7 +2312,9 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
       const mockSuggestionsResult = {
         query: 'silk',
         categories: [{ id: 'women-kurta-sets', name: 'Kurta Sets', handle: 'women-kurta-sets' }],
-        collections: [{ id: 'festive-splendor', title: 'Festive Splendor 2026', handle: 'festive-splendor' }],
+        collections: [
+          { id: 'festive-splendor', title: 'Festive Splendor 2026', handle: 'festive-splendor' },
+        ],
         brands: ['Virasat Heritage'],
         products: [MOCK_COMMERCE_CATALOG[0]],
       };
@@ -2182,20 +2325,56 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
         if (!trimmed) return items;
 
         // 1. Direct query
-        items.push({ id: 'nav-query', type: 'query', title: trimmed, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        items.push({
+          id: 'nav-query',
+          type: 'query',
+          title: trimmed,
+          href: `/search?q=${encodeURIComponent(trimmed)}`,
+        });
         // 2. Categories
-        sugg.categories.forEach((cat) => items.push({ id: `nav-cat-${cat.handle}`, type: 'category', title: cat.name, href: `/category/${cat.handle}` }));
+        sugg.categories.forEach((cat) =>
+          items.push({
+            id: `nav-cat-${cat.handle}`,
+            type: 'category',
+            title: cat.name,
+            href: `/category/${cat.handle}`,
+          })
+        );
         // 3. Collections
-        sugg.collections.forEach((col) => items.push({ id: `nav-col-${col.handle}`, type: 'collection', title: col.title, href: `/collections/${col.handle}` }));
+        sugg.collections.forEach((col) =>
+          items.push({
+            id: `nav-col-${col.handle}`,
+            type: 'collection',
+            title: col.title,
+            href: `/collections/${col.handle}`,
+          })
+        );
         // 4. Brands
         sugg.brands.forEach((brand) => {
           const slug = brand.toLowerCase().replace(/\s+/g, '-');
-          items.push({ id: `nav-brand-${slug}`, type: 'brand', title: brand, href: `/brand/${slug}` });
+          items.push({
+            id: `nav-brand-${slug}`,
+            type: 'brand',
+            title: brand,
+            href: `/brand/${slug}`,
+          });
         });
         // 5. Products
-        sugg.products.forEach((prod) => items.push({ id: `nav-prod-${prod.id}`, type: 'product', title: prod.title, href: `/product/${prod.handle}` }));
+        sugg.products.forEach((prod) =>
+          items.push({
+            id: `nav-prod-${prod.id}`,
+            type: 'product',
+            title: prod.title,
+            href: `/product/${prod.handle}`,
+          })
+        );
         // 6. View All
-        items.push({ id: 'nav-view-all', type: 'view_all', title: `View all results for "${trimmed}"`, href: `/search?q=${encodeURIComponent(trimmed)}` });
+        items.push({
+          id: 'nav-view-all',
+          type: 'view_all',
+          title: `View all results for "${trimmed}"`,
+          href: `/search?q=${encodeURIComponent(trimmed)}`,
+        });
 
         return items;
       };
@@ -2237,10 +2416,25 @@ describe('Task 16.2: Core Search MVP — Complete Search Domain & End-to-End Rou
         });
 
         return {
-          brands: Array.from(brandCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
-          sizes: Array.from(sizeCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
-          colors: Array.from(colorCounts.entries()).map(([value, count]) => ({ value, label: value, count })),
-          priceRange: { min: minPrice === Infinity ? 0 : minPrice, max: maxPrice === -Infinity ? 0 : maxPrice },
+          brands: Array.from(brandCounts.entries()).map(([value, count]) => ({
+            value,
+            label: value,
+            count,
+          })),
+          sizes: Array.from(sizeCounts.entries()).map(([value, count]) => ({
+            value,
+            label: value,
+            count,
+          })),
+          colors: Array.from(colorCounts.entries()).map(([value, count]) => ({
+            value,
+            label: value,
+            count,
+          })),
+          priceRange: {
+            min: minPrice === Infinity ? 0 : minPrice,
+            max: maxPrice === -Infinity ? 0 : maxPrice,
+          },
         };
       };
 
@@ -2299,10 +2493,18 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       raw10 = cleaned.slice(1);
     }
     if (!/^\d{10}$/.test(raw10)) {
-      return { isValid: false, normalized: '', error: 'Mobile number must be a valid 10-digit number' };
+      return {
+        isValid: false,
+        normalized: '',
+        error: 'Mobile number must be a valid 10-digit number',
+      };
     }
     if (!/^[6-9]/.test(raw10)) {
-      return { isValid: false, normalized: '', error: 'Invalid Indian mobile number prefix (must begin with 6, 7, 8, or 9)' };
+      return {
+        isValid: false,
+        normalized: '',
+        error: 'Invalid Indian mobile number prefix (must begin with 6, 7, 8, or 9)',
+      };
     }
     return { isValid: true, normalized: `+91${raw10}` };
   }
@@ -2391,22 +2593,45 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
 
   // 5. OtpService Implementation Simulator
   class TestOtpService {
-    static async requestOtp({ mobile: rawMobile, type = 'login', ip, s2sToken, nodeEnv = 'development', redis, smsProvider }) {
+    static async requestOtp({
+      mobile: rawMobile,
+      type = 'login',
+      ip,
+      s2sToken,
+      nodeEnv = 'development',
+      redis,
+      smsProvider,
+    }) {
       const validation = normalizeIndianMobile(rawMobile);
       if (!validation.isValid) {
-        return { success: false, message: validation.error || 'Invalid mobile number', expiresInSeconds: 0, error: 'INVALID_MOBILE' };
+        return {
+          success: false,
+          message: validation.error || 'Invalid mobile number',
+          expiresInSeconds: 0,
+          error: 'INVALID_MOBILE',
+        };
       }
       const mobile = validation.normalized;
 
       const rateLimit = await checkRateLimit(`mobile:${mobile}:otp_request`, 3, 600, redis);
       if (!rateLimit.allowed) {
-        return { success: false, message: 'Too many OTP requests', expiresInSeconds: 0, error: 'RATE_LIMIT_EXCEEDED' };
+        return {
+          success: false,
+          message: 'Too many OTP requests',
+          expiresInSeconds: 0,
+          error: 'RATE_LIMIT_EXCEEDED',
+        };
       }
 
       if (ip && ip !== '127.0.0.1') {
         const ipLimit = await checkRateLimit(`ip:${ip}:otp_request`, 10, 600, redis);
         if (!ipLimit.allowed) {
-          return { success: false, message: 'Too many requests from IP', expiresInSeconds: 0, error: 'IP_RATE_LIMIT_EXCEEDED' };
+          return {
+            success: false,
+            message: 'Too many requests from IP',
+            expiresInSeconds: 0,
+            error: 'IP_RATE_LIMIT_EXCEEDED',
+          };
         }
       }
 
@@ -2435,7 +2660,12 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
         const smsRes = await smsProvider.sendOtp(mobile, rawOtp, type);
         if (!smsRes.success) {
           await redis.del(`otp:${mobile}`);
-          return { success: false, message: 'SMS delivery failed', expiresInSeconds: 0, error: smsRes.error };
+          return {
+            success: false,
+            message: 'SMS delivery failed',
+            expiresInSeconds: 0,
+            error: smsRes.error,
+          };
         }
       }
 
@@ -2455,13 +2685,22 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
 
       const stateStr = await redis.get(`otp:${mobile}`);
       if (!stateStr) {
-        return { success: false, error: 'OTP_EXPIRED_OR_NOT_FOUND', message: 'OTP expired or not found' };
+        return {
+          success: false,
+          error: 'OTP_EXPIRED_OR_NOT_FOUND',
+          message: 'OTP expired or not found',
+        };
       }
 
       const state = JSON.parse(stateStr);
       if (state.attempts >= state.maxAttempts) {
         await redis.del(`otp:${mobile}`);
-        return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max verification attempts exceeded', remainingAttempts: 0 };
+        return {
+          success: false,
+          error: 'MAX_ATTEMPTS_EXCEEDED',
+          message: 'Max verification attempts exceeded',
+          remainingAttempts: 0,
+        };
       }
 
       const submittedHash = hashOtp(submittedOtp.trim(), mobile);
@@ -2472,11 +2711,26 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
         const remainingAttempts = Math.max(0, state.maxAttempts - state.attempts);
         if (remainingAttempts === 0) {
           await redis.del(`otp:${mobile}`);
-          return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Max verification attempts exceeded', remainingAttempts: 0 };
+          return {
+            success: false,
+            error: 'MAX_ATTEMPTS_EXCEEDED',
+            message: 'Max verification attempts exceeded',
+            remainingAttempts: 0,
+          };
         }
         const remainingTtl = await redis.ttl(`otp:${mobile}`);
-        await redis.set(`otp:${mobile}`, JSON.stringify(state), 'EX', remainingTtl > 0 ? remainingTtl : 30);
-        return { success: false, error: 'INVALID_OTP', message: `Incorrect OTP. ${remainingAttempts} attempt(s) remaining.`, remainingAttempts };
+        await redis.set(
+          `otp:${mobile}`,
+          JSON.stringify(state),
+          'EX',
+          remainingTtl > 0 ? remainingTtl : 30
+        );
+        return {
+          success: false,
+          error: 'INVALID_OTP',
+          message: `Incorrect OTP. ${remainingAttempts} attempt(s) remaining.`,
+          remainingAttempts,
+        };
       }
 
       await redis.del(`otp:${mobile}`);
@@ -2488,7 +2742,10 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
           mobile,
           email: email || null,
           firstName: fullName ? fullName.split(' ')[0] : null,
-          lastName: fullName && fullName.split(' ').length > 1 ? fullName.split(' ').slice(1).join(' ') : null,
+          lastName:
+            fullName && fullName.split(' ').length > 1
+              ? fullName.split(' ').slice(1).join(' ')
+              : null,
         },
         token: `sess_${crypto.randomBytes(32).toString('hex')}`,
       };
@@ -2508,7 +2765,11 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       }
       const state = JSON.parse(stateStr);
       if (!state.rawOtp) {
-        return { success: false, error: 'OTP_NOT_DEV_FETCH_ELIGIBLE', message: 'No dev-fetch OTP available for this session' };
+        return {
+          success: false,
+          error: 'OTP_NOT_DEV_FETCH_ELIGIBLE',
+          message: 'No dev-fetch OTP available for this session',
+        };
       }
       const ttl = await redis.ttl(`otp:${validation.normalized}`);
       return { success: true, otp: state.rawOtp, expiresInSeconds: ttl > 0 ? ttl : 0 };
@@ -2827,7 +3088,11 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       assert.equal(noToken.error, 'UNAUTHORIZED_S2S');
 
       // Invalid token
-      const badToken = await TestOtpService.devFetchOtp({ mobile, s2sToken: 'invalid_token_123', redis });
+      const badToken = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: 'invalid_token_123',
+        redis,
+      });
       assert.equal(badToken.success, false);
       assert.equal(badToken.error, 'UNAUTHORIZED_S2S');
     });
@@ -2837,8 +3102,17 @@ describe('Task 17: OTP Authentication Foundation — Complete Domain & End-to-En
       const mobile = '+919876543217';
 
       // Test with authorized dev-fetch OTP
-      await TestOtpService.requestOtp({ mobile, nodeEnv: 'production', s2sToken: S2S_AUTH_TOKEN, redis });
-      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: S2S_AUTH_TOKEN, redis });
+      await TestOtpService.requestOtp({
+        mobile,
+        nodeEnv: 'production',
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
+      const devFetch = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
       assert.equal(devFetch.success, true);
 
       const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, redis });
@@ -2884,10 +3158,20 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
       digits = digits.slice(1);
     }
     if (digits.length !== 10) {
-      return { isValid: false, normalized: '', raw10: '', error: 'Mobile number must be exactly 10 digits' };
+      return {
+        isValid: false,
+        normalized: '',
+        raw10: '',
+        error: 'Mobile number must be exactly 10 digits',
+      };
     }
     if (!/^[6-9]/.test(digits)) {
-      return { isValid: false, normalized: '', raw10: '', error: 'Mobile number must start with 6, 7, 8, or 9' };
+      return {
+        isValid: false,
+        normalized: '',
+        raw10: '',
+        error: 'Mobile number must start with 6, 7, 8, or 9',
+      };
     }
     return { isValid: true, normalized: '+91' + digits, raw10: digits };
   };
@@ -2931,7 +3215,7 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
     async saveCustomer(payload) {
       const existing = await this.lookupByPhone(payload.mobile);
       const customer = {
-        id: existing.customer?.id || ('cus_' + crypto.randomBytes(12).toString('hex')),
+        id: existing.customer?.id || 'cus_' + crypto.randomBytes(12).toString('hex'),
         mobile: payload.mobile,
         firstName: payload.firstName || existing.customer?.firstName || null,
         lastName: payload.lastName || existing.customer?.lastName || null,
@@ -2956,7 +3240,15 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
       const mobile = validation.normalized;
       const rawOtp = '123456';
       const otpHash = crypto.createHmac('sha256', 'test_secret').update(rawOtp).digest('hex');
-      const state = { mobile, otpHash, rawOtp, attempts: 0, maxAttempts: 5, createdAt: Date.now(), type };
+      const state = {
+        mobile,
+        otpHash,
+        rawOtp,
+        attempts: 0,
+        maxAttempts: 5,
+        createdAt: Date.now(),
+        type,
+      };
       await redis.set('otp:' + mobile, JSON.stringify(state), 'EX', 300);
       return { success: true, message: 'OTP sent', expiresInSeconds: 300 };
     }
@@ -2969,18 +3261,31 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
       const mobile = validation.normalized;
       const stateStr = await redis.get('otp:' + mobile);
       if (!stateStr) {
-        return { success: false, error: 'OTP_EXPIRED_OR_NOT_FOUND', message: 'OTP expired or not found' };
+        return {
+          success: false,
+          error: 'OTP_EXPIRED_OR_NOT_FOUND',
+          message: 'OTP expired or not found',
+        };
       }
       const state = JSON.parse(stateStr);
       if (state.attempts >= state.maxAttempts) {
         await redis.del('otp:' + mobile);
-        return { success: false, error: 'MAX_ATTEMPTS_EXCEEDED', message: 'Too many failed attempts' };
+        return {
+          success: false,
+          error: 'MAX_ATTEMPTS_EXCEEDED',
+          message: 'Too many failed attempts',
+        };
       }
       if (otp !== state.rawOtp) {
         state.attempts += 1;
         const remaining = state.maxAttempts - state.attempts;
         await redis.set('otp:' + mobile, JSON.stringify(state), 'EX', 300);
-        return { success: false, error: 'INVALID_OTP', message: 'Invalid OTP code', remainingAttempts: remaining };
+        return {
+          success: false,
+          error: 'INVALID_OTP',
+          message: 'Invalid OTP code',
+          remainingAttempts: remaining,
+        };
       }
       await redis.del('otp:' + mobile);
       return {
@@ -2991,7 +3296,11 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
 
     static async devFetchOtp({ mobile: rawMobile, s2sToken, nodeEnv, redis }) {
       if (nodeEnv === 'production') {
-        return { success: false, error: 'FORBIDDEN_IN_PRODUCTION', message: 'Disabled in production' };
+        return {
+          success: false,
+          error: 'FORBIDDEN_IN_PRODUCTION',
+          message: 'Disabled in production',
+        };
       }
       if (!s2sToken || s2sToken !== S2S_AUTH_TOKEN) {
         return { success: false, error: 'UNAUTHORIZED_S2S', message: 'Invalid S2S token' };
@@ -3050,10 +3359,19 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
       assert.equal(otpReq.success, true);
 
       // 3. Dev fetch & verify OTP
-      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: S2S_AUTH_TOKEN, redis });
+      const devFetch = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
       assert.equal(devFetch.success, true);
 
-      const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, type: 'login', redis });
+      const verifyRes = await TestOtpService.verifyOtp({
+        mobile,
+        otp: devFetch.otp,
+        type: 'login',
+        redis,
+      });
       assert.equal(verifyRes.success, true);
 
       // 4. Create active session in runtime cache
@@ -3093,7 +3411,12 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
 
     it('destroys session upon logout', async () => {
       const redis = new TestRedis();
-      const customer = { id: 'cus_123', mobile: '+919876543212', firstName: 'Priya', lastName: 'Patel' };
+      const customer = {
+        id: 'cus_123',
+        mobile: '+919876543212',
+        firstName: 'Priya',
+        lastName: 'Patel',
+      };
       const session = await TestSessionService.createSession(customer, 3600, redis);
 
       const retrievedBefore = await TestSessionService.getSession(session.token, redis);
@@ -3121,8 +3444,17 @@ describe('Task 18: Existing Login & New Registration — Complete Domain, UI & S
       const otpReq = await TestOtpService.requestOtp({ mobile, type: 'register', redis });
       assert.equal(otpReq.success, true);
 
-      const devFetch = await TestOtpService.devFetchOtp({ mobile, s2sToken: S2S_AUTH_TOKEN, redis });
-      const verifyRes = await TestOtpService.verifyOtp({ mobile, otp: devFetch.otp, type: 'register', redis });
+      const devFetch = await TestOtpService.devFetchOtp({
+        mobile,
+        s2sToken: S2S_AUTH_TOKEN,
+        redis,
+      });
+      const verifyRes = await TestOtpService.verifyOtp({
+        mobile,
+        otp: devFetch.otp,
+        type: 'register',
+        redis,
+      });
       assert.equal(verifyRes.success, true);
 
       // 3. Save customer directly into Medusa database
@@ -3232,7 +3564,9 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
 
   // Edge Middleware simulation function matching apps/storefront/src/middleware.ts
   const simulateMiddleware = (pathname, search = '', cookies = {}, redirectParam = null) => {
-    const hasSessionCookie = Boolean(cookies['ecom_session_token'] && cookies['ecom_session_token'].trim().length > 0);
+    const hasSessionCookie = Boolean(
+      cookies['ecom_session_token'] && cookies['ecom_session_token'].trim().length > 0
+    );
 
     // 1. Protected routes
     if (matchesPrefixes(pathname, PROTECTED_PREFIXES)) {
@@ -3285,7 +3619,9 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
   const simulateRequireAuth = async (headers = {}, cookies = {}, sessionStore) => {
     const tokenFromCookie = cookies['ecom_session_token'];
     const authHeader = headers['authorization'];
-    const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    const tokenFromHeader = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7).trim()
+      : null;
     const token = tokenFromCookie || tokenFromHeader;
 
     if (!token || !token.startsWith('sess_')) {
@@ -3316,7 +3652,12 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
   };
 
   // Server-side requireCustomerOwnership simulation
-  const simulateRequireCustomerOwnership = async (headers, cookies, resourceOwnerId, sessionStore) => {
+  const simulateRequireCustomerOwnership = async (
+    headers,
+    cookies,
+    resourceOwnerId,
+    sessionStore
+  ) => {
     const authResult = await simulateRequireAuth(headers, cookies, sessionStore);
     if (!authResult.authorized) {
       return authResult;
@@ -3364,11 +3705,15 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     });
 
     it('allows protected route access when ecom_session_token cookie is present', () => {
-      const resAccount = simulateMiddleware('/account', '', { ecom_session_token: 'sess_valid_123' });
+      const resAccount = simulateMiddleware('/account', '', {
+        ecom_session_token: 'sess_valid_123',
+      });
       assert.equal(resAccount.action, 'next');
       assert.equal(resAccount.statusCode, 200);
 
-      const resCheckout = simulateMiddleware('/checkout', '', { ecom_session_token: 'sess_valid_123' });
+      const resCheckout = simulateMiddleware('/checkout', '', {
+        ecom_session_token: 'sess_valid_123',
+      });
       assert.equal(resCheckout.action, 'next');
       assert.equal(resCheckout.statusCode, 200);
     });
@@ -3381,20 +3726,41 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       assert.equal(resDefault.location, '/account');
 
       // With intended destination /checkout
-      const resCheckout = simulateMiddleware('/login', '', { ecom_session_token: 'sess_valid_123' }, '/checkout');
+      const resCheckout = simulateMiddleware(
+        '/login',
+        '',
+        { ecom_session_token: 'sess_valid_123' },
+        '/checkout'
+      );
       assert.equal(resCheckout.action, 'redirect');
       assert.equal(resCheckout.statusCode, 307);
       assert.equal(resCheckout.location, '/checkout');
     });
 
     it('prevents redirect loops if destination points back to /login or /register', () => {
-      const resLoop = simulateMiddleware('/login', '', { ecom_session_token: 'sess_valid_123' }, '/login');
+      const resLoop = simulateMiddleware(
+        '/login',
+        '',
+        { ecom_session_token: 'sess_valid_123' },
+        '/login'
+      );
       assert.equal(resLoop.action, 'redirect');
       assert.equal(resLoop.location, '/account');
     });
 
     it('allows public routes to pass cleanly without redirection regardless of auth state', () => {
-      const publicPaths = ['/', '/product/banarasi-saree', '/category/women', '/collections/summer', '/brand/virasat', '/sale', '/sale/all', '/search', '/pages/about', '/policies/privacy'];
+      const publicPaths = [
+        '/',
+        '/product/banarasi-saree',
+        '/category/women',
+        '/collections/summer',
+        '/brand/virasat',
+        '/sale',
+        '/sale/all',
+        '/search',
+        '/pages/about',
+        '/policies/privacy',
+      ];
       for (const p of publicPaths) {
         const unauthRes = simulateMiddleware(p);
         assert.equal(unauthRes.action, 'next', `Expected ${p} to be public`);
@@ -3453,7 +3819,11 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
 
     it('returns 401 UNAUTHORIZED when token is expired or not found in session store', async () => {
       const sessionStore = new MockSessionStore();
-      const res = await simulateRequireAuth({ authorization: 'Bearer sess_expired_token' }, {}, sessionStore);
+      const res = await simulateRequireAuth(
+        { authorization: 'Bearer sess_expired_token' },
+        {},
+        sessionStore
+      );
       assert.equal(res.authorized, false);
       assert.equal(res.statusCode, 401);
       assert.equal(res.error, 'UNAUTHORIZED');
@@ -3464,7 +3834,11 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       const customer = { id: 'cus_arav_1', mobile: '+919876543210', firstName: 'Aarav' };
       sessionStore.set('sess_valid_token_123', customer);
 
-      const res = await simulateRequireAuth({}, { ecom_session_token: 'sess_valid_token_123' }, sessionStore);
+      const res = await simulateRequireAuth(
+        {},
+        { ecom_session_token: 'sess_valid_token_123' },
+        sessionStore
+      );
       assert.equal(res.authorized, true);
       assert.equal(res.statusCode, 200);
       assert.equal(res.customer.id, 'cus_arav_1');
@@ -3536,7 +3910,9 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       assert.equal(redirectTarget, '/checkout');
 
       // Step 4: Post-login navigation to /checkout with active session is allowed
-      const postLoginRes = simulateMiddleware(redirectTarget, '', { ecom_session_token: 'sess_newly_authenticated' });
+      const postLoginRes = simulateMiddleware(redirectTarget, '', {
+        ecom_session_token: 'sess_newly_authenticated',
+      });
       assert.equal(postLoginRes.action, 'next');
       assert.equal(postLoginRes.statusCode, 200);
     });
@@ -3546,13 +3922,33 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     // Server-side session simulation function for Admin and Merchant
     const simulateAdminServerGate = (token, sessionData) => {
       if (!token || !token.startsWith('sess_admin_')) {
-        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: '/admin/login?redirect=%2Fadmin%2Fmerchants',
+          payloadEmitted: false,
+        };
       }
-      if (!sessionData || !sessionData.authenticated || sessionData.session?.authBoundary !== 'admin' || sessionData.session?.role !== 'super_admin') {
-        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+      if (
+        !sessionData ||
+        !sessionData.authenticated ||
+        sessionData.session?.authBoundary !== 'admin' ||
+        sessionData.session?.role !== 'super_admin'
+      ) {
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: '/admin/login?redirect=%2Fadmin%2Fmerchants',
+          payloadEmitted: false,
+        };
       }
       if (!sessionData.session?.isMfaVerified) {
-        return { action: 'redirect', statusCode: 307, location: '/admin/login?redirect=%2Fadmin%2Fmerchants', payloadEmitted: false };
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: '/admin/login?redirect=%2Fadmin%2Fmerchants',
+          payloadEmitted: false,
+        };
       }
       return { action: 'render', statusCode: 200, payloadEmitted: true };
     };
@@ -3560,19 +3956,44 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     const simulateMerchantServerGate = (token, sessionData, path = '/merchant/products') => {
       const redirectLocation = `/merchant/login?redirect=${encodeURIComponent(path)}`;
       if (!token || !token.startsWith('sess_merch_')) {
-        return { action: 'redirect', statusCode: 307, location: redirectLocation, payloadEmitted: false };
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: redirectLocation,
+          payloadEmitted: false,
+        };
       }
-      if (!sessionData || !sessionData.authenticated || sessionData.session?.authBoundary !== 'merchant' || sessionData.session?.membershipStatus !== 'active') {
-        return { action: 'redirect', statusCode: 307, location: redirectLocation, payloadEmitted: false };
+      if (
+        !sessionData ||
+        !sessionData.authenticated ||
+        sessionData.session?.authBoundary !== 'merchant' ||
+        sessionData.session?.membershipStatus !== 'active'
+      ) {
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: redirectLocation,
+          payloadEmitted: false,
+        };
       }
       if (sessionData.session?.merchantStatus === 'suspended') {
-        return { action: 'redirect', statusCode: 307, location: '/merchant/login?status=suspended', payloadEmitted: false };
+        return {
+          action: 'redirect',
+          statusCode: 307,
+          location: '/merchant/login?status=suspended',
+          payloadEmitted: false,
+        };
       }
       if (path === '/merchant/team') {
         const role = sessionData.session?.role;
         const permissions = sessionData.session?.permissions || [];
         if (role !== 'owner' && role !== 'admin' && !permissions.includes('team:manage')) {
-          return { action: 'redirect', statusCode: 307, location: '/merchant/products?error=forbidden', payloadEmitted: false };
+          return {
+            action: 'redirect',
+            statusCode: 307,
+            location: '/merchant/products?error=forbidden',
+            payloadEmitted: false,
+          };
         }
       }
       return { action: 'render', statusCode: 200, payloadEmitted: true };
@@ -3583,7 +4004,11 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       assert.equal(res.action, 'redirect');
       assert.equal(res.statusCode, 307);
       assert.equal(res.location, '/admin/login?redirect=%2Fadmin%2Fmerchants');
-      assert.equal(res.payloadEmitted, false, 'Initial HTML/RSC payload must NOT be emitted to unauthorized visitors');
+      assert.equal(
+        res.payloadEmitted,
+        false,
+        'Initial HTML/RSC payload must NOT be emitted to unauthorized visitors'
+      );
     });
 
     it('SUPER ADMIN: customer or merchant cookie attempting admin access is rejected with 307 redirect', () => {
@@ -3612,7 +4037,11 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
       assert.equal(preMfaAttempt.action, 'redirect');
       assert.equal(preMfaAttempt.statusCode, 307);
       assert.equal(preMfaAttempt.location, '/admin/login?redirect=%2Fadmin%2Fmerchants');
-      assert.equal(preMfaAttempt.payloadEmitted, false, 'Pre-MFA session must NEVER render privileged admin content');
+      assert.equal(
+        preMfaAttempt.payloadEmitted,
+        false,
+        'Pre-MFA session must NEVER render privileged admin content'
+      );
     });
 
     it('SUPER ADMIN: fully verified Super Admin session (isMfaVerified = true) renders protected console', () => {
@@ -3642,20 +4071,33 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     });
 
     it('MERCHANT: customer cookie attempting merchant route access is rejected with 307 redirect', () => {
-      const customerAttempt = simulateMerchantServerGate('sess_cus_customer123', {
-        authenticated: true,
-        session: { authBoundary: 'store', role: 'customer' },
-      }, '/merchant/products');
+      const customerAttempt = simulateMerchantServerGate(
+        'sess_cus_customer123',
+        {
+          authenticated: true,
+          session: { authBoundary: 'store', role: 'customer' },
+        },
+        '/merchant/products'
+      );
       assert.equal(customerAttempt.action, 'redirect');
       assert.equal(customerAttempt.statusCode, 307);
       assert.equal(customerAttempt.payloadEmitted, false);
     });
 
     it('MERCHANT: suspended merchant is locked out and redirected to /merchant/login?status=suspended', () => {
-      const suspendedAttempt = simulateMerchantServerGate('sess_merch_suspended', {
-        authenticated: true,
-        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'suspended' },
-      }, '/merchant/products');
+      const suspendedAttempt = simulateMerchantServerGate(
+        'sess_merch_suspended',
+        {
+          authenticated: true,
+          session: {
+            authBoundary: 'merchant',
+            role: 'owner',
+            membershipStatus: 'active',
+            merchantStatus: 'suspended',
+          },
+        },
+        '/merchant/products'
+      );
       assert.equal(suspendedAttempt.action, 'redirect');
       assert.equal(suspendedAttempt.statusCode, 307);
       assert.equal(suspendedAttempt.location, '/merchant/login?status=suspended');
@@ -3663,10 +4105,20 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     });
 
     it('MERCHANT: staff member without team:manage is blocked from /merchant/team', () => {
-      const staffAttempt = simulateMerchantServerGate('sess_merch_staff', {
-        authenticated: true,
-        session: { authBoundary: 'merchant', role: 'staff', membershipStatus: 'active', merchantStatus: 'active', permissions: ['catalog:read'] },
-      }, '/merchant/team');
+      const staffAttempt = simulateMerchantServerGate(
+        'sess_merch_staff',
+        {
+          authenticated: true,
+          session: {
+            authBoundary: 'merchant',
+            role: 'staff',
+            membershipStatus: 'active',
+            merchantStatus: 'active',
+            permissions: ['catalog:read'],
+          },
+        },
+        '/merchant/team'
+      );
       assert.equal(staffAttempt.action, 'redirect');
       assert.equal(staffAttempt.statusCode, 307);
       assert.equal(staffAttempt.location, '/merchant/products?error=forbidden');
@@ -3674,18 +4126,38 @@ describe('Task 19: Protected Routes & Authorization — Complete Edge Guard, req
     });
 
     it('MERCHANT: active owner member is granted full access to /merchant/products and /merchant/team', () => {
-      const ownerProducts = simulateMerchantServerGate('sess_merch_owner', {
-        authenticated: true,
-        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'active', permissions: ['team:manage'] },
-      }, '/merchant/products');
+      const ownerProducts = simulateMerchantServerGate(
+        'sess_merch_owner',
+        {
+          authenticated: true,
+          session: {
+            authBoundary: 'merchant',
+            role: 'owner',
+            membershipStatus: 'active',
+            merchantStatus: 'active',
+            permissions: ['team:manage'],
+          },
+        },
+        '/merchant/products'
+      );
       assert.equal(ownerProducts.action, 'render');
       assert.equal(ownerProducts.statusCode, 200);
       assert.equal(ownerProducts.payloadEmitted, true);
 
-      const ownerTeam = simulateMerchantServerGate('sess_merch_owner', {
-        authenticated: true,
-        session: { authBoundary: 'merchant', role: 'owner', membershipStatus: 'active', merchantStatus: 'active', permissions: ['team:manage'] },
-      }, '/merchant/team');
+      const ownerTeam = simulateMerchantServerGate(
+        'sess_merch_owner',
+        {
+          authenticated: true,
+          session: {
+            authBoundary: 'merchant',
+            role: 'owner',
+            membershipStatus: 'active',
+            merchantStatus: 'active',
+            permissions: ['team:manage'],
+          },
+        },
+        '/merchant/team'
+      );
       assert.equal(ownerTeam.action, 'render');
       assert.equal(ownerTeam.statusCode, 200);
       assert.equal(ownerTeam.payloadEmitted, true);
@@ -3744,7 +4216,10 @@ describe('Task 20: Persistent Medusa Guest Cart — Complete Domain, Persistence
       cart.discountTotal = 0;
       cart.shippingTotal = cart.subtotal > 999 || cart.subtotal === 0 ? 0 : 99;
       cart.taxTotal = 0;
-      cart.total = Math.max(0, cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal);
+      cart.total = Math.max(
+        0,
+        cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal
+      );
       cart.updatedAt = new Date().toISOString();
     }
 
@@ -4113,7 +4588,6 @@ describe('Task 20: Persistent Medusa Guest Cart — Complete Domain, Persistence
       assert.equal(updated.subtotal, 0);
     });
 
-
     it('updates CartContext state immediately on successful DELETE without false 500', () => {
       let clientCartState = {
         id: 'cart_01M0TESTCART',
@@ -4189,7 +4663,7 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
     getCart(id) {
       const cart = this.carts.get(id);
       if (!cart) return null;
-      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+      return { ...cart, items: cart.items.map((i) => ({ ...i })) };
     }
 
     recalculateTotals(cart) {
@@ -4198,7 +4672,10 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       cart.discountTotal = 0;
       cart.shippingTotal = cart.subtotal > 999 || cart.subtotal === 0 ? 0 : 99;
       cart.taxTotal = 0;
-      cart.total = Math.max(0, cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal);
+      cart.total = Math.max(
+        0,
+        cart.subtotal - cart.discountTotal + cart.shippingTotal + cart.taxTotal
+      );
       cart.updatedAt = new Date().toISOString();
     }
 
@@ -4215,7 +4692,9 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       const targetQty = currentQty + quantity;
 
       if (availableStock < targetQty) {
-        throw new Error(`INSUFFICIENT_INVENTORY: The requested quantity (${targetQty}) exceeds available stock (${availableStock}).`);
+        throw new Error(
+          `INSUFFICIENT_INVENTORY: The requested quantity (${targetQty}) exceeds available stock (${availableStock}).`
+        );
       }
 
       if (existingItem) {
@@ -4237,7 +4716,7 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       }
 
       this.recalculateTotals(cart);
-      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+      return { ...cart, items: cart.items.map((i) => ({ ...i })) };
     }
 
     updateLineItem(cartId, lineItemId, quantity) {
@@ -4253,7 +4732,9 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
         const item = cart.items[itemIndex];
         const availableStock = this.inventory.get(item.variantId) ?? 10;
         if (availableStock < quantity) {
-          throw new Error(`INSUFFICIENT_INVENTORY: The requested quantity (${quantity}) exceeds available stock (${availableStock}).`);
+          throw new Error(
+            `INSUFFICIENT_INVENTORY: The requested quantity (${quantity}) exceeds available stock (${availableStock}).`
+          );
         }
         item.quantity = quantity;
         item.total = item.quantity * item.unitPrice;
@@ -4261,7 +4742,7 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       }
 
       this.recalculateTotals(cart);
-      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+      return { ...cart, items: cart.items.map((i) => ({ ...i })) };
     }
 
     deleteLineItem(cartId, lineItemId) {
@@ -4274,7 +4755,7 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       if (payload.email) cart.email = payload.email;
       if (payload.customerId) cart.customerId = payload.customerId;
       cart.updatedAt = new Date().toISOString();
-      return { ...cart, items: cart.items.map(i => ({ ...i })) };
+      return { ...cart, items: cart.items.map((i) => ({ ...i })) };
     }
 
     reconcileCartOnLogin({ guestCartId, customer }) {
@@ -4322,10 +4803,12 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       const itemsToDeleteFromGuest = [];
 
       // Sort guest items deterministically
-      const sortedGuestItems = [...guestCart.items].sort((a, b) => a.variantId.localeCompare(b.variantId));
+      const sortedGuestItems = [...guestCart.items].sort((a, b) =>
+        a.variantId.localeCompare(b.variantId)
+      );
 
       for (const gItem of sortedGuestItems) {
-        const existingCustItem = targetCart.items.find(c => c.variantId === gItem.variantId);
+        const existingCustItem = targetCart.items.find((c) => c.variantId === gItem.variantId);
         if (existingCustItem) {
           const combinedQty = existingCustItem.quantity + gItem.quantity;
           try {
@@ -4342,7 +4825,13 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
           }
         } else {
           try {
-            this.addLineItem(targetCart.id, gItem.variantId, gItem.quantity, gItem.unitPrice, gItem.title);
+            this.addLineItem(
+              targetCart.id,
+              gItem.variantId,
+              gItem.quantity,
+              gItem.unitPrice,
+              gItem.title
+            );
             itemsToDeleteFromGuest.push(gItem.id);
           } catch (err) {
             conflictItems.push({
@@ -4457,12 +4946,19 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
 
     it('transfers guest cart to newly registered customer without losing items', () => {
       const engine = new TestMedusaCartMergeEngine();
-      const newCustomer = { id: 'cust_03', mobile: '+919876543212', email: 'registered@example.com' };
+      const newCustomer = {
+        id: 'cust_03',
+        mobile: '+919876543212',
+        email: 'registered@example.com',
+      };
 
       const guestCart = engine.createCart();
       engine.addLineItem(guestCart.id, 'var_kurti_m', 3, 999, 'Cotton Kurti');
 
-      const result = engine.reconcileCartOnLogin({ guestCartId: guestCart.id, customer: newCustomer });
+      const result = engine.reconcileCartOnLogin({
+        guestCartId: guestCart.id,
+        customer: newCustomer,
+      });
 
       assert.equal(result.success, true);
       assert.equal(result.status, 'transferred');
@@ -4579,7 +5075,6 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
       // Guest item retained for recovery
       assert.equal(engine.getCart(guestCart.id).items.length, 1);
     });
-
   });
 
   describe('5. Idempotency, Repeated Merges & Interrupted Authentication Retries', () => {
@@ -4617,7 +5112,10 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
 
       let cookieStore = { [CART_COOKIE_NAME]: guestCart.id };
 
-      const result = engine.reconcileCartOnLogin({ guestCartId: cookieStore[CART_COOKIE_NAME], customer });
+      const result = engine.reconcileCartOnLogin({
+        guestCartId: cookieStore[CART_COOKIE_NAME],
+        customer,
+      });
       if (result.cart && result.cart.id) {
         cookieStore[CART_COOKIE_NAME] = result.cart.id;
       }
@@ -4696,7 +5194,11 @@ describe('Task 21: Guest-to-Customer Cart Merge — Complete Deterministic Reval
 
     it('preserves customer active cart in Redis/Medusa across logout and restores it upon subsequent login', () => {
       const engine = new TestMedusaCartMergeEngine();
-      const customer = { id: 'cust_persistent_2', mobile: '+919876543221', email: 'persist@example.com' };
+      const customer = {
+        id: 'cust_persistent_2',
+        mobile: '+919876543221',
+        email: 'persist@example.com',
+      };
 
       // 1. Customer has active cart with 2 Sarees
       const custCart = engine.createCart();
@@ -4758,12 +5260,15 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       if (!customerId) throw new Error('UNAUTHORIZED');
       if (!input.productId) throw new Error('INVALID_PRODUCT_ID');
       if (!input.variantId) throw new Error('INVALID_VARIANT_ID');
-      if (input.variantId.startsWith('prod_')) throw new Error('INVALID_VARIANT_ID: variantId cannot be a product ID');
+      if (input.variantId.startsWith('prod_'))
+        throw new Error('INVALID_VARIANT_ID: variantId cannot be a product ID');
 
       const items = this.store.get(customerId) || [];
       const expectedId = `wsh_${customerId}_${input.variantId}`;
 
-      const existingIndex = items.findIndex((i) => i.id === expectedId || i.variantId === input.variantId);
+      const existingIndex = items.findIndex(
+        (i) => i.id === expectedId || i.variantId === input.variantId
+      );
       if (existingIndex >= 0) {
         return {
           item: items[existingIndex],
@@ -4799,11 +5304,7 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       if (!idOrVariantId) return { wishlist: this.getWishlist(customerId), removed: false };
 
       const items = this.store.get(customerId) || [];
-      const filtered = items.filter(
-        (i) =>
-          i.id !== idOrVariantId &&
-          i.variantId !== idOrVariantId
-      );
+      const filtered = items.filter((i) => i.id !== idOrVariantId && i.variantId !== idOrVariantId);
       const removed = filtered.length < items.length;
       this.store.set(customerId, filtered);
 
@@ -4817,11 +5318,7 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       if (!customerId || !variantIdOrItemId) return false;
       if (variantIdOrItemId.startsWith('prod_')) return false;
       const items = this.store.get(customerId) || [];
-      return items.some(
-        (i) =>
-          i.variantId === variantIdOrItemId ||
-          i.id === variantIdOrItemId
-      );
+      return items.some((i) => i.variantId === variantIdOrItemId || i.id === variantIdOrItemId);
     }
   }
 
@@ -4833,7 +5330,10 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('blocks guest from adding to wishlist with 401 UNAUTHORIZED', () => {
       const engine = new TestWishlistEngine();
-      assert.throws(() => engine.addItem(null, { productId: 'prod_1', variantId: 'variant_1' }), /UNAUTHORIZED/);
+      assert.throws(
+        () => engine.addItem(null, { productId: 'prod_1', variantId: 'variant_1' }),
+        /UNAUTHORIZED/
+      );
     });
 
     it('blocks guest from removing wishlist item with 401 UNAUTHORIZED', () => {
@@ -4848,8 +5348,9 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('protects /wishlist route by redirecting unauthenticated guest to /login', () => {
       const PROTECTED_PREFIXES = ['/account', '/wishlist', '/checkout'];
-      const matchesProtected = (path) => PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
-      
+      const matchesProtected = (path) =>
+        PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+
       const simulateWishlistRoute = (path, cookies = {}) => {
         const hasSession = Boolean(cookies['ecom_session_token']);
         if (matchesProtected(path) && !hasSession) {
@@ -4888,7 +5389,10 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('rejects missing variantId with validation error', () => {
       const engine = new TestWishlistEngine();
-      assert.throws(() => engine.addItem('cus_1', { productId: 'prod_saree_1' }), /INVALID_VARIANT_ID/);
+      assert.throws(
+        () => engine.addItem('cus_1', { productId: 'prod_saree_1' }),
+        /INVALID_VARIANT_ID/
+      );
     });
 
     it('rejects prod_* as variantId to eliminate class of bugs', () => {
@@ -4901,8 +5405,16 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('enforces idempotency on duplicate variant add without creating multiple records', () => {
       const engine = new TestWishlistEngine();
-      const first = engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_red_m', title: 'Royal Silk Saree' });
-      const second = engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_red_m', title: 'Royal Silk Saree' });
+      const first = engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_red_m',
+        title: 'Royal Silk Saree',
+      });
+      const second = engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_red_m',
+        title: 'Royal Silk Saree',
+      });
 
       assert.equal(first.isNew, true);
       assert.equal(second.isNew, false);
@@ -4912,8 +5424,16 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('allows same product with different variants as distinct wishlist entries', () => {
       const engine = new TestWishlistEngine();
-      const redM = engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_red_m', title: 'Royal Silk Saree (Red / M)' });
-      const blueL = engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_blue_l', title: 'Royal Silk Saree (Blue / L)' });
+      const redM = engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_red_m',
+        title: 'Royal Silk Saree (Red / M)',
+      });
+      const blueL = engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_blue_l',
+        title: 'Royal Silk Saree (Blue / L)',
+      });
 
       assert.equal(redM.isNew, true);
       assert.equal(blueL.isNew, true);
@@ -4924,8 +5444,16 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('removes existing variant successfully by variantId or itemId', () => {
       const engine = new TestWishlistEngine();
-      engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_red_m', title: 'Royal Silk Saree' });
-      engine.addItem('cus_1', { productId: 'prod_kurti_2', variantId: 'variant_cotton_s', title: 'Cotton Kurti' });
+      engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_red_m',
+        title: 'Royal Silk Saree',
+      });
+      engine.addItem('cus_1', {
+        productId: 'prod_kurti_2',
+        variantId: 'variant_cotton_s',
+        title: 'Cotton Kurti',
+      });
 
       const removeRes = engine.removeItem('cus_1', 'variant_red_m');
       assert.equal(removeRes.removed, true);
@@ -4942,7 +5470,11 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
 
     it('checks existing variant presence accurately', () => {
       const engine = new TestWishlistEngine();
-      engine.addItem('cus_1', { productId: 'prod_saree_1', variantId: 'variant_red_m', title: 'Royal Silk Saree' });
+      engine.addItem('cus_1', {
+        productId: 'prod_saree_1',
+        variantId: 'variant_red_m',
+        title: 'Royal Silk Saree',
+      });
 
       assert.equal(engine.checkItem('cus_1', 'variant_red_m'), true);
       assert.equal(engine.checkItem('cus_1', 'variant_blue_l'), false);
@@ -4953,7 +5485,11 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
   describe('3. Persistence, Customer Isolation & Empty State', () => {
     it('persists wishlist across request boundaries in customer store', () => {
       const engine = new TestWishlistEngine();
-      engine.addItem('cus_persistent', { productId: 'prod_1', variantId: 'var_1', title: 'Item 1' });
+      engine.addItem('cus_persistent', {
+        productId: 'prod_1',
+        variantId: 'var_1',
+        title: 'Item 1',
+      });
 
       const listRes = engine.getWishlist('cus_persistent');
       assert.equal(listRes.itemCount, 1);
@@ -4979,7 +5515,13 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       const memoryDb = new Map();
       const memoryRedis = new Map();
 
-      const item = { id: 'wsh_1', customerId: 'cus_durable', productId: 'prod_saree_1', variantId: 'var_saree_red', title: 'Silk Saree' };
+      const item = {
+        id: 'wsh_1',
+        customerId: 'cus_durable',
+        productId: 'prod_saree_1',
+        variantId: 'var_saree_red',
+        title: 'Silk Saree',
+      };
       memoryDb.set('medusa:cus:cus_durable', [item]);
 
       // Cache eviction
@@ -5039,8 +5581,14 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       const cartCalls = [];
       const fakeAddToCart = async (variantId, quantity) => {
         cartCalls.push({ variantId, quantity });
-        assert.ok(!variantId.startsWith('prod_'), `FATAL: Passed product ID ${variantId} as variantId!`);
-        assert.ok(variantId.startsWith('variant_') || variantId.startsWith('var_'), `Expected variant ID format, got ${variantId}`);
+        assert.ok(
+          !variantId.startsWith('prod_'),
+          `FATAL: Passed product ID ${variantId} as variantId!`
+        );
+        assert.ok(
+          variantId.startsWith('variant_') || variantId.startsWith('var_'),
+          `Expected variant ID format, got ${variantId}`
+        );
         return true;
       };
 
@@ -5105,7 +5653,11 @@ describe('Task 22: Wishlist — Complete Variant-Specific Authenticated Domain &
       const wishlist = {
         customerId: 'cus_1',
         itemCount: 3,
-        items: [{ id: '1', variantId: 'v1' }, { id: '2', variantId: 'v2' }, { id: '3', variantId: 'v3' }],
+        items: [
+          { id: '1', variantId: 'v1' },
+          { id: '2', variantId: 'v2' },
+          { id: '3', variantId: 'v3' },
+        ],
       };
 
       assert.equal(wishlist.itemCount, 3);
@@ -5154,11 +5706,16 @@ describe('Task 22A: PDP Image Gallery & Dedicated Cart Page Matrix', () => {
   describe('1. Mini-PDP Multi-Image Gallery & Slider Behavior', () => {
     it('handles multiple available product images and provides safe fallback for empty images', () => {
       const productWithImages = {
-        images: ['https://example.com/img1.jpg', 'https://example.com/img2.jpg', 'https://example.com/img3.jpg'],
+        images: [
+          'https://example.com/img1.jpg',
+          'https://example.com/img2.jpg',
+          'https://example.com/img3.jpg',
+        ],
       };
       const productEmpty = { images: [] };
 
-      const safeImages1 = productWithImages.images.length > 0 ? productWithImages.images : ['fallback.jpg'];
+      const safeImages1 =
+        productWithImages.images.length > 0 ? productWithImages.images : ['fallback.jpg'];
       const safeImages2 = productEmpty.images.length > 0 ? productEmpty.images : ['fallback.jpg'];
 
       assert.equal(safeImages1.length, 3);
@@ -5209,7 +5766,9 @@ describe('Task 22A: PDP Image Gallery & Dedicated Cart Page Matrix', () => {
       let activeImageIndex = 0;
       const handleSelectOption = (optionTitle, value) => {
         if (optionTitle.toLowerCase().includes('color')) {
-          const matching = product.variants.find((v) => v.options[optionTitle] === value && v.thumbnail);
+          const matching = product.variants.find(
+            (v) => v.options[optionTitle] === value && v.thumbnail
+          );
           if (matching && matching.thumbnail) {
             const idx = product.images.indexOf(matching.thumbnail);
             if (idx >= 0) activeImageIndex = idx;
@@ -5537,13 +6096,16 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
         ...existing,
         ...payload,
         fullName: payload.fullName !== undefined ? payload.fullName.trim() : existing.fullName,
-        addressLine1: payload.addressLine1 !== undefined ? payload.addressLine1.trim() : existing.addressLine1,
-        addressLine2: payload.addressLine2 !== undefined ? payload.addressLine2.trim() : existing.addressLine2,
+        addressLine1:
+          payload.addressLine1 !== undefined ? payload.addressLine1.trim() : existing.addressLine1,
+        addressLine2:
+          payload.addressLine2 !== undefined ? payload.addressLine2.trim() : existing.addressLine2,
         landmark: payload.landmark !== undefined ? payload.landmark.trim() : existing.landmark,
         city: payload.city !== undefined ? payload.city.trim() : existing.city,
         state: payload.state !== undefined ? payload.state.trim() : existing.state,
         pincode: payload.pincode !== undefined ? String(payload.pincode).trim() : existing.pincode,
-        isDefault: payload.isDefault !== undefined ? Boolean(payload.isDefault) : existing.isDefault,
+        isDefault:
+          payload.isDefault !== undefined ? Boolean(payload.isDefault) : existing.isDefault,
         updatedAt: new Date().toISOString(),
       };
 
@@ -5577,7 +6139,8 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
     it('blocks unauthenticated guest requests to list addresses with 401 UNAUTHORIZED', () => {
       const sessionToken = null;
       const getAddressesGuard = (token) => {
-        if (!token) return { status: 401, error: 'UNAUTHORIZED', message: 'Authentication required' };
+        if (!token)
+          return { status: 401, error: 'UNAUTHORIZED', message: 'Authentication required' };
         return { status: 200 };
       };
 
@@ -5649,27 +6212,75 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
     it('validates required fields: fullName, mobile, addressLine1, city, state, pincode', () => {
       const store = new TestCustomerAddressStore();
       assert.throws(
-        () => store.create('cus_1', { fullName: 'A', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'A',
+            mobile: '9876543210',
+            addressLine1: 'Street 1',
+            city: 'Jaipur',
+            state: 'Rajasthan',
+            pincode: '302001',
+          }),
         /INVALID_FULL_NAME/
       );
       assert.throws(
-        () => store.create('cus_1', { fullName: 'Aarav', mobile: '123', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'Aarav',
+            mobile: '123',
+            addressLine1: 'Street 1',
+            city: 'Jaipur',
+            state: 'Rajasthan',
+            pincode: '302001',
+          }),
         /INVALID_MOBILE/
       );
       assert.throws(
-        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'St', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'Aarav',
+            mobile: '9876543210',
+            addressLine1: 'St',
+            city: 'Jaipur',
+            state: 'Rajasthan',
+            pincode: '302001',
+          }),
         /INVALID_ADDRESS_LINE_1/
       );
       assert.throws(
-        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: '', state: 'Rajasthan', pincode: '302001' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'Aarav',
+            mobile: '9876543210',
+            addressLine1: 'Street 1',
+            city: '',
+            state: 'Rajasthan',
+            pincode: '302001',
+          }),
         /INVALID_CITY/
       );
       assert.throws(
-        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: '', pincode: '302001' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'Aarav',
+            mobile: '9876543210',
+            addressLine1: 'Street 1',
+            city: 'Jaipur',
+            state: '',
+            pincode: '302001',
+          }),
         /INVALID_STATE/
       );
       assert.throws(
-        () => store.create('cus_1', { fullName: 'Aarav', mobile: '9876543210', addressLine1: 'Street 1', city: 'Jaipur', state: 'Rajasthan', pincode: '302' }),
+        () =>
+          store.create('cus_1', {
+            fullName: 'Aarav',
+            mobile: '9876543210',
+            addressLine1: 'Street 1',
+            city: 'Jaipur',
+            state: 'Rajasthan',
+            pincode: '302',
+          }),
         /INVALID_PINCODE/
       );
     });
@@ -5805,7 +6416,10 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
       assert.equal(readResult, null);
 
       // Customer A tries to update Customer B address
-      assert.throws(() => store.update('cus_A', addrCustomerB.address.id, { fullName: 'Hacked' }), /NOT_FOUND/);
+      assert.throws(
+        () => store.update('cus_A', addrCustomerB.address.id, { fullName: 'Hacked' }),
+        /NOT_FOUND/
+      );
 
       // Customer A tries to delete Customer B address
       assert.throws(() => store.delete('cus_A', addrCustomerB.address.id), /NOT_FOUND/);
@@ -5818,9 +6432,7 @@ describe('Task 23: Customer Address Book & Reusable Drawer Architecture', () => 
 
   describe('6. Mutation Failure & State Recovery', () => {
     it('preserves valid address list without corruption on mutation network failure', () => {
-      const originalList = [
-        { id: 'caddr_1', fullName: 'Saved Address 1', pincode: '560001' },
-      ];
+      const originalList = [{ id: 'caddr_1', fullName: 'Saved Address 1', pincode: '560001' }];
       let currentList = [...originalList];
       let mutationError = null;
 
@@ -5994,7 +6606,10 @@ describe('Task 24: Checkout Shipping & Native Medusa Fulfillment Architecture', 
         if (!cart.shippingAddress) {
           return { success: true, shippingOptions: [], requiresAddress: true };
         }
-        return { success: true, shippingOptions: [{ id: 'so_std', name: 'Standard Delivery', amount: 0 }] };
+        return {
+          success: true,
+          shippingOptions: [{ id: 'so_std', name: 'Standard Delivery', amount: 0 }],
+        };
       };
 
       const result = getShippingOptions(mockCartWithoutAddress);
@@ -6055,9 +6670,10 @@ describe('Task 24: Checkout Shipping & Native Medusa Fulfillment Architecture', 
         hasAddress: true,
       };
 
-      const message = renderState.options.length === 0
-        ? 'No shipping options available for this delivery address. Please verify your pincode or select another address.'
-        : 'Select shipping method';
+      const message =
+        renderState.options.length === 0
+          ? 'No shipping options available for this delivery address. Please verify your pincode or select another address.'
+          : 'Select shipping method';
 
       assert.ok(message.includes('No shipping options available'));
     });
@@ -6277,7 +6893,11 @@ describe('Tasks 25-27: Checkout Orchestration, Razorpay & COD', () => {
         if (!cart.items || cart.items.length === 0) {
           return { valid: false, error: 'EMPTY_CART' };
         }
-        if (!cart.shippingAddress || !cart.shippingAddress.fullName || !cart.shippingAddress.addressLine1) {
+        if (
+          !cart.shippingAddress ||
+          !cart.shippingAddress.fullName ||
+          !cart.shippingAddress.addressLine1
+        ) {
           return { valid: false, error: 'REQUIRES_ADDRESS' };
         }
         if (!cart.shippingMethods || cart.shippingMethods.length === 0) {
@@ -6593,9 +7213,11 @@ describe('Tasks 28-31: Orders, Returns, Prepaid Razorpay Refunds & COD Payouts',
         for (const reqItem of items) {
           const line = order.items.find((i) => i.id === reqItem.lineItemId);
           if (!line) return { valid: false, error: 'INVALID_ITEM' };
-          if (reqItem.quantity <= 0 || !Number.isInteger(reqItem.quantity)) return { valid: false, error: 'INVALID_QTY' };
+          if (reqItem.quantity <= 0 || !Number.isInteger(reqItem.quantity))
+            return { valid: false, error: 'INVALID_QTY' };
           const alreadyRet = returnedTally.get(line.id) || 0;
-          if (reqItem.quantity > line.quantity - alreadyRet) return { valid: false, error: 'EXCESSIVE_QTY' };
+          if (reqItem.quantity > line.quantity - alreadyRet)
+            return { valid: false, error: 'EXCESSIVE_QTY' };
           refundable += line.unitPrice * reqItem.quantity;
           returnedTally.set(line.id, alreadyRet + reqItem.quantity);
         }
@@ -6603,11 +7225,15 @@ describe('Tasks 28-31: Orders, Returns, Prepaid Razorpay Refunds & COD Payouts',
         return { valid: true, refundableAmount: refundable };
       };
 
-      const res = validateReturn(mockOrder, [{ lineItemId: 'item_1', quantity: 1, reason: 'Size too large' }]);
+      const res = validateReturn(mockOrder, [
+        { lineItemId: 'item_1', quantity: 1, reason: 'Size too large' },
+      ]);
       assert.equal(res.valid, true);
       assert.equal(res.refundableAmount, 1000);
 
-      const excessive = validateReturn(mockOrder, [{ lineItemId: 'item_1', quantity: 3, reason: 'Size too large' }]);
+      const excessive = validateReturn(mockOrder, [
+        { lineItemId: 'item_1', quantity: 3, reason: 'Size too large' },
+      ]);
       assert.equal(excessive.valid, false);
       assert.equal(excessive.error, 'EXCESSIVE_QTY');
     });
@@ -6628,8 +7254,14 @@ describe('Tasks 28-31: Orders, Returns, Prepaid Razorpay Refunds & COD Payouts',
         return { success: true, amountInPaise };
       };
 
-      assert.deepEqual(processPrepaidRefund(mockOrder, 1000), { success: true, amountInPaise: 100000 });
-      assert.deepEqual(processPrepaidRefund(mockOrder, 4000), { success: false, error: 'AMOUNT_EXCEEDS_LIMIT' });
+      assert.deepEqual(processPrepaidRefund(mockOrder, 1000), {
+        success: true,
+        amountInPaise: 100000,
+      });
+      assert.deepEqual(processPrepaidRefund(mockOrder, 4000), {
+        success: false,
+        error: 'AMOUNT_EXCEEDS_LIMIT',
+      });
     });
   });
 
@@ -6638,13 +7270,16 @@ describe('Tasks 28-31: Orders, Returns, Prepaid Razorpay Refunds & COD Payouts',
       const validateAndRedactCodDetails = (method, details) => {
         if (method === 'upi') {
           const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
-          if (!details.upiId || !upiRegex.test(details.upiId)) return { valid: false, error: 'INVALID_UPI' };
+          if (!details.upiId || !upiRegex.test(details.upiId))
+            return { valid: false, error: 'INVALID_UPI' };
           return { valid: true, redacted: { upiId: details.upiId } };
         }
         if (method === 'bank_transfer') {
-          if (!details.accountNumber || details.accountNumber.length < 9) return { valid: false, error: 'INVALID_ACC' };
+          if (!details.accountNumber || details.accountNumber.length < 9)
+            return { valid: false, error: 'INVALID_ACC' };
           const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-          if (!details.ifscCode || !ifscRegex.test(details.ifscCode)) return { valid: false, error: 'INVALID_IFSC' };
+          if (!details.ifscCode || !ifscRegex.test(details.ifscCode))
+            return { valid: false, error: 'INVALID_IFSC' };
           return {
             valid: true,
             redacted: {
@@ -6750,11 +7385,17 @@ describe('Tasks 32-34: UX Hardening, Resilience, Accessibility & Security Matrix
         };
       };
 
-      const safeErr = sanitizeApiError({ statusCode: 400, message: 'Invalid pincode format', code: 'INVALID_PINCODE' });
+      const safeErr = sanitizeApiError({
+        statusCode: 400,
+        message: 'Invalid pincode format',
+        code: 'INVALID_PINCODE',
+      });
       assert.equal(safeErr.error, 'Invalid pincode format');
       assert.equal(safeErr.code, 'INVALID_PINCODE');
 
-      const serverErr = sanitizeApiError(new Error('PostgreSQL connection timeout: connection terminated unexpectedly'));
+      const serverErr = sanitizeApiError(
+        new Error('PostgreSQL connection timeout: connection terminated unexpectedly')
+      );
       assert.equal(serverErr.error, 'An unexpected error occurred. Please try again.');
       assert.equal(serverErr.code, 'INTERNAL_SERVER_ERROR');
     });
@@ -6781,7 +7422,10 @@ describe('Tasks 32-34: UX Hardening, Resilience, Accessibility & Security Matrix
       const verifySignature = (body, signature, secret) => {
         const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
         if (expected.length !== signature.length) return false;
-        return crypto.timingSafeEqual(Buffer.from(expected, 'utf8'), Buffer.from(signature, 'utf8'));
+        return crypto.timingSafeEqual(
+          Buffer.from(expected, 'utf8'),
+          Buffer.from(signature, 'utf8')
+        );
       };
 
       const body = '{"order_id":"order_123","amount":150000}';
@@ -6789,7 +7433,14 @@ describe('Tasks 32-34: UX Hardening, Resilience, Accessibility & Security Matrix
       const validSig = crypto.createHmac('sha256', secret).update(body).digest('hex');
 
       assert.equal(verifySignature(body, validSig, secret), true);
-      assert.equal(verifySignature(body, '0000000000000000000000000000000000000000000000000000000000000000', secret), false);
+      assert.equal(
+        verifySignature(
+          body,
+          '0000000000000000000000000000000000000000000000000000000000000000',
+          secret
+        ),
+        false
+      );
     });
 
     it('enforces strict customer session authorization boundary on order queries', () => {
@@ -6799,8 +7450,14 @@ describe('Tasks 32-34: UX Hardening, Resilience, Accessibility & Security Matrix
         return { authorized: true, status: 200 };
       };
 
-      assert.deepEqual(authorizeOrderAccess('cus_123', 'cus_123'), { authorized: true, status: 200 });
-      assert.deepEqual(authorizeOrderAccess('cus_123', 'cus_456'), { authorized: false, status: 403 });
+      assert.deepEqual(authorizeOrderAccess('cus_123', 'cus_123'), {
+        authorized: true,
+        status: 200,
+      });
+      assert.deepEqual(authorizeOrderAccess('cus_123', 'cus_456'), {
+        authorized: false,
+        status: 403,
+      });
       assert.deepEqual(authorizeOrderAccess('cus_123', null), { authorized: false, status: 401 });
     });
   });
@@ -6921,7 +7578,8 @@ describe('Phase 36: Full Customer Journey End-to-End Test Suite', () => {
     const cancelFn = (order, customerId) => {
       if (!customerId) return { success: false, status: 401 };
       if (order.customerId !== customerId) return { success: false, status: 403 };
-      if (order.status === 'canceled') return { success: false, status: 409, error: 'ALREADY_CANCELED' };
+      if (order.status === 'canceled')
+        return { success: false, status: 409, error: 'ALREADY_CANCELED' };
       if (order.fulfillmentStatus === 'fulfilled' || order.fulfillmentStatus === 'shipped') {
         return { success: false, status: 409, error: 'ALREADY_FULFILLED' };
       }
@@ -7256,7 +7914,8 @@ describe('Phase: Admin & Merchant Header Isolation, Navigation & Secure Sign-Out
     });
 
     it('suppresses dashboard navigation links on /merchant/login and /merchant/onboarding', () => {
-      const isAuthPage = (pathname) => pathname === '/merchant/login' || pathname === '/merchant/onboarding';
+      const isAuthPage = (pathname) =>
+        pathname === '/merchant/login' || pathname === '/merchant/onboarding';
       assert.equal(isAuthPage('/merchant/login'), true);
       assert.equal(isAuthPage('/merchant/onboarding'), true);
       assert.equal(isAuthPage('/merchant/products'), false);
@@ -7286,8 +7945,15 @@ describe('Phase: Admin & Merchant Header Isolation, Navigation & Secure Sign-Out
 
       const result = await executeAdminLogout();
       assert.equal(serverSessionActive, false, 'Server session must be marked revoked');
-      assert.equal(clientStorage.ecom_admin_token, undefined, 'Client token must be removed from storage');
-      assert.ok(clientCookie.includes('Max-Age=0'), 'Session cookie must be cleared with Max-Age=0');
+      assert.equal(
+        clientStorage.ecom_admin_token,
+        undefined,
+        'Client token must be removed from storage'
+      );
+      assert.ok(
+        clientCookie.includes('Max-Age=0'),
+        'Session cookie must be cleared with Max-Age=0'
+      );
       assert.equal(result.redirectTarget, '/admin/login', 'Must redirect to /admin/login');
     });
   });
@@ -7299,7 +7965,8 @@ describe('Phase: Admin & Merchant Header Isolation, Navigation & Secure Sign-Out
       const clientStorage = {
         ecom_merchant_token: 'sess_merch_test_456',
       };
-      let clientCookie = 'ecom_merchant_sess=sess_merch_test_456; Path=/; HttpOnly; SameSite=Strict';
+      let clientCookie =
+        'ecom_merchant_sess=sess_merch_test_456; Path=/; HttpOnly; SameSite=Strict';
 
       // Mock logout execution function matching merchant-header.tsx
       async function executeMerchantLogout() {
@@ -7315,8 +7982,15 @@ describe('Phase: Admin & Merchant Header Isolation, Navigation & Secure Sign-Out
 
       const result = await executeMerchantLogout();
       assert.equal(serverSessionActive, false, 'Server session must be marked revoked');
-      assert.equal(clientStorage.ecom_merchant_token, undefined, 'Client token must be removed from storage');
-      assert.ok(clientCookie.includes('Max-Age=0'), 'Session cookie must be cleared with Max-Age=0');
+      assert.equal(
+        clientStorage.ecom_merchant_token,
+        undefined,
+        'Client token must be removed from storage'
+      );
+      assert.ok(
+        clientCookie.includes('Max-Age=0'),
+        'Session cookie must be cleared with Max-Age=0'
+      );
       assert.equal(result.redirectTarget, '/merchant/login', 'Must redirect to /merchant/login');
     });
   });
@@ -7376,10 +8050,10 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
         status === 'published'
           ? 'Published'
           : status === 'proposed'
-          ? 'Pending Moderation'
-          : status === 'rejected'
-          ? 'Rejected'
-          : 'Draft',
+            ? 'Pending Moderation'
+            : status === 'rejected'
+              ? 'Rejected'
+              : 'Draft',
     };
   }
 
@@ -7392,19 +8066,17 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
       canSuspend: status === 'active',
       canReactivate: status === 'suspended',
       indicator:
-        status === 'draft'
-          ? 'Awaiting Submission'
-          : status === 'rejected'
-          ? 'Rejected'
-          : null,
+        status === 'draft' ? 'Awaiting Submission' : status === 'rejected' ? 'Rejected' : null,
     };
   }
 
   function validateProductTransition(current, target, context = {}) {
     // Canonical 4-status persisted lifecycle: 'draft' | 'proposed' | 'published' | 'rejected'
     // 'approved' is normalized to 'published' as approval directly sets status: 'published' in Medusa v2 / Postgres
-    const normalizedCurrent = current === 'pending_review' ? 'proposed' : current === 'approved' ? 'published' : current;
-    const normalizedTarget = target === 'pending_review' ? 'proposed' : target === 'approved' ? 'published' : target;
+    const normalizedCurrent =
+      current === 'pending_review' ? 'proposed' : current === 'approved' ? 'published' : current;
+    const normalizedTarget =
+      target === 'pending_review' ? 'proposed' : target === 'approved' ? 'published' : target;
 
     if (normalizedCurrent === normalizedTarget) {
       return { allowed: false, error: `NO_OP_TRANSITION: Target status is already '${target}'.` };
@@ -7412,41 +8084,71 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
     if (normalizedCurrent === 'proposed') {
       if (normalizedTarget === 'published') {
         if (context.isMerchantActive === false) {
-          return { allowed: false, error: 'MERCHANT_NOT_ACTIVE: Associated merchant must be active to publish product.' };
+          return {
+            allowed: false,
+            error: 'MERCHANT_NOT_ACTIVE: Associated merchant must be active to publish product.',
+          };
         }
         return { allowed: true };
       }
       if (normalizedTarget === 'rejected') {
         if (!context.reason || !context.reason.trim()) {
-          return { allowed: false, error: 'REJECTION_REASON_REQUIRED: A non-empty reason is required to reject a product.' };
+          return {
+            allowed: false,
+            error: 'REJECTION_REASON_REQUIRED: A non-empty reason is required to reject a product.',
+          };
         }
         return { allowed: true };
       }
       if (normalizedTarget === 'draft') {
         if (!context.reason || !context.reason.trim()) {
-          return { allowed: false, error: 'CHANGES_REQUESTED_REASON_REQUIRED: A non-empty reason is required when requesting changes.' };
+          return {
+            allowed: false,
+            error:
+              'CHANGES_REQUESTED_REASON_REQUIRED: A non-empty reason is required when requesting changes.',
+          };
         }
         return { allowed: true };
       }
-      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'proposed' to '${target}'.` };
+      return {
+        allowed: false,
+        error: `INVALID_TRANSITION: Cannot transition product from 'proposed' to '${target}'.`,
+      };
     }
     if (normalizedCurrent === 'draft') {
       if (normalizedTarget === 'proposed') return { allowed: true };
-      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'draft' to '${target}'.` };
+      return {
+        allowed: false,
+        error: `INVALID_TRANSITION: Cannot transition product from 'draft' to '${target}'.`,
+      };
     }
     if (normalizedCurrent === 'rejected') {
       if (normalizedTarget === 'proposed' || normalizedTarget === 'draft') return { allowed: true };
       if (normalizedTarget === 'published') {
-        return { allowed: false, error: 'RE_REVIEW_REQUIRED: Rejected product must be re-submitted for moderation review before publishing.' };
+        return {
+          allowed: false,
+          error:
+            'RE_REVIEW_REQUIRED: Rejected product must be re-submitted for moderation review before publishing.',
+        };
       }
-      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'rejected' to '${target}'.` };
+      return {
+        allowed: false,
+        error: `INVALID_TRANSITION: Cannot transition product from 'rejected' to '${target}'.`,
+      };
     }
     if (normalizedCurrent === 'published') {
       if (normalizedTarget === 'proposed' || normalizedTarget === 'draft') return { allowed: true };
       if (normalizedTarget === 'rejected') {
-        return { allowed: false, error: 'INVALID_TRANSITION: Published product cannot be rejected directly from moderation queue.' };
+        return {
+          allowed: false,
+          error:
+            'INVALID_TRANSITION: Published product cannot be rejected directly from moderation queue.',
+        };
       }
-      return { allowed: false, error: `INVALID_TRANSITION: Cannot transition product from 'published' to '${target}'.` };
+      return {
+        allowed: false,
+        error: `INVALID_TRANSITION: Cannot transition product from 'published' to '${target}'.`,
+      };
     }
     return { allowed: false, error: 'INVALID_TRANSITION: Unknown product status.' };
   }
@@ -7464,8 +8166,16 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
     it('published products do NOT show Approve, Request Changes, or Reject buttons', () => {
       const actions = computeModerationActions('published');
       assert.strictEqual(actions.canInspect, true);
-      assert.strictEqual(actions.canApprove, false, 'Published product must not have Approve button');
-      assert.strictEqual(actions.canRequestChanges, false, 'Published product must not have Request Changes button');
+      assert.strictEqual(
+        actions.canApprove,
+        false,
+        'Published product must not have Approve button'
+      );
+      assert.strictEqual(
+        actions.canRequestChanges,
+        false,
+        'Published product must not have Request Changes button'
+      );
       assert.strictEqual(actions.canReject, false, 'Published product must not have Reject button');
       assert.strictEqual(actions.indicator, 'Published & Live');
     });
@@ -7473,9 +8183,21 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
     it('rejected products do NOT show Reject or Approve buttons in queue', () => {
       const actions = computeModerationActions('rejected');
       assert.strictEqual(actions.canInspect, true);
-      assert.strictEqual(actions.canApprove, false, 'Rejected product must not have Approve button without re-submission');
-      assert.strictEqual(actions.canRequestChanges, false, 'Rejected product must not have Request Changes button');
-      assert.strictEqual(actions.canReject, false, 'Rejected product must not have redundant Reject button');
+      assert.strictEqual(
+        actions.canApprove,
+        false,
+        'Rejected product must not have Approve button without re-submission'
+      );
+      assert.strictEqual(
+        actions.canRequestChanges,
+        false,
+        'Rejected product must not have Request Changes button'
+      );
+      assert.strictEqual(
+        actions.canReject,
+        false,
+        'Rejected product must not have redundant Reject button'
+      );
       assert.strictEqual(actions.indicator, 'Rejected (Awaiting Resubmission)');
     });
 
@@ -7500,7 +8222,11 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
     it('rejected products render Re-Submit button with Edit and Delete', () => {
       const actions = computeMerchantProductActions('rejected');
       assert.strictEqual(actions.canSubmit, true);
-      assert.strictEqual(actions.submitLabel, 'Re-Submit', 'Must label as Re-Submit for rejected products');
+      assert.strictEqual(
+        actions.submitLabel,
+        'Re-Submit',
+        'Must label as Re-Submit for rejected products'
+      );
       assert.strictEqual(actions.canEdit, true);
       assert.strictEqual(actions.canDelete, true);
     });
@@ -7535,10 +8261,18 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
       const actions = computeMerchantReviewActions('active');
       assert.strictEqual(actions.canDetails, true);
       assert.strictEqual(actions.canApprove, false, 'Active merchant must not show Approve button');
-      assert.strictEqual(actions.canRequestChanges, false, 'Active merchant must not show Request Changes button');
+      assert.strictEqual(
+        actions.canRequestChanges,
+        false,
+        'Active merchant must not show Request Changes button'
+      );
       assert.strictEqual(actions.canReject, false, 'Active merchant must not show Reject button');
       assert.strictEqual(actions.canSuspend, true, 'Active merchant must show Suspend button');
-      assert.strictEqual(actions.canReactivate, false, 'Active merchant must not show Reactivate button');
+      assert.strictEqual(
+        actions.canReactivate,
+        false,
+        'Active merchant must not show Reactivate button'
+      );
     });
 
     it('suspended merchants render Details and Reactivate ONLY', () => {
@@ -7547,8 +8281,16 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
       assert.strictEqual(actions.canApprove, false);
       assert.strictEqual(actions.canRequestChanges, false);
       assert.strictEqual(actions.canReject, false);
-      assert.strictEqual(actions.canSuspend, false, 'Suspended merchant must not show Suspend button');
-      assert.strictEqual(actions.canReactivate, true, 'Suspended merchant must show Reactivate button');
+      assert.strictEqual(
+        actions.canSuspend,
+        false,
+        'Suspended merchant must not show Suspend button'
+      );
+      assert.strictEqual(
+        actions.canReactivate,
+        true,
+        'Suspended merchant must show Reactivate button'
+      );
     });
 
     it('draft and rejected merchants render Details with informative status indicators and NO action buttons', () => {
@@ -7611,11 +8353,21 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
       // draft -> proposed
       assert.strictEqual(validateProductTransition('draft', 'proposed').allowed, true);
       // proposed -> published
-      assert.strictEqual(validateProductTransition('proposed', 'published', { isMerchantActive: true }).allowed, true);
+      assert.strictEqual(
+        validateProductTransition('proposed', 'published', { isMerchantActive: true }).allowed,
+        true
+      );
       // proposed -> rejected
-      assert.strictEqual(validateProductTransition('proposed', 'rejected', { reason: 'Invalid tax documentation' }).allowed, true);
+      assert.strictEqual(
+        validateProductTransition('proposed', 'rejected', { reason: 'Invalid tax documentation' })
+          .allowed,
+        true
+      );
       // proposed -> draft (request changes)
-      assert.strictEqual(validateProductTransition('proposed', 'draft', { reason: 'Better photos needed' }).allowed, true);
+      assert.strictEqual(
+        validateProductTransition('proposed', 'draft', { reason: 'Better photos needed' }).allowed,
+        true
+      );
       // rejected -> proposed (resubmission)
       assert.strictEqual(validateProductTransition('rejected', 'proposed').allowed, true);
       // published -> proposed (re-review on modification)
@@ -7624,7 +8376,9 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
 
     it('conceptual approval normalization: verifies approval decision maps to published in canonical 4-state lifecycle', () => {
       // proposed -> approved decision maps to published
-      const resApprove = validateProductTransition('proposed', 'approved', { isMerchantActive: true });
+      const resApprove = validateProductTransition('proposed', 'approved', {
+        isMerchantActive: true,
+      });
       assert.strictEqual(resApprove.allowed, true);
 
       // published -> unpublish to draft
@@ -7644,12 +8398,391 @@ describe('Phase: Status-Driven Actions & UI Consistency Audit', () => {
   });
 });
 
+describe('Phase P01: Design Tokens & Semantic Theme Alignment', () => {
+  // Helper for WCAG contrast
+  function hexToLuminance(hex) {
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.slice(0, 2), 16) / 255;
+    const g = parseInt(cleanHex.slice(2, 4), 16) / 255;
+    const b = parseInt(cleanHex.slice(4, 6), 16) / 255;
+    const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  }
+
+  function contrastRatio(hex1, hex2) {
+    const l1 = hexToLuminance(hex1);
+    const l2 = hexToLuminance(hex2);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  const baseDir = path.resolve(__dirname, '..');
+  const globalsCss = fs.readFileSync(path.join(baseDir, 'src/app/globals.css'), 'utf8');
+  const tailwindConfig = fs.readFileSync(path.join(baseDir, 'tailwind.config.ts'), 'utf8');
+  const typographyTsx = fs.readFileSync(
+    path.join(baseDir, 'src/components/ui/typography.tsx'),
+    'utf8'
+  );
+  const buttonTsx = fs.readFileSync(path.join(baseDir, 'src/components/ui/button.tsx'), 'utf8');
+  const loaderTsx = fs.readFileSync(path.join(baseDir, 'src/components/ui/ateevra-loader.tsx'));
+
+  it('validates canonical brand color #881337 and CSS variables in globals.css', () => {
+    assert.ok(
+      globalsCss.includes('--primary: 341.5 75.5% 30.4%;'),
+      'Primary HSL should match #881337'
+    );
+    assert.ok(globalsCss.includes('--ring: 341.5 75.5% 30.4%;'), 'Ring HSL should match #881337');
+    assert.ok(
+      globalsCss.includes('--color-brand-primary: #881337;'),
+      'Color brand primary should be #881337'
+    );
+    assert.ok(
+      globalsCss.includes('--color-brand-primary-hover: #70102e;'),
+      'Hover state should be #70102e'
+    );
+    assert.ok(
+      globalsCss.includes('--color-brand-primary-active: #580c24;'),
+      'Active state should be #580c24'
+    );
+    assert.ok(
+      globalsCss.includes('--color-surface-page: #ffffff;'),
+      'Page surface should be white'
+    );
+    assert.ok(
+      globalsCss.includes('--color-surface-subtle: #f9fafb;'),
+      'Subtle surface should be #f9fafb'
+    );
+    assert.ok(
+      globalsCss.includes('--color-text-primary: #111827;'),
+      'Text primary should be gray-900'
+    );
+    assert.ok(
+      globalsCss.includes('--color-text-secondary: #4b5563;'),
+      'Text secondary should be gray-600'
+    );
+    assert.ok(globalsCss.includes('--color-text-muted: #6b7280;'), 'Text muted should be gray-500');
+    // Decorative borders
+    assert.ok(
+      globalsCss.includes('--color-border-subtle: #f3f4f6;'),
+      'Border subtle should be #f3f4f6'
+    );
+    assert.ok(
+      globalsCss.includes('--color-border-default: #e5e7eb;'),
+      'Border default should be #e5e7eb'
+    );
+    assert.ok(
+      globalsCss.includes('--color-border-strong: #d1d5db;'),
+      'Border strong should be #d1d5db'
+    );
+    // Essential component control boundaries
+    assert.ok(
+      globalsCss.includes('--color-border-control: #6b7280;'),
+      'Border control should be #6b7280'
+    );
+    assert.ok(
+      globalsCss.includes('--color-border-control-hover: #4b5563;'),
+      'Border control hover should be #4b5563'
+    );
+    assert.ok(
+      globalsCss.includes('--color-focus-ring: #881337;'),
+      'Focus ring variable should be #881337'
+    );
+    assert.ok(globalsCss.includes('ring-brand-900'), 'Focus ring style applies ring-brand-900');
+  });
+
+  it('validates Tailwind theme configuration semantic tokens and typographic scale', () => {
+    assert.ok(
+      tailwindConfig.includes("primary: 'var(--color-brand-primary)'"),
+      'Tailwind semantic primary mapping'
+    );
+    assert.ok(
+      tailwindConfig.includes("'border-control': 'var(--color-border-control)'"),
+      'Tailwind semantic border-control mapping'
+    );
+    assert.ok(
+      tailwindConfig.includes("'border-control-hover': 'var(--color-border-control-hover)'"),
+      'Tailwind semantic border-control-hover mapping'
+    );
+    assert.ok(
+      tailwindConfig.includes("hero: ['2.5rem', { lineHeight: '3.25rem', fontWeight: '700' }]"),
+      'Hero 40px/52px Bold'
+    );
+    assert.ok(
+      tailwindConfig.includes("section: ['1.75rem', { lineHeight: '2.25rem', fontWeight: '700' }]"),
+      'Section 28px/36px Bold'
+    );
+    assert.ok(
+      tailwindConfig.includes("card: ['1.125rem', { lineHeight: '1.625rem', fontWeight: '600' }]"),
+      'Card 18px/26px Semibold'
+    );
+    assert.ok(
+      tailwindConfig.includes("body: ['0.875rem', { lineHeight: '1.25rem', fontWeight: '400' }]"),
+      'Body 14px/20px Regular'
+    );
+    assert.ok(
+      tailwindConfig.includes("caption: ['0.75rem', { lineHeight: '1.0rem', fontWeight: '400' }]"),
+      'Caption 12px/16px Regular'
+    );
+    assert.ok(
+      tailwindConfig.includes("'soft-xs': '0 1px 2px 0 rgba(0, 0, 0, 0.04)'"),
+      'Soft shadow xs'
+    );
+    assert.ok(
+      tailwindConfig.includes(
+        "'soft-sm': '0 2px 4px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)'"
+      ),
+      'Soft shadow sm'
+    );
+    assert.ok(
+      tailwindConfig.includes("'soft-md': '0 4px 12px 0 rgba(0, 0, 0, 0.08)'"),
+      'Soft shadow md'
+    );
+    assert.ok(
+      tailwindConfig.includes("'soft-lg': '0 12px 24px -4px rgba(0, 0, 0, 0.12)'"),
+      'Soft shadow lg'
+    );
+  });
+
+  it('validates typography Heading backward compatibility, size mappings, and role precedence', () => {
+    // 1. All 8 legacy sizes exist
+    const legacySizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'];
+    for (const size of legacySizes) {
+      assert.ok(
+        typographyTsx.includes(`  ${size}: '`) || typographyTsx.includes(`  '${size}': '`),
+        `Heading size '${size}' must exist in headingSizeClasses`
+      );
+    }
+    // 2. Visual reference role sizes exist
+    const roleSizes = ['hero', 'section', 'card'];
+    for (const role of roleSizes) {
+      assert.ok(
+        typographyTsx.includes(`  ${role}: 'text-${role}`),
+        `Heading role size '${role}' must exist`
+      );
+    }
+    // 3. Precedence resolution logic: role || size || defaultLevelSizes[level]
+    assert.ok(
+      typographyTsx.includes('const resolvedSize = role || size || defaultLevelSizes[level];'),
+      'Heading must prioritize role > size > defaultLevelSizes[level]'
+    );
+    // 4. Default level sizes exist for all H1-H6 levels
+    for (let level = 1; level <= 6; level++) {
+      assert.ok(
+        typographyTsx.includes(`  ${level}: `),
+        `Level ${level} must have default size mapping`
+      );
+    }
+  });
+
+  it('validates typography Text backward compatibility, variant mappings, and role precedence', () => {
+    // 1. All 5 legacy variants exist
+    const legacyVariants = ['body', 'lead', 'subtle', 'muted', 'caption'];
+    for (const variant of legacyVariants) {
+      assert.ok(
+        typographyTsx.includes(`  ${variant}: 'text-`),
+        `Text variant '${variant}' must exist in textVariantClasses`
+      );
+    }
+    // 2. Role classes exist
+    assert.ok(
+      typographyTsx.includes("  body: 'text-body text-gray-700'"),
+      'Text role body must exist'
+    );
+    assert.ok(
+      typographyTsx.includes("  caption: 'text-caption text-gray-500'"),
+      'Text role caption must exist'
+    );
+    // 3. Precedence resolution logic: role ? textRoleClasses[role] : textVariantClasses[variant]
+    assert.ok(
+      typographyTsx.includes(
+        'const resolvedTypographyClass = role ? textRoleClasses[role] : textVariantClasses[variant];'
+      ),
+      'Text must prioritize role > variant'
+    );
+    // 4. Default variant is body
+    assert.ok(typographyTsx.includes("variant = 'body'"), 'Text must default variant to body');
+  });
+
+  it('evaluates Heading and Text resolution precedence deterministically', () => {
+    const defaultLevelSizes = { 1: '2xl', 2: 'xl', 3: 'lg', 4: 'md', 5: 'sm', 6: 'xs' };
+    const resolveHeadingSize = (role, size, level = 2) => role || size || defaultLevelSizes[level];
+
+    // Case 1: All omitted -> defaults by level
+    assert.strictEqual(resolveHeadingSize(undefined, undefined, 1), '2xl');
+    assert.strictEqual(resolveHeadingSize(undefined, undefined, 2), 'xl');
+    assert.strictEqual(resolveHeadingSize(undefined, undefined, 3), 'lg');
+
+    // Case 2: Size provided, role omitted -> size takes precedence over level
+    assert.strictEqual(resolveHeadingSize(undefined, 'sm', 1), 'sm');
+    assert.strictEqual(resolveHeadingSize(undefined, '4xl', 2), '4xl');
+
+    // Case 3: Role provided, size provided -> role takes precedence over size
+    assert.strictEqual(resolveHeadingSize('hero', '4xl', 1), 'hero');
+    assert.strictEqual(resolveHeadingSize('section', 'sm', 2), 'section');
+    assert.strictEqual(resolveHeadingSize('card', undefined, 3), 'card');
+
+    const resolveTextClass = (role, variant = 'body') => {
+      const textVariantClasses = {
+        body: 'text-base text-gray-700 leading-relaxed',
+        lead: 'text-lg text-gray-800 leading-relaxed',
+        subtle: 'text-sm text-gray-600',
+        muted: 'text-xs text-gray-500',
+        caption: 'text-xs text-gray-400',
+      };
+      const textRoleClasses = {
+        body: 'text-body text-gray-700',
+        caption: 'text-caption text-gray-500',
+      };
+      return role ? textRoleClasses[role] : textVariantClasses[variant];
+    };
+
+    // Case 1: All omitted -> default body variant
+    assert.strictEqual(
+      resolveTextClass(undefined, undefined),
+      'text-base text-gray-700 leading-relaxed'
+    );
+
+    // Case 2: Variant provided, role omitted -> variant used
+    assert.strictEqual(
+      resolveTextClass(undefined, 'lead'),
+      'text-lg text-gray-800 leading-relaxed'
+    );
+    assert.strictEqual(resolveTextClass(undefined, 'subtle'), 'text-sm text-gray-600');
+    assert.strictEqual(resolveTextClass(undefined, 'muted'), 'text-xs text-gray-500');
+
+    // Case 3: Role provided -> role overrides variant
+    assert.strictEqual(resolveTextClass('body', 'lead'), 'text-body text-gray-700');
+    assert.strictEqual(resolveTextClass('caption', 'lead'), 'text-caption text-gray-500');
+  });
+
+  it('validates button primitive variants, focus ring, outline contrast, and AteevraLoader integration', () => {
+    assert.ok(
+      buttonTsx.includes('bg-brand-900 text-white hover:bg-brand-950 active:bg-brand-950'),
+      'Primary button uses brand-900 (#881337)'
+    );
+    assert.ok(
+      buttonTsx.includes('border-semantic-border-control'),
+      'Outline button uses border-semantic-border-control for accessible boundary'
+    );
+    assert.ok(
+      buttonTsx.includes('focus-visible:ring-brand-900'),
+      'Button focus ring uses brand-900'
+    );
+    assert.ok(buttonTsx.includes('<AteevraLoader'), 'Button AteevraLoader integration');
+    assert.ok(
+      buttonTsx.includes(
+        "variant={variant === 'primary' || variant === 'danger' ? 'white' : 'customer'}"
+      ),
+      'White loader on dark button background'
+    );
+  });
+
+  it('validates mathematical WCAG 2.2 AA contrast compliance and documents decorative exemptions', () => {
+    // 1. Text & Brand
+    const whiteOnPrimary = contrastRatio('#ffffff', '#881337');
+    assert.ok(
+      whiteOnPrimary >= 4.5,
+      `White on Primary (#881337) must be >= 4.5:1 (got ${whiteOnPrimary.toFixed(2)})`
+    );
+    assert.ok(
+      whiteOnPrimary >= 7.0,
+      `White on Primary (#881337) achieves WCAG AAA (got ${whiteOnPrimary.toFixed(2)})`
+    );
+
+    const primaryTextOnWhite = contrastRatio('#111827', '#ffffff');
+    assert.ok(
+      primaryTextOnWhite >= 4.5,
+      `Primary text on white must be >= 4.5:1 (got ${primaryTextOnWhite.toFixed(2)})`
+    );
+
+    const secondaryTextOnWhite = contrastRatio('#4b5563', '#ffffff');
+    assert.ok(
+      secondaryTextOnWhite >= 4.5,
+      `Secondary text on white must be >= 4.5:1 (got ${secondaryTextOnWhite.toFixed(2)})`
+    );
+
+    const mutedTextOnWhite = contrastRatio('#6b7280', '#ffffff');
+    assert.ok(
+      mutedTextOnWhite >= 4.5,
+      `Muted text on white must be >= 4.5:1 (got ${mutedTextOnWhite.toFixed(2)})`
+    );
+
+    // 2. Interactive Focus Indicator (SC 2.4.13 & SC 1.4.11 >= 3.0:1)
+    const focusRingOnWhite = contrastRatio('#881337', '#ffffff');
+    assert.ok(
+      focusRingOnWhite >= 3.0,
+      `Focus ring on white must be >= 3.0:1 (got ${focusRingOnWhite.toFixed(2)})`
+    );
+
+    // 3. Essential Component & Input Control Boundaries (SC 1.4.11 >= 3.0:1)
+    const borderControlOnWhite = contrastRatio('#6b7280', '#ffffff');
+    assert.ok(
+      borderControlOnWhite >= 3.0,
+      `Essential control boundary (#6b7280) on white must be >= 3.0:1 (got ${borderControlOnWhite.toFixed(2)})`
+    );
+
+    const borderControlOnSubtle = contrastRatio('#6b7280', '#f9fafb');
+    assert.ok(
+      borderControlOnSubtle >= 3.0,
+      `Essential control boundary (#6b7280) on subtle (#f9fafb) must be >= 3.0:1 (got ${borderControlOnSubtle.toFixed(2)})`
+    );
+
+    const borderControlHoverOnWhite = contrastRatio('#4b5563', '#ffffff');
+    assert.ok(
+      borderControlHoverOnWhite >= 3.0,
+      `Essential control boundary hover (#4b5563) on white must be >= 3.0:1 (got ${borderControlHoverOnWhite.toFixed(2)})`
+    );
+
+    // 4. Status Colors
+    const successOnBg = contrastRatio('#047857', '#ecfdf5');
+    assert.ok(
+      successOnBg >= 4.5,
+      `Success text on success bg must be >= 4.5:1 (got ${successOnBg.toFixed(2)})`
+    );
+
+    const errorOnBg = contrastRatio('#b91c1c', '#fef2f2');
+    assert.ok(
+      errorOnBg >= 4.5,
+      `Error text on error bg must be >= 4.5:1 (got ${errorOnBg.toFixed(2)})`
+    );
+
+    const warningOnBg = contrastRatio('#92400e', '#fffbeb');
+    assert.ok(
+      warningOnBg >= 4.5,
+      `Warning text on warning bg must be >= 4.5:1 (got ${warningOnBg.toFixed(2)})`
+    );
+
+    // 5. Explicitly Documented Exemptions under WCAG 2.2
+    // Decorative card border: exempt under SC 1.4.11 because card boundary is not required to identify controls
+    const decorativeBorderOnWhite = contrastRatio('#e5e7eb', '#ffffff');
+    assert.ok(
+      decorativeBorderOnWhite < 3.0,
+      `Decorative border (#e5e7eb) is documented as exempt under SC 1.4.11 (contrast: ${decorativeBorderOnWhite.toFixed(2)}:1)`
+    );
+
+    // Disabled / Strikethrough text: exempt under SC 1.4.3 as incidental / strikethrough price comparison
+    const strikethroughOnWhite = contrastRatio('#9ca3af', '#ffffff');
+    assert.ok(
+      strikethroughOnWhite < 4.5,
+      `Disabled / strikethrough text (#9ca3af) is documented as exempt under SC 1.4.3 (contrast: ${strikethroughOnWhite.toFixed(2)}:1)`
+    );
+  });
+
+  it('verifies AteevraLoader immutable SHA-256 integrity byte-for-byte', () => {
+    const hash = crypto.createHash('sha256').update(loaderTsx).digest('hex');
+    assert.strictEqual(
+      hash,
+      'f3875183c1fdeab4df980d1ae1964ffa14d08cc8848f1df59819b980a100d384',
+      'AteevraLoader must match protected baseline SHA-256'
+    );
+  });
+
+  it('verifies system font stack integrity with zero external font imports', () => {
+    assert.ok(!globalsCss.includes('fonts.googleapis.com'), 'No Google font imports in CSS');
+    assert.ok(!globalsCss.includes('@font-face'), 'No custom font-face in CSS');
+    assert.ok(globalsCss.includes('font-sans'), 'System font-sans specified in body');
+  });
+});
+
 console.log('--- ALL TESTS COMPLETED SUCCESSFULLY ---');
-
-
-
-
-
-
-
-

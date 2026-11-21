@@ -12,11 +12,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const buttonVariants: Record<string, string> = {
   primary:
-    'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-sm border border-transparent',
+    'bg-brand-900 text-white hover:bg-brand-950 active:bg-brand-950 shadow-sm border border-transparent',
   secondary:
     'bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 border border-transparent',
   outline:
-    'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 active:bg-gray-100 shadow-sm',
+    'bg-white text-gray-800 border border-semantic-border-control hover:bg-gray-50 active:bg-gray-100 shadow-sm',
   ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200',
   danger:
     'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm border border-transparent',
@@ -54,7 +54,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={isDisabled}
         className={cn(
-          'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 select-none disabled:pointer-events-none disabled:opacity-50',
+          'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-900 focus-visible:ring-offset-2 select-none disabled:pointer-events-none disabled:opacity-50',
           buttonVariants[variant],
           variant !== 'link' && buttonSizes[size],
           className

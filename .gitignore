@@ -54,3 +54,8 @@ yarn-error.log*
 *.sql
 !infrastructure/docker/init-db.sql
 *.dump
+
+
+# specs
+ATEEVRA_Customer_Portal_Design_MVP/
+ai-specs/
